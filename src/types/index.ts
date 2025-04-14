@@ -56,4 +56,5 @@ export interface AuthContextType {
   logout: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
+  refreshUser: () => Promise<void>; // Added the refreshUser function
 }

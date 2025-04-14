@@ -25,6 +25,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoading(false);
   }, []);
 
+  // Added refreshUser function to fetch the latest user data
+  const refreshUser = async () => {
+    setIsLoading(true);
+    try {
+      const storedUser = localStorage.getItem("automatorUser");
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+      }
+    } catch (err) {
+      console.error("Error refreshing user data", err);
+      setError(err instanceof Error ? err.message : "An error occurred while refreshing user data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // For demo purposes, using localStorage
   // In a real app, this would connect to an authentication API
   const login = async (email: string, password: string) => {
@@ -163,7 +180,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loginWithGoogle,
     logout,
     isLoading,
-    error
+    error,
+    refreshUser // Add refreshUser to the context value
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
