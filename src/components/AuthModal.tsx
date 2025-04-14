@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Separator } from "@/components/ui/separator";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -29,11 +30,21 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const { t } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [emailConfirmationRequired, setEmailConfirmationRequired] = useState(false);
+
+  // Reset state when modal opens or mode changes
+  useEffect(() => {
+    if (isOpen) {
+      setRegistrationError(null);
+      setEmailConfirmationRequired(false);
+    }
+  }, [isOpen, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setRegistrationError(null);
+    setEmailConfirmationRequired(false);
     
     try {
       if (mode === "login") {
@@ -45,8 +56,18 @@ const AuthModal: React.FC<AuthModalProps> = ({
           setIsSubmitting(false);
           return;
         }
-        const success = await register(email, password, name);
-        if (success) onClose();
+        
+        console.log("Attempting registration with:", { email, name });
+        const result = await register(email, password, name);
+        console.log("Registration result:", result);
+        
+        if (result) {
+          if ('emailConfirmationRequired' in result && result.emailConfirmationRequired) {
+            setEmailConfirmationRequired(true);
+          } else {
+            onClose();
+          }
+        }
       }
     } catch (error) {
       console.error("Auth error:", error);
@@ -75,7 +96,27 @@ const AuthModal: React.FC<AuthModalProps> = ({
     setConfirmPassword("");
     setName("");
     setRegistrationError(null);
+    setEmailConfirmationRequired(false);
   };
+
+  // If email confirmation is required, show a different UI
+  if (emailConfirmationRequired) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Verifică-ți email-ul</DialogTitle>
+            <DialogDescription>
+              Am trimis un link de confirmare la adresa {email}. Te rugăm să verifici inbox-ul și să confirmi adresa pentru a continua.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center pt-4">
+            <Button onClick={onClose}>Închide</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -122,6 +163,16 @@ const AuthModal: React.FC<AuthModalProps> = ({
             <Separator className="flex-1" />
           </div>
         </div>
+        
+        {(error || registrationError) && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {error || registrationError}
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           {mode === "register" && (
             <div className="grid w-full items-center gap-1.5">
@@ -167,9 +218,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
               />
             </div>
           )}
-          {(error || registrationError) && (
-            <p className="text-destructive text-sm">{error || registrationError}</p>
-          )}
+          
           <div className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (

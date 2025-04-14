@@ -59,6 +59,22 @@ export const useAuthActions = () => {
     try {
       console.log("Attempting to register user:", { email, name });
       
+      // First, check if the email is already registered
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
+      
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error("Error checking existing user:", checkError);
+      }
+      
+      if (existingUser) {
+        throw new Error("Acest email este deja înregistrat. Te rugăm să te autentifici.");
+      }
+      
+      // Proceed with registration
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -76,11 +92,21 @@ export const useAuthActions = () => {
 
       console.log("Registration response:", data);
       
-      // Verificăm dacă avem un user valid returnat
+      // Verificăm dacă avem un user valid returnat și dacă nu e în email confirmation
       if (!data.user) {
         throw new Error("Nu am putut crea contul. Te rugăm să încerci din nou.");
       }
       
+      // Check if email confirmation is required
+      if (data.session === null) {
+        toast({
+          title: "Înregistrare reușită",
+          description: "Te rugăm să-ți confirmi adresa de email pentru a continua.",
+        });
+        return { emailConfirmationRequired: true };
+      }
+      
+      // If no email confirmation is required, proceed with login
       const mockUser: User = {
         id: data.user?.id || "user" + Math.floor(Math.random() * 10000),
         email,
