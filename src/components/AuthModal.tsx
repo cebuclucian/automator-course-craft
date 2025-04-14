@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -49,7 +48,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
   const toggleMode = () => {
     setMode(mode === "login" ? "register" : "login");
-    // Clear the form when switching modes
     setEmail("");
     setPassword("");
     setConfirmPassword("");
@@ -79,14 +77,14 @@ const AuthModal: React.FC<AuthModalProps> = ({
               <line x1="10.88" y1="21.94" x2="15.46" y2="14"/>
             </svg>
             {mode === "login" 
-              ? (t("auth.continueWithGoogle") || "Continuă cu Google") 
-              : (t("auth.signupWithGoogle") || "Înregistrare cu Google")}
+              ? t("auth.continueWithGoogle") 
+              : t("auth.signupWithGoogle")}
           </Button>
           
           <div className="flex items-center space-x-2">
             <Separator className="flex-1" />
             <span className="text-xs text-muted-foreground px-2">
-              {t("auth.orContinueWith") || "sau continuă cu"}
+              {t("auth.continueWith")}
             </span>
             <Separator className="flex-1" />
           </div>

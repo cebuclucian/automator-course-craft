@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 type SupportedLanguages = 'ro' | 'en';
@@ -53,6 +52,9 @@ const translations: Record<SupportedLanguages, Record<string, string>> = {
     'how.step3': 'Descarcă și utilizează',
     'contact.title': 'Contact',
     'materials.title': 'Materialele generate',
+    'auth.signupWithGoogle': 'Înregistrare cu Google',
+    'auth.continueWithGoogle': 'Continuă cu Google',
+    'auth.continueWith': 'sau continuă cu',
   },
   en: {
     'nav.about': 'About',
@@ -96,6 +98,9 @@ const translations: Record<SupportedLanguages, Record<string, string>> = {
     'how.step3': 'Download and use',
     'contact.title': 'Contact',
     'materials.title': 'Generated Materials',
+    'auth.signupWithGoogle': 'Sign up with Google',
+    'auth.continueWithGoogle': 'Continue with Google',
+    'auth.continueWith': 'or continue with',
   }
 };
 
