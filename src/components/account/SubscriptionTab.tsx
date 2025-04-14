@@ -8,7 +8,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Loader2 } from 'lucide-react';
-import StripeRedirectDialog from '@/components/StripeRedirectDialog';
 
 interface SubscriptionTabProps {
   user: User | null;
@@ -18,8 +17,6 @@ interface SubscriptionTabProps {
 const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
   const { language } = useLanguage();
   const [isLoading, setIsLoading] = React.useState(false);
-  const [redirectUrl, setRedirectUrl] = React.useState<string>('');
-  const [showRedirectDialog, setShowRedirectDialog] = React.useState(false);
 
   const handleManageSubscription = async () => {
     setIsLoading(true);
@@ -33,14 +30,8 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
 
       console.log("Calling customer-portal");
       
-      if (!user?.email) {
-        throw new Error('User email is missing');
-      }
-      
-      // Pass email directly to avoid authentication issues
       const { data, error } = await supabase.functions.invoke('customer-portal', {
-        method: 'POST',
-        body: { email: user.email }
+        method: 'POST'
       });
 
       console.log("Response from customer-portal:", data, error);
@@ -51,13 +42,9 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
       }
 
       if (data && data.url) {
-        console.log("Showing redirect dialog with URL:", data.url);
-        
-        // În loc să redirecționăm direct, stocăm URL-ul și afișăm dialogul
-        setRedirectUrl(data.url);
-        setShowRedirectDialog(true);
-        
-        return;
+        // Use window.location.href to ensure browser navigation
+        window.location.href = data.url;
+        return; // Prevent state update
       } else {
         throw new Error('No portal URL returned');
       }
@@ -66,8 +53,8 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
       toast({
         title: language === 'ro' ? 'Eroare' : 'Error',
         description: language === 'ro' 
-          ? 'A apărut o eroare la crearea sesiunii de gestionare. Încearcă din nou.' 
-          : 'An error occurred while creating the management session. Please try again.',
+          ? 'A apărut o eroare la crearea sesiunii de gestionare.' 
+          : 'An error occurred while creating the management session.',
         variant: "destructive"
       });
     } finally {
@@ -128,12 +115,6 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
           )}
         </div>
       </CardContent>
-      
-      <StripeRedirectDialog
-        open={showRedirectDialog}
-        onOpenChange={setShowRedirectDialog}
-        redirectUrl={redirectUrl}
-      />
     </Card>
   );
 };
