@@ -15,6 +15,7 @@ const logStep = (step: string, details?: any) => {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -50,9 +51,11 @@ serve(async (req) => {
       logStep("ERROR: No authorization header provided");
       throw new Error("No authorization header provided");
     }
-    
+    logStep("Authorization header found", { authHeader: authHeader.substring(0, 20) + '...' });
+
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+    
     if (userError) {
       logStep(`ERROR: Authentication error - ${userError.message}`);
       throw new Error(`Authentication error: ${userError.message}`);
@@ -65,30 +68,36 @@ serve(async (req) => {
     }
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    // Find Stripe customer for this user
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    if (customers.data.length === 0) {
-      logStep("ERROR: No Stripe customer found for this user");
-      throw new Error("No Stripe customer found for this user");
+    // Find or create a Stripe customer for this user
+    try {
+      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+      
+      if (customers.data.length === 0) {
+        logStep("ERROR: No Stripe customer found for this user");
+        throw new Error("No Stripe customer found for this user. Please subscribe to a plan first.");
+      }
+
+      const customerId = customers.data[0].id;
+      logStep("Found existing Stripe customer", { customerId });
+
+      // Create a customer portal session
+      const origin = req.headers.get("origin") || "http://localhost:3000";
+      const session = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: `${origin}/account`,
+      });
+
+      logStep("Customer portal session created", { sessionId: session.id, url: session.url });
+      
+      // Return the customer portal session URL
+      return new Response(JSON.stringify({ url: session.url }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    } catch (stripeError) {
+      logStep("ERROR: Stripe operation failed", stripeError);
+      throw new Error(`Stripe error: ${stripeError.message}`);
     }
-    
-    const customerId = customers.data[0].id;
-    logStep("Found Stripe customer", { customerId });
-
-    // Create a billing portal session
-    const origin = req.headers.get("origin") || "http://localhost:3000";
-    const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${origin}/account`,
-    });
-
-    logStep("Customer portal session created", { sessionId: session.id, url: session.url });
-
-    // Return the portal URL
-    return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[CUSTOMER-PORTAL] ERROR: ${errorMessage}`);

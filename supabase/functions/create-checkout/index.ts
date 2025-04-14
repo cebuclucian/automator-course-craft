@@ -106,47 +106,58 @@ serve(async (req) => {
     }
 
     // Find or create a Stripe customer for this user
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     let customerId;
-    
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      logStep("Found existing Stripe customer", { customerId });
-    } else {
-      const newCustomer = await stripe.customers.create({
-        email: user.email,
-        metadata: {
-          supabase_user_id: user.id
-        }
-      });
-      customerId = newCustomer.id;
-      logStep("Created new Stripe customer", { customerId });
+    try {
+      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+      
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id;
+        logStep("Found existing Stripe customer", { customerId });
+      } else {
+        const newCustomer = await stripe.customers.create({
+          email: user.email,
+          metadata: {
+            supabase_user_id: user.id
+          }
+        });
+        customerId = newCustomer.id;
+        logStep("Created new Stripe customer", { customerId });
+      }
+    } catch (stripeError) {
+      logStep("ERROR: Stripe customer lookup/creation failed", stripeError);
+      throw new Error(`Stripe customer error: ${stripeError.message}`);
     }
 
     // Create a subscription checkout session
     const origin = req.headers.get("origin") || "http://localhost:3000";
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      line_items: [
-        {
-          price_data: {
-            currency: 'eur',
-            product_data: {
-              name: `${packageName} Subscription`,
-              description: `Automator ${packageName} subscription plan`
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        line_items: [
+          {
+            price_data: {
+              currency: 'eur',
+              product_data: {
+                name: `${packageName} Subscription`,
+                description: `Automator ${packageName} subscription plan`
+              },
+              unit_amount: packagePrice.amount,
+              recurring: {
+                interval: packagePrice.interval as 'month' | 'year'
+              }
             },
-            unit_amount: packagePrice.amount,
-            recurring: {
-              interval: packagePrice.interval as 'month' | 'year'
-            }
-          },
-          quantity: 1,
-        }
-      ],
-      mode: 'subscription',
-      success_url: `${origin}/account?checkout_success=true`,
-      cancel_url: `${origin}/packages?checkout_canceled=true`,
-    });
+            quantity: 1,
+          }
+        ],
+        mode: 'subscription',
+        success_url: `${origin}/account?checkout_success=true`,
+        cancel_url: `${origin}/packages?checkout_canceled=true`,
+      });
+    } catch (stripeError) {
+      logStep("ERROR: Stripe session creation failed", stripeError);
+      throw new Error(`Stripe session error: ${stripeError.message}`);
+    }
 
     logStep("Checkout session created", { sessionId: session.id, url: session.url });
     
@@ -164,15 +175,19 @@ serve(async (req) => {
     );
 
     // Update the subscribers table with the pending subscription
-    await supabaseService.from("subscribers").upsert({
-      email: user.email,
-      user_id: user.id,
-      stripe_customer_id: customerId,
-      // Don't set subscribed to true yet - this will happen after successful payment
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'email' });
-
-    logStep("Updated subscribers table with checkout info");
+    try {
+      await supabaseService.from("subscribers").upsert({
+        email: user.email,
+        user_id: user.id,
+        stripe_customer_id: customerId,
+        // Don't set subscribed to true yet - this will happen after successful payment
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'email' });
+      logStep("Updated subscribers table with checkout info");
+    } catch (dbError) {
+      // Just log this error but don't fail the function
+      logStep("WARNING: Database update failed", dbError);
+    }
 
     // Return the checkout session URL
     return new Response(JSON.stringify({ url: session.url }), {

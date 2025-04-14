@@ -196,8 +196,10 @@ const PackagesSection = () => {
       }
 
       if (data && data.url) {
-        // Redirect to Stripe checkout
+        // Important fix: Use window.location.href to redirect to Stripe checkout
+        // This ensures the browser actually navigates to the URL rather than just setting it
         window.location.href = data.url;
+        return; // This prevents the isProcessing state from being updated unnecessarily
       } else if (data && data.free) {
         // Handle free package
         toast({
@@ -220,6 +222,7 @@ const PackagesSection = () => {
         variant: "destructive"
       });
     } finally {
+      // Only update isProcessing if we haven't redirected
       setIsProcessing(false);
     }
   };

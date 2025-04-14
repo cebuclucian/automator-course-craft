@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { Loader2 } from 'lucide-react';
 
 interface SubscriptionTabProps {
   user: User | null;
@@ -41,7 +42,9 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
       }
 
       if (data && data.url) {
+        // Use window.location.href to ensure browser navigation
         window.location.href = data.url;
+        return; // Prevent state update
       } else {
         throw new Error('No portal URL returned');
       }
@@ -93,7 +96,14 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
               disabled={isLoading}
               className="w-full"
             >
-              {isLoading ? 'Se procesează...' : 'Gestionează abonamentul'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {language === 'ro' ? 'Se procesează...' : 'Processing...'}
+                </>
+              ) : (
+                'Gestionează abonamentul'
+              )}
             </Button>
           ) : (
             <Button 
