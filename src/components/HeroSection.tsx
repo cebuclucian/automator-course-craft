@@ -14,8 +14,10 @@ const HeroSection = () => {
 
   const handleCTA = () => {
     if (user) {
-      navigate('/generate');
+      // Dacă utilizatorul este deja autentificat, îl ducem la pagina de cont
+      navigate('/account');
     } else {
+      // Dacă utilizatorul nu este autentificat, deschidem modalul de autentificare
       setIsAuthModalOpen(true);
     }
   };
@@ -49,3 +51,4 @@ const HeroSection = () => {
 };
 
 export default HeroSection;
+
