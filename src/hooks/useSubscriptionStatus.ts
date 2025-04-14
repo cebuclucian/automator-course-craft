@@ -10,28 +10,24 @@ export const useSubscriptionStatus = () => {
   const refreshUser = async (): Promise<User | null> => {
     try {
       const storedUser = localStorage.getItem("automatorUser");
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
+      if (!storedUser) return null;
+      
+      const parsedUser = JSON.parse(storedUser);
+      
+      // For admin user, check subscription status from database
+      if (parsedUser.email === 'admin@automator.ro') {
+        console.log("Checking admin subscription status...");
         
-        if (parsedUser.email === 'admin@automator.ro') {
-          console.log("Checking admin subscription status...");
-          
+        try {
           const { data: subscriberData, error } = await supabase
             .from('subscribers')
             .select('*')
             .eq('email', 'admin@automator.ro')
-            .single();
+            .maybeSingle(); // Using maybeSingle instead of single to avoid errors
           
           console.log("Subscriber data from DB:", subscriberData);
           
-          if (error) {
-            console.error("Error fetching subscription data:", error);
-            toast({
-              title: "Eroare",
-              description: "Nu s-a putut verifica statusul abonamentului.",
-              variant: "destructive"
-            });
-          }
+          if (error) throw error;
           
           if (subscriberData && 
               subscriberData.subscription_tier === 'Pro' && 
@@ -57,11 +53,13 @@ export const useSubscriptionStatus = () => {
             
             return updatedUser;
           }
+        } catch (dbError) {
+          console.error("Error fetching subscription data:", dbError);
+          // Continue with the existing user data instead of failing completely
         }
-        
-        return parsedUser;
       }
-      return null;
+      
+      return parsedUser;
     } catch (err) {
       console.error("Error refreshing user data", err);
       toast({

@@ -11,9 +11,13 @@ const AccountPage = () => {
   const [localLoading, setLocalLoading] = useState(true);
   const { toast } = useToast();
   
-  // Refresh user data when the account page loads
+  // Load user data only once when the account page initially loads
   useEffect(() => {
+    let isMounted = true;
+    
     const loadUserData = async () => {
+      if (!isMounted) return;
+      
       setLocalLoading(true);
       try {
         // Fetch fresh user data when the account page loads
@@ -27,12 +31,23 @@ const AccountPage = () => {
           variant: "destructive"
         });
       } finally {
-        setLocalLoading(false);
+        if (isMounted) {
+          setLocalLoading(false);
+        }
       }
     };
     
-    loadUserData();
-  }, [refreshUser]);
+    // Only refresh if we're not already loading
+    if (!authLoading) {
+      loadUserData();
+    } else {
+      setLocalLoading(false);
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   
   if (authLoading || localLoading) {
     return (

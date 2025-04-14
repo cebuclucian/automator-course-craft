@@ -1,5 +1,5 @@
 
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { AuthContextType, User } from "@/types";
 import { useAuthActions } from "@/hooks/useAuthActions";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
@@ -27,10 +27,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser(parsedUser);
             
             // Then try to refresh the subscription status if needed
+            // But only on initial load, not when refreshUser is explicitly called
             if (parsedUser.email === 'admin@automator.ro') {
-              const refreshedUser = await refreshSubscriptionStatus();
-              if (refreshedUser) {
-                setUser(refreshedUser);
+              try {
+                const refreshedUser = await refreshSubscriptionStatus();
+                if (refreshedUser) {
+                  setUser(refreshedUser);
+                }
+              } catch (subError) {
+                console.error("Error refreshing subscription on init:", subError);
               }
             }
           } catch (e) {
@@ -72,7 +77,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (success) setUser(null);
   };
 
-  const handleRefreshUser = async () => {
+  const handleRefreshUser = useCallback(async () => {
     setIsLoading(true);
     try {
       const refreshedUser = await refreshSubscriptionStatus();
@@ -90,7 +95,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [refreshSubscriptionStatus]);
 
   const value = {
     user,
