@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -7,14 +7,20 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { CourseCategory, CourseSection, GeneratedCourse } from '@/types';
-import { Download, Clock, AlertCircle, PlusCircle } from 'lucide-react';
+import { Download, Clock, AlertCircle, PlusCircle, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const AccountDashboard = () => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading, refreshUser } = useAuth();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  
   const [selectedCourse, setSelectedCourse] = useState<GeneratedCourse | null>(
     user?.generatedCourses && user.generatedCourses.length > 0 
       ? user.generatedCourses[0] 
@@ -22,11 +28,96 @@ const AccountDashboard = () => {
   );
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [limitInfo, setLimitInfo] = useState({ tier: '', maxCourses: 0 });
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasGeneratingCourse, setHasGeneratingCourse] = useState(false);
+
+  // Verifică dacă există vreun curs în curs de generare
+  useEffect(() => {
+    if (!user?.generatedCourses || user.generatedCourses.length === 0) return;
+    
+    const generatingCourse = user.generatedCourses.find(course => 
+      !course.sections || course.sections.length === 0
+    );
+    
+    setHasGeneratingCourse(!!generatingCourse);
+    
+    // Dacă avem cursuri în generare, setăm un interval pentru a verifica starea
+    if (generatingCourse) {
+      const checkInterval = setInterval(async () => {
+        console.log("Verificăm actualizări pentru cursuri în generare...");
+        await refreshUser();
+        
+        // Verifică dacă cursul a fost generat
+        const updatedUser = await supabase.auth.getUser();
+        if (!updatedUser.data.user?.user_metadata?.generatedCourses) return;
+        
+        const updatedGeneratingCourse = updatedUser.data.user.user_metadata.generatedCourses.find(
+          (c: GeneratedCourse) => c.id === generatingCourse.id
+        );
+        
+        if (updatedGeneratingCourse?.sections && updatedGeneratingCourse.sections.length > 0) {
+          clearInterval(checkInterval);
+          await refreshUser();
+          setHasGeneratingCourse(false);
+          
+          // Actualizăm cursul selectat
+          if (selectedCourse?.id === updatedGeneratingCourse.id) {
+            setSelectedCourse(updatedGeneratingCourse);
+          }
+          
+          toast({
+            title: language === 'ro' ? "Materiale generate!" : "Materials generated!",
+            description: language === 'ro' 
+              ? "Materialele tale sunt gata pentru vizualizare"
+              : "Your materials are ready to view",
+            variant: "default",
+          });
+        }
+      }, 5000); // Verifică la fiecare 5 secunde
+      
+      return () => clearInterval(checkInterval);
+    }
+  }, [user?.generatedCourses, refreshUser, selectedCourse?.id, language, toast]);
+
+  // Actualizează cursul selectat când se schimbă lista de cursuri
+  useEffect(() => {
+    if (user?.generatedCourses && user.generatedCourses.length > 0) {
+      // Dacă cursul curent selectat există încă în listă, actualizează-l cu noile date
+      if (selectedCourse) {
+        const updatedCourse = user.generatedCourses.find(c => c.id === selectedCourse.id);
+        if (updatedCourse) {
+          setSelectedCourse(updatedCourse);
+        } else {
+          // Dacă cursul selectat nu mai există, selectează primul curs
+          setSelectedCourse(user.generatedCourses[0]);
+        }
+      } else {
+        // Dacă nu este selectat niciun curs, selectează primul
+        setSelectedCourse(user.generatedCourses[0]);
+      }
+    } else {
+      setSelectedCourse(null);
+    }
+  }, [user?.generatedCourses]);
 
   if (!user) {
     navigate('/');
     return null;
   }
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshUser();
+    setRefreshing(false);
+    
+    toast({
+      title: language === 'ro' ? "Actualizat" : "Updated",
+      description: language === 'ro' 
+        ? "Date actualizate cu succes" 
+        : "Data refreshed successfully",
+      variant: "default",
+    });
+  };
 
   const handleCreateNew = () => {
     const tier = user.subscription?.tier || 'Free';
@@ -100,13 +191,25 @@ const AccountDashboard = () => {
             </CardContent>
           </Card>
           
-          <Button 
-            onClick={handleCreateNew}
-            className="w-full flex items-center justify-center"
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            {language === 'ro' ? 'Generează curs nou' : 'Generate new course'}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleCreateNew}
+              className="flex-1 flex items-center justify-center"
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              {language === 'ro' ? 'Generează' : 'Generate'}
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={refreshing || authLoading}
+              className="p-2"
+              title={language === 'ro' ? 'Actualizează' : 'Refresh'}
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
           
           <Card>
             <CardHeader className="pb-3">
@@ -120,7 +223,14 @@ const AccountDashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {user.generatedCourses && user.generatedCourses.length > 0 ? (
+              {authLoading ? (
+                Array(2).fill(0).map((_, i) => (
+                  <div key={i} className="p-3">
+                    <Skeleton className="h-6 w-2/3 mb-2" />
+                    <Skeleton className="h-4 w-1/3" />
+                  </div>
+                ))
+              ) : user.generatedCourses && user.generatedCourses.length > 0 ? (
                 user.generatedCourses.map((course) => (
                   <div 
                     key={course.id}
@@ -143,6 +253,14 @@ const AccountDashboard = () => {
                         Preview
                       </Badge>
                     )}
+                    {(!course.sections || course.sections.length === 0) && (
+                      <div className="mt-2">
+                        <Progress value={75} className="h-1" />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {language === 'ro' ? 'Se generează...' : 'Generating...'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -159,7 +277,20 @@ const AccountDashboard = () => {
         </div>
         
         <div className="flex-1">
-          {selectedCourse ? (
+          {authLoading ? (
+            <Card className="min-h-[600px]">
+              <CardHeader className="pb-3 border-b">
+                <Skeleton className="h-8 w-1/2 mb-2" />
+                <Skeleton className="h-4 w-1/3" />
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-6">
+                  <Skeleton className="h-32 w-full" />
+                  <Skeleton className="h-32 w-full" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : selectedCourse ? (
             <Card className="min-h-[600px]">
               <CardHeader className="pb-3 border-b">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -249,7 +380,25 @@ const AccountDashboard = () => {
                   </div>
                 )}
                 
-                {selectedCourse.sections && selectedCourse.sections.length > 0 ? (
+                {(!selectedCourse.sections || selectedCourse.sections.length === 0) ? (
+                  <div className="flex flex-col items-center justify-center py-20">
+                    <div className="flex flex-col items-center mb-4">
+                      <div className="relative mb-3">
+                        <div className="w-12 h-12 rounded-full border-4 border-t-primary border-x-gray-200 border-b-gray-200 animate-spin"></div>
+                      </div>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {language === 'ro' 
+                          ? 'Se procesează materialele...' 
+                          : 'Processing materials...'}
+                      </p>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md text-center mb-4">
+                      {language === 'ro'
+                        ? 'Generarea poate dura până la 2 minute. Pagina se va actualiza automat când materialele sunt gata.'
+                        : 'Generation can take up to 2 minutes. The page will update automatically when materials are ready.'}
+                    </p>
+                  </div>
+                ) : (
                   <Tabs defaultValue={selectedCourse.sections[0].title}>
                     <TabsList className="grid grid-cols-2 mb-6">
                       {selectedCourse.sections.map((section) => (
@@ -282,22 +431,6 @@ const AccountDashboard = () => {
                       </TabsContent>
                     ))}
                   </Tabs>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-20">
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                      {language === 'ro' 
-                        ? 'Se procesează materialele...' 
-                        : 'Processing materials...'}
-                    </p>
-                    <Button 
-                      variant="outline"
-                      onClick={() => {
-                        window.location.reload();
-                      }}
-                    >
-                      {language === 'ro' ? 'Reîmprospătează' : 'Refresh'}
-                    </Button>
-                  </div>
                 )}
               </CardContent>
             </Card>
