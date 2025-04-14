@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -29,21 +30,21 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === "login") {
-      await login(email, password);
-      if (!error) onClose();
+      const success = await login(email, password);
+      if (success) onClose();
     } else {
       if (password !== confirmPassword) {
         alert("Passwords don't match!");
         return;
       }
-      await register(email, password, name);
-      if (!error) onClose();
+      const success = await register(email, password, name);
+      if (success) onClose();
     }
   };
 
   const handleGoogleLogin = async () => {
-    await loginWithGoogle();
-    if (!error) onClose();
+    const success = await loginWithGoogle();
+    if (success) onClose();
   };
 
   const toggleMode = () => {

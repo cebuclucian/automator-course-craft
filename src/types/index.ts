@@ -50,11 +50,11 @@ export interface GeneratedCourse {
 
 export interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  logout: () => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string, name: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
+  logout: () => Promise<boolean>;
   isLoading: boolean;
   error: string | null;
-  refreshUser: () => Promise<void>; // Added the refreshUser function
+  refreshUser: () => Promise<boolean>; 
 }

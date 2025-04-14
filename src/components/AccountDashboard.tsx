@@ -77,12 +77,17 @@ const AccountDashboard = () => {
   const handleRefreshUser = async () => {
     setIsRefreshing(true);
     try {
-      await refreshUser();
-      toast({
-        title: "Cont actualizat",
-        description: "Datele contului au fost actualizate cu succes."
-      });
-      setShowDialog(false);
+      const success = await refreshUser();
+      
+      if (success) {
+        toast({
+          title: "Cont actualizat",
+          description: "Datele contului au fost actualizate cu succes."
+        });
+        setShowDialog(false);
+      } else {
+        throw new Error("Nu s-a putut actualiza datele contului.");
+      }
     } catch (err) {
       console.error('Error refreshing user:', err);
       toast({
