@@ -49,27 +49,32 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     });
     
     // Set a timeout to handle potential hanging requests
-    const timeoutPromise = new Promise((_, reject) => {
+    const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("Generarea a durat prea mult. Vă rugăm să încercați din nou.")), 60000); // 60s timeout
     });
     
     // Race between function call and timeout
     const result = await Promise.race([functionPromise, timeoutPromise]);
     
-    if ('error' in result && result.error) {
+    // Properly type the result and check for errors
+    if (result && typeof result === 'object' && 'error' in result && result.error) {
       console.error("Error from generate-course function:", result.error);
-      throw new Error(result.error.message || "Nu am putut genera cursul");
+      const errorMessage = typeof result.error === 'object' && result.error !== null && 'message' in result.error 
+        ? String(result.error.message) 
+        : "Nu am putut genera cursul";
+      throw new Error(errorMessage);
     }
     
-    const { data } = result;
+    // TypeScript will now recognize result as having a data property
+    const responseData = result as { data?: { success?: boolean, error?: string, data?: any } };
     
-    if (!data || !data.success) {
-      console.error("API returned an error:", data?.error);
-      throw new Error(data?.error || "Nu am putut genera cursul");
+    if (!responseData.data || !responseData.data.success) {
+      console.error("API returned an error:", responseData.data?.error);
+      throw new Error(responseData.data?.error || "Nu am putut genera cursul");
     }
     
-    console.log("Course generated successfully:", data);
-    return data.data;
+    console.log("Course generated successfully:", responseData.data);
+    return responseData.data.data;
   } catch (error: any) {
     console.error("Error in generateCourse:", error);
     // Display toast error for feedback
