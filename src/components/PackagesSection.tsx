@@ -3,9 +3,15 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const PackagesSection = () => {
   const { language } = useLanguage();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   const packages = {
     ro: [
@@ -132,6 +138,80 @@ const PackagesSection = () => {
 
   const currentPackages = language === 'ro' ? packages.ro : packages.en;
 
+  const handlePackageSelect = async (packageName: string) => {
+    if (!user) {
+      // Redirect to login if user is not authenticated
+      toast({
+        title: language === 'ro' ? 'Autentificare necesară' : 'Authentication required',
+        description: language === 'ro' 
+          ? 'Trebuie să fii autentificat pentru a alege un pachet.' 
+          : 'You need to be logged in to select a package.',
+        variant: "default"
+      });
+      navigate('/account');
+      return;
+    }
+
+    // Show loading state
+    toast({
+      title: language === 'ro' ? 'Se procesează' : 'Processing',
+      description: language === 'ro' 
+        ? 'Se creează sesiunea de plată...' 
+        : 'Creating payment session...',
+      variant: "default"
+    });
+
+    try {
+      // Map package name to price ID (you would replace these with actual Stripe price IDs)
+      const priceMap: Record<string, string> = {
+        'Basic': 'price_basic',
+        'Pro': 'price_pro',
+        'Enterprise': 'price_enterprise',
+        'Gratuit': '',
+        'Free': ''
+      };
+
+      // If it's a free package, just show a message
+      if (packageName === 'Gratuit' || packageName === 'Free') {
+        toast({
+          title: language === 'ro' ? 'Pachet gratuit' : 'Free package',
+          description: language === 'ro' 
+            ? 'Te-ai înregistrat pentru pachetul gratuit.' 
+            : 'You have registered for the free package.',
+          variant: "default"
+        });
+        return;
+      }
+
+      // Call Supabase Edge function to create a Stripe checkout session
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        method: 'POST',
+        body: { 
+          priceId: priceMap[packageName],
+          packageName
+        }
+      });
+
+      if (error) throw error;
+
+      if (data && data.url) {
+        // Redirect to Stripe checkout
+        window.location.href = data.url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      toast({
+        title: language === 'ro' ? 'Eroare' : 'Error',
+        description: language === 'ro' 
+          ? 'A apărut o eroare la crearea sesiunii de plată.' 
+          : 'An error occurred while creating the payment session.',
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <section id="packages" className="py-16 bg-white dark:bg-gray-900">
       <div className="container mx-auto px-4">
@@ -174,6 +254,7 @@ const PackagesSection = () => {
                       : ''
                   }`}
                   variant={pkg.highlight ? 'default' : 'outline'}
+                  onClick={() => handlePackageSelect(pkg.name)}
                 >
                   {pkg.button}
                 </Button>
@@ -187,3 +268,4 @@ const PackagesSection = () => {
 };
 
 export default PackagesSection;
+
