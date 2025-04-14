@@ -1,0 +1,57 @@
+
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  subscription?: Subscription;
+  generationsLeft?: number;
+  generatedCourses?: GeneratedCourse[];
+}
+
+export interface Subscription {
+  tier: 'Free' | 'Basic' | 'Pro' | 'Enterprise';
+  expiresAt: Date;
+  active: boolean;
+}
+
+export type GenerationType = 'Preview' | 'Complet';
+
+export interface CourseFormData {
+  language: string;
+  context: 'Corporativ' | 'Academic';
+  subject: string;
+  level: 'Începător' | 'Intermediar' | 'Avansat';
+  audience: 'Elevi' | 'Studenți' | 'Profesori' | 'Profesioniști' | 'Manageri';
+  duration: '1h' | '2h' | '4h' | '1 zi' | '2 zile' | '3 zile' | '4 zile' | '5 zile';
+  tone: 'Socratic' | 'Energizant' | 'Haios' | 'Profesional';
+  generationType?: GenerationType;
+}
+
+export interface CourseSection {
+  title: string;
+  content: string;
+  categories: CourseCategory[];
+}
+
+export interface CourseCategory {
+  name: string;
+  content: string;
+}
+
+export interface GeneratedCourse {
+  id: string;
+  createdAt: Date;
+  expiresAt: Date;
+  formData: CourseFormData;
+  sections: CourseSection[];
+  previewMode: boolean;
+}
+
+export interface AuthContextType {
+  user: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
+  isLoading: boolean;
+  error: string | null;
+}
