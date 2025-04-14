@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { 
   Dialog, 
@@ -8,8 +9,9 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, ArrowRight, RefreshCw } from 'lucide-react';
+import { ExternalLink, ArrowRight, RefreshCw, Clipboard, Check } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface StripeRedirectDialogProps {
   open: boolean;
@@ -19,8 +21,10 @@ interface StripeRedirectDialogProps {
 
 const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirectDialogProps) => {
   const { language } = useLanguage();
+  const { toast } = useToast();
   const [countdown, setCountdown] = useState(5);
   const [isAttemptingRedirect, setIsAttemptingRedirect] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -42,6 +46,7 @@ const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirec
     if (open) {
       setCountdown(5);
       setIsAttemptingRedirect(false);
+      setCopied(false);
     }
   }, [open]);
   
@@ -51,23 +56,60 @@ const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirec
       
       console.info("Redirecting to URL:", redirectUrl);
       
-      window.location.href = redirectUrl;
-      
-      setTimeout(() => {
-        console.info("Still here after redirect attempt, keeping dialog open");
-      }, 1000);
+      // Try to open in current tab
+      try {
+        window.location.href = redirectUrl;
+        
+        // If we're still here after 1.5 seconds, the redirect didn't happen
+        setTimeout(() => {
+          console.info("Still here after redirect attempt");
+          toast({
+            title: language === 'ro' ? "Redirectare blocată" : "Redirect blocked",
+            description: language === 'ro' 
+              ? "Încercați să deschideți în tab nou sau copiați link-ul" 
+              : "Try opening in a new tab or copying the link",
+            variant: "warning"
+          });
+        }, 1500);
+      } catch (error) {
+        console.error("Redirect error:", error);
+        toast({
+          title: language === 'ro' ? "Eroare la redirectare" : "Redirect error",
+          description: language === 'ro' 
+            ? "Vă rugăm să încercați una dintre opțiunile alternative" 
+            : "Please try one of the alternative options",
+          variant: "destructive"
+        });
+      }
     }
   };
   
   const handleOpenNewTab = () => {
     if (redirectUrl) {
-      const newWindow = window.open(redirectUrl, '_blank');
-      
-      if (newWindow) {
-        console.info("Opened in new tab successfully");
-        onOpenChange(false);
-      } else {
-        console.warn("Failed to open in new tab - popup might be blocked");
+      try {
+        const newWindow = window.open(redirectUrl, '_blank');
+        
+        if (newWindow) {
+          console.info("Opened in new tab successfully");
+          toast({
+            title: language === 'ro' ? "Deschis în tab nou" : "Opened in new tab",
+            description: language === 'ro' 
+              ? "Verificați noul tab deschis pentru a continua" 
+              : "Check the new tab to continue",
+          });
+          onOpenChange(false);
+        } else {
+          console.warn("Failed to open in new tab - popup might be blocked");
+          toast({
+            title: language === 'ro' ? "Pop-up blocat" : "Popup blocked",
+            description: language === 'ro' 
+              ? "Vă rugăm să permiteți pop-up-urile sau să copiați link-ul" 
+              : "Please allow popups or copy the link instead",
+            variant: "warning"
+          });
+        }
+      } catch (error) {
+        console.error("New tab error:", error);
       }
     }
   };
@@ -76,12 +118,26 @@ const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirec
     if (redirectUrl) {
       navigator.clipboard.writeText(redirectUrl)
         .then(() => {
-          alert(language === 'ro' 
-            ? 'Link-ul de plată a fost copiat în clipboard!' 
-            : 'Payment link has been copied to clipboard!');
+          setCopied(true);
+          toast({
+            title: language === 'ro' ? "Link copiat" : "Link copied",
+            description: language === 'ro' 
+              ? "Link-ul de plată a fost copiat în clipboard" 
+              : "Payment link has been copied to clipboard",
+          });
+          
+          // Reset copied state after 2 seconds
+          setTimeout(() => setCopied(false), 2000);
         })
         .catch(err => {
           console.error('Failed to copy URL: ', err);
+          toast({
+            title: language === 'ro' ? "Eroare la copiere" : "Copy error",
+            description: language === 'ro' 
+              ? "Nu s-a putut copia link-ul" 
+              : "Failed to copy the link",
+            variant: "destructive"
+          });
         });
     }
   };
@@ -144,6 +200,7 @@ const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirec
             onClick={handleManualCopy}
             className="flex items-center justify-center gap-2"
           >
+            {copied ? <Check size={16} /> : <Clipboard size={16} />}
             {language === 'ro' ? 'Copiază link' : 'Copy link'}
           </Button>
           

@@ -17,6 +17,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up the auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
+        console.log("Auth state changed:", event, currentSession ? "Session exists" : "No session");
         setSession(currentSession);
         if (currentSession?.user) {
           const mappedUser: User = {
@@ -40,6 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      console.log("Initial session check:", currentSession ? "Session exists" : "No session");
       setSession(currentSession);
       if (currentSession?.user) {
         const mappedUser: User = {
@@ -142,6 +144,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
+      // Check if we have a session before attempting to sign out
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData.session) {
+        console.log("No active session found. Cleaning up local state only.");
+        // If no session, just clear the local state
+        setUser(null);
+        setSession(null);
+        
+        toast({
+          title: "Deconectare reușită",
+          description: "Te-ai deconectat cu succes.",
+        });
+        
+        return true;
+      }
+      
+      // If we have a session, proceed with sign out
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
@@ -156,12 +176,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return true;
     } catch (error: any) {
       console.error('Logout error:', error);
+      
+      // Even if there's an error, clean up the local state
+      setUser(null);
+      setSession(null);
+      
       toast({
-        title: "Eroare la deconectare",
-        description: error.message,
-        variant: "destructive"
+        title: "Avertisment la deconectare",
+        description: "Sesiunea a fost curățată local, dar a apărut o eroare la server.",
+        variant: "warning"
       });
-      return false;
+      
+      return true; // Return true anyway as we've cleaned up locally
     }
   };
 
