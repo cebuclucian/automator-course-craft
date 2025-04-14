@@ -47,7 +47,7 @@ const PackagesSection = () => {
           'Maxim 10 cursuri complete/lună',
           'Export în toate formatele',
           'Disponibil 72 de ore',
-          'Suport prioritar',
+          'Suport prin email',
         ],
         button: 'Alege Pro',
         highlight: false
@@ -62,7 +62,7 @@ const PackagesSection = () => {
           'Maxim 30 cursuri complete/lună',
           'Export în toate formatele',
           'Disponibil 72 de ore',
-          'Suport dedicat',
+          'Suport prin email',
         ],
         button: 'Contactează-ne',
         highlight: false
@@ -107,7 +107,7 @@ const PackagesSection = () => {
           'Maximum 10 complete courses/month',
           'Export in all formats',
           'Available for 72 hours',
-          'Priority support',
+          'Email support',
         ],
         button: 'Choose Pro',
         highlight: false
@@ -122,7 +122,7 @@ const PackagesSection = () => {
           'Maximum 30 complete courses/month',
           'Export in all formats',
           'Available for 72 hours',
-          'Dedicated support',
+          'Email support',
         ],
         button: 'Contact Us',
         highlight: false
