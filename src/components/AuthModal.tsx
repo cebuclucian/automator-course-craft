@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Separator } from "@/components/ui/separator";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -23,7 +24,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
-  const { login, register, isLoading, error } = useAuth();
+  const { login, register, loginWithGoogle, isLoading, error } = useAuth();
   const { t } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,6 +40,11 @@ const AuthModal: React.FC<AuthModalProps> = ({
       await register(email, password, name);
       if (!error) onClose();
     }
+  };
+
+  const handleGoogleLogin = async () => {
+    await loginWithGoogle();
+    if (!error) onClose();
   };
 
   const toggleMode = () => {
@@ -58,6 +64,33 @@ const AuthModal: React.FC<AuthModalProps> = ({
             {mode === "login" ? t("auth.loginButton") : t("auth.registerButton")}
           </DialogTitle>
         </DialogHeader>
+        <div className="flex flex-col space-y-4">
+          <Button 
+            variant="outline" 
+            className="w-full flex items-center justify-center gap-2"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chrome">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="4"/>
+              <line x1="21.17" y1="8" x2="12" y2="8"/>
+              <line x1="3.95" y1="6.06" x2="8.54" y2="14"/>
+              <line x1="10.88" y1="21.94" x2="15.46" y2="14"/>
+            </svg>
+            {mode === "login" 
+              ? (t("auth.continueWithGoogle") || "Continuă cu Google") 
+              : (t("auth.signupWithGoogle") || "Înregistrare cu Google")}
+          </Button>
+          
+          <div className="flex items-center space-x-2">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground px-2">
+              {t("auth.orContinueWith") || "sau continuă cu"}
+            </span>
+            <Separator className="flex-1" />
+          </div>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           {mode === "register" && (
             <div className="grid w-full items-center gap-1.5">
