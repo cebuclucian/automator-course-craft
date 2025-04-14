@@ -12,6 +12,7 @@ const AccountDashboard = () => {
   const { user, refreshUser } = useAuth();
   const { toast } = useToast();
   const [isCreatingProSubscription, setIsCreatingProSubscription] = useState(false);
+  const [lastResponse, setLastResponse] = useState<any>(null);
 
   // Format date helper function
   const formatDate = (dateString: Date | string | undefined) => {
@@ -26,14 +27,21 @@ const AccountDashboard = () => {
     
     setIsCreatingProSubscription(true);
     try {
+      console.log("Calling create-admin-pro-subscription edge function...");
+      
       // Call the edge function with authentication
       const { data, error } = await supabase.functions.invoke('create-admin-pro-subscription', {
         method: 'POST',
       });
 
+      // Store the response for debugging
+      setLastResponse({ data, error });
+
       if (error) {
         throw new Error(`Eroare la crearea abonamentului: ${error.message}`);
       }
+
+      console.log("Edge function response:", data);
 
       toast({
         title: "Abonament creat cu succes",
@@ -103,6 +111,13 @@ const AccountDashboard = () => {
                   <p className="text-xs text-muted-foreground mt-2">
                     Acest buton este disponibil doar pentru contul de administrator.
                   </p>
+                  
+                  {lastResponse && (
+                    <div className="mt-2 p-2 bg-muted text-xs rounded overflow-auto max-h-40">
+                      <p className="font-semibold">Ultimul răspuns:</p>
+                      <pre>{JSON.stringify(lastResponse, null, 2)}</pre>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

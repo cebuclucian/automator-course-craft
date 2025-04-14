@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { AuthContextType, User } from "@/types";
 import { useToast } from "@/components/ui/use-toast";
@@ -29,46 +28,49 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Improved refreshUser function to fetch the latest user data
   const refreshUser = async (): Promise<void> => {
     setIsLoading(true);
-    return new Promise((resolve, reject) => {
-      try {
-        setTimeout(() => {
-          const storedUser = localStorage.getItem("automatorUser");
-          if (storedUser) {
-            const parsedUser = JSON.parse(storedUser);
+    try {
+      // For admin@automator.ro, check for subscription in DB via Supabase
+      const storedUser = localStorage.getItem("automatorUser");
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        
+        // If user is admin@automator.ro, check Supabase for Pro subscription
+        if (parsedUser.email === 'admin@automator.ro') {
+          console.log("Checking admin subscription status...");
+          
+          // Query the subscribers table to get latest subscription data
+          const { data: subscriberData, error } = await supabase
+            .from('subscribers')
+            .select('*')
+            .eq('email', 'admin@automator.ro')
+            .single();
+          
+          console.log("Subscriber data from DB:", subscriberData);
+          console.log("Subscriber error:", error);
+          
+          if (subscriberData && subscriberData.subscription_tier === 'Pro' && subscriberData.subscribed) {
+            // Update the user with Pro subscription data from DB
+            parsedUser.subscription = {
+              tier: 'Pro',
+              expiresAt: new Date(subscriberData.subscription_end),
+              active: true
+            };
             
-            // For demo purposes, if admin@automator.ro tries to refresh and we see a Pro subscription
-            // created by our edge function (check localStorage for subscription data)
-            if (parsedUser.email === 'admin@automator.ro') {
-              const proSubData = localStorage.getItem("adminProSubscription");
-              
-              if (proSubData) {
-                // Update the user with Pro subscription data
-                parsedUser.subscription = {
-                  tier: 'Pro',
-                  expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-                  active: true
-                };
-                
-                // Update localStorage
-                localStorage.setItem("automatorUser", JSON.stringify(parsedUser));
-              }
-            }
+            // Update localStorage
+            localStorage.setItem("automatorUser", JSON.stringify(parsedUser));
             
-            setUser(parsedUser);
-            setIsLoading(false);
-            resolve();
-          } else {
-            setIsLoading(false);
-            reject(new Error("No user data found"));
+            console.log("Updated user with Pro subscription:", parsedUser);
           }
-        }, 500); // Small delay to ensure any localStorage updates have happened
-      } catch (err) {
-        console.error("Error refreshing user data", err);
-        setError(err instanceof Error ? err.message : "An error occurred while refreshing user data");
-        setIsLoading(false);
-        reject(err);
+        }
+        
+        setUser(parsedUser);
       }
-    });
+    } catch (err) {
+      console.error("Error refreshing user data", err);
+      setError(err instanceof Error ? err.message : "An error occurred while refreshing user data");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // For demo purposes, using localStorage
