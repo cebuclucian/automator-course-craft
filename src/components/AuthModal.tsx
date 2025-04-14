@@ -1,14 +1,12 @@
-
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Separator } from "@/components/ui/separator";
-import { Loader2, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import LoginForm from "./auth/LoginForm";
+import RegisterForm from "./auth/RegisterForm";
+import EmailConfirmation from "./auth/EmailConfirmation";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -23,10 +21,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [name, setName] = useState("");
-  const { login, register, loginWithGoogle, isLoading, error } = useAuth();
+  const { login, register, loginWithGoogle, error } = useAuth();
   const { t } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
@@ -39,39 +34,32 @@ const AuthModal: React.FC<AuthModalProps> = ({
     }
   }, [isOpen, mode]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (email: string, password: string) => {
+    setIsSubmitting(true);
+    try {
+      const success = await login(email, password);
+      if (success) onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRegister = async (email: string, password: string, name: string) => {
     setIsSubmitting(true);
     setRegistrationError(null);
-    setEmailConfirmationRequired(false);
+    setEmail(email);
     
     try {
-      if (mode === "login") {
-        const success = await login(email, password);
-        if (success) onClose();
-      } else {
-        if (password !== confirmPassword) {
-          setRegistrationError("Parolele nu coincid!");
-          setIsSubmitting(false);
-          return;
-        }
-        
-        console.log("Attempting registration with:", { email, name });
-        const result = await register(email, password, name);
-        console.log("Registration result:", result);
-        
-        // Add null check before accessing properties
-        if (result !== null && result !== false) {
-          if (typeof result === 'object' && 'emailConfirmationRequired' in result) {
-            setEmailConfirmationRequired(result.emailConfirmationRequired);
-          } else if (result === true) {
-            onClose();
-          }
+      const result = await register(email, password, name);
+      if (result !== null && result !== false) {
+        if (typeof result === 'object' && 'emailConfirmationRequired' in result) {
+          setEmailConfirmationRequired(true);
+        } else if (result === true) {
+          onClose();
         }
       }
     } catch (error) {
-      console.error("Auth error:", error);
-      setRegistrationError(error instanceof Error ? error.message : "Eroare la autentificare");
+      setRegistrationError(error instanceof Error ? error.message : "Eroare la înregistrare");
     } finally {
       setIsSubmitting(false);
     }
@@ -90,10 +78,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
   const toggleMode = () => {
     setMode(mode === "login" ? "register" : "login");
-    setEmail("");
-    setPassword("");
-    setConfirmPassword("");
-    setName("");
     setRegistrationError(null);
     setEmailConfirmationRequired(false);
   };
@@ -102,15 +86,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Verifică-ți email-ul</DialogTitle>
-            <DialogDescription>
-              Am trimis un link de confirmare la adresa {email}. Te rugăm să verifici inbox-ul și să confirmi adresa pentru a continua.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center pt-4">
-            <Button onClick={onClose}>Închide</Button>
-          </div>
+          <EmailConfirmation email={email} onClose={onClose} />
         </DialogContent>
       </Dialog>
     );
@@ -129,6 +105,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
               : "Completați formularul pentru a crea un cont nou"}
           </DialogDescription>
         </DialogHeader>
+
         <div className="flex flex-col space-y-4">
           <Button 
             variant="outline" 
@@ -143,12 +120,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
               <line x1="3.95" y1="6.06" x2="8.54" y2="14"/>
               <line x1="10.88" y1="21.94" x2="15.46" y2="14"/>
             </svg>
-            {isSubmitting ? (
-              <span className="flex items-center">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Se procesează...
-              </span>
-            ) : mode === "login" 
+            {mode === "login" 
               ? t("auth.continueWithGoogle") 
               : t("auth.signupWithGoogle")}
           </Button>
@@ -161,86 +133,32 @@ const AuthModal: React.FC<AuthModalProps> = ({
             <Separator className="flex-1" />
           </div>
         </div>
-        
-        {(error || registrationError) && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {error || registrationError}
-            </AlertDescription>
-          </Alert>
+
+        {mode === "login" ? (
+          <LoginForm
+            onSubmit={handleLogin}
+            error={error}
+            isSubmitting={isSubmitting}
+          />
+        ) : (
+          <RegisterForm
+            onSubmit={handleRegister}
+            error={registrationError || error}
+            isSubmitting={isSubmitting}
+          />
         )}
-        
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          {mode === "register" && (
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="name">{t("auth.name")}</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required={mode === "register"}
-              />
-            </div>
-          )}
-          <div className="grid w-full items-center gap-1.5">
-            <Label htmlFor="email">{t("auth.email")}</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="grid w-full items-center gap-1.5">
-            <Label htmlFor="password">{t("auth.password")}</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </div>
-          {mode === "register" && (
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="confirm-password">{t("auth.confirmPassword")}</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required={mode === "register"}
-              />
-            </div>
-          )}
-          
-          <div className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <span className="flex items-center justify-center">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {mode === "login" ? "Se autentifică..." : "Se înregistrează..."}
-                </span>
-              ) : mode === "login"
-                ? t("auth.loginButton")
-                : t("auth.registerButton")}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={toggleMode}
-              className="w-full"
-              disabled={isSubmitting}
-            >
-              {mode === "login"
-                ? t("auth.switchToRegister")
-                : t("auth.switchToLogin")}
-            </Button>
-          </div>
-        </form>
+
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={toggleMode}
+          className="w-full"
+          disabled={isSubmitting}
+        >
+          {mode === "login"
+            ? t("auth.switchToRegister")
+            : t("auth.switchToLogin")}
+        </Button>
       </DialogContent>
     </Dialog>
   );
