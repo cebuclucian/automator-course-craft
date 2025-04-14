@@ -1,6 +1,8 @@
+
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { AuthContextType, User } from "@/types";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -33,6 +35,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const storedUser = localStorage.getItem("automatorUser");
           if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
+            
+            // For demo purposes, if admin@automator.ro tries to refresh and we see a Pro subscription
+            // created by our edge function (check localStorage for subscription data)
+            if (parsedUser.email === 'admin@automator.ro') {
+              const proSubData = localStorage.getItem("adminProSubscription");
+              
+              if (proSubData) {
+                // Update the user with Pro subscription data
+                parsedUser.subscription = {
+                  tier: 'Pro',
+                  expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+                  active: true
+                };
+                
+                // Update localStorage
+                localStorage.setItem("automatorUser", JSON.stringify(parsedUser));
+              }
+            }
+            
             setUser(parsedUser);
             setIsLoading(false);
             resolve();
