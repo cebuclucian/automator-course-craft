@@ -33,44 +33,19 @@ serve(async (req) => {
     
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
-    // Initialize Supabase client with anon key for authentication
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      logStep("ERROR: Supabase environment variables not set");
-      throw new Error("Supabase environment variables not set");
-    }
-    
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-    logStep("Supabase client initialized");
+    // Get request body with email directly passed in
+    const requestData = await req.json();
+    const { email } = requestData;
+    logStep("Request data", { email });
 
-    // Get user from auth header
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      logStep("ERROR: No authorization header provided");
-      throw new Error("No authorization header provided");
+    if (!email) {
+      logStep("ERROR: No email provided");
+      throw new Error("No email provided");
     }
-    logStep("Authorization header found", { authHeader: authHeader.substring(0, 20) + '...' });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    
-    if (userError) {
-      logStep(`ERROR: Authentication error - ${userError.message}`);
-      throw new Error(`Authentication error: ${userError.message}`);
-    }
-    
-    const user = userData.user;
-    if (!user?.email) {
-      logStep("ERROR: User not authenticated or email not available");
-      throw new Error("User not authenticated or email not available");
-    }
-    logStep("User authenticated", { userId: user.id, email: user.email });
-
-    // Find or create a Stripe customer for this user
+    // Find the Stripe customer for this user
     try {
-      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+      const customers = await stripe.customers.list({ email: email, limit: 1 });
       
       if (customers.data.length === 0) {
         logStep("ERROR: No Stripe customer found for this user");

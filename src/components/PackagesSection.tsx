@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, Loader2 } from 'lucide-react';
@@ -142,7 +141,6 @@ const PackagesSection = () => {
 
   const handlePackageSelect = async (packageName: string) => {
     if (!user) {
-      // Redirect to login if user is not authenticated
       toast({
         title: language === 'ro' ? 'Autentificare necesară' : 'Authentication required',
         description: language === 'ro' 
@@ -154,13 +152,11 @@ const PackagesSection = () => {
       return;
     }
 
-    // Prevent multiple clicks
     if (isProcessing) return;
     
     setIsProcessing(true);
     setProcessingPackage(packageName);
 
-    // Show loading state
     toast({
       title: language === 'ro' ? 'Se procesează' : 'Processing',
       description: language === 'ro' 
@@ -170,7 +166,6 @@ const PackagesSection = () => {
     });
 
     try {
-      // If it's a free package, just show a message
       if (packageName === 'Gratuit' || packageName === 'Free') {
         toast({
           title: language === 'ro' ? 'Pachet gratuit' : 'Free package',
@@ -186,9 +181,12 @@ const PackagesSection = () => {
 
       console.log("Calling create-checkout with packageName:", packageName);
       
-      // Call Supabase Edge function to create a Stripe checkout session
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { packageName }
+        body: { 
+          packageName,
+          email: user.email,
+          userId: user.id
+        }
       });
 
       console.log("Response from create-checkout:", data, error);
@@ -201,18 +199,15 @@ const PackagesSection = () => {
       if (data && data.url) {
         console.log("Redirecting to URL:", data.url);
         
-        // Critical fix: Use direct browser navigation
         window.location.replace(data.url);
         
-        // Add a final safety timeout to force navigation after 2 seconds
         setTimeout(() => {
           console.log("Forcing navigation after timeout");
           window.location.href = data.url;
         }, 2000);
         
-        return; // This prevents the isProcessing state from being updated unnecessarily
+        return;
       } else if (data && data.free) {
-        // Handle free package
         toast({
           title: language === 'ro' ? 'Pachet gratuit activat' : 'Free package activated',
           description: language === 'ro' 
@@ -233,7 +228,6 @@ const PackagesSection = () => {
         variant: "destructive"
       });
     } finally {
-      // Only update isProcessing if we haven't redirected
       setIsProcessing(false);
       setProcessingPackage('');
     }

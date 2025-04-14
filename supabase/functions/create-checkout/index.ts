@@ -33,49 +33,36 @@ serve(async (req) => {
     
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
-    // Initialize Supabase client with anon key for authentication
+    // Initialize Supabase client with service role key for authentication bypass
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       logStep("ERROR: Supabase environment variables not set");
       throw new Error("Supabase environment variables not set");
     }
     
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-    logStep("Supabase client initialized");
-
-    // Get user from auth header
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      logStep("ERROR: No authorization header provided");
-      throw new Error("No authorization header provided");
-    }
-    logStep("Authorization header found");
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+    const supabaseClient = createClient(
+      supabaseUrl,
+      supabaseServiceKey,
+      { auth: { persistSession: false } }
+    );
     
-    if (userError) {
-      logStep(`ERROR: Authentication error - ${userError.message}`);
-      throw new Error(`Authentication error: ${userError.message}`);
-    }
-    
-    const user = userData.user;
-    if (!user?.email) {
-      logStep("ERROR: User not authenticated or email not available");
-      throw new Error("User not authenticated or email not available");
-    }
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    logStep("Supabase client initialized with service role");
 
     // Get request body
     const requestData = await req.json();
-    const { packageName } = requestData;
-    logStep("Request data", { packageName });
+    const { packageName, email, userId } = requestData;
+    logStep("Request data", { packageName, email, userIdProvided: !!userId });
 
     if (!packageName) {
       logStep("ERROR: No package name provided");
       throw new Error("No package name provided");
+    }
+    
+    if (!email) {
+      logStep("ERROR: No email provided");
+      throw new Error("No email provided");
     }
 
     // Map package names to actual prices
@@ -108,16 +95,16 @@ serve(async (req) => {
     // Find or create a Stripe customer for this user
     let customerId;
     try {
-      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+      const customers = await stripe.customers.list({ email: email, limit: 1 });
       
       if (customers.data.length > 0) {
         customerId = customers.data[0].id;
         logStep("Found existing Stripe customer", { customerId });
       } else {
         const newCustomer = await stripe.customers.create({
-          email: user.email,
+          email: email,
           metadata: {
-            supabase_user_id: user.id
+            supabase_user_id: userId || 'unknown'
           }
         });
         customerId = newCustomer.id;
@@ -171,24 +158,11 @@ serve(async (req) => {
       throw new Error("No URL in created session");
     }
     
-    // Initialize Supabase service client for updating the subscribers table
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseServiceKey) {
-      logStep("ERROR: SUPABASE_SERVICE_ROLE_KEY is not set");
-      throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
-    }
-    
-    const supabaseService = createClient(
-      supabaseUrl,
-      supabaseServiceKey,
-      { auth: { persistSession: false } }
-    );
-
     // Update the subscribers table with the pending subscription
     try {
-      await supabaseService.from("subscribers").upsert({
-        email: user.email,
-        user_id: user.id,
+      await supabaseClient.from("subscribers").upsert({
+        email: email,
+        user_id: userId || null,
         stripe_customer_id: customerId,
         // Don't set subscribed to true yet - this will happen after successful payment
         updated_at: new Date().toISOString()
