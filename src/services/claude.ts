@@ -7,6 +7,39 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
   try {
     console.log("Generating course with data:", formData);
     
+    // Check user subscription limits
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData?.user) {
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('subscription, generatedCourses')
+        .eq('id', userData.user.id)
+        .single();
+        
+      if (userProfile) {
+        const tier = userProfile.subscription?.tier || 'Free';
+        const generatedCoursesCount = userProfile.generatedCourses?.length || 0;
+        
+        let maxCourses = 1; // Default for Free tier
+        
+        switch (tier) {
+          case 'Basic':
+            maxCourses = 3;
+            break;
+          case 'Pro':
+            maxCourses = 10;
+            break;
+          case 'Enterprise':
+            maxCourses = 30;
+            break;
+        }
+        
+        if (generatedCoursesCount >= maxCourses) {
+          throw new Error(`Ai atins limita de ${maxCourses} materiale pentru pachetul ${tier}.`);
+        }
+      }
+    }
+    
     // Call the Supabase Edge Function
     const { data, error } = await supabase.functions.invoke('generate-course', {
       body: { formData },

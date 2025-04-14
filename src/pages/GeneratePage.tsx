@@ -13,17 +13,40 @@ const GeneratePage = () => {
   const { language } = useLanguage();
 
   useEffect(() => {
-    // Check if user is on free plan and already has a generated course
+    // Check if user has reached the course generation limit based on subscription tier
     if (user) {
-      const isFreeUser = !user.subscription || user.subscription.tier === 'Free';
-      const hasGeneratedCourse = user.generatedCourses && user.generatedCourses.length > 0;
+      const tier = user.subscription?.tier || 'Free';
+      const generatedCoursesCount = user.generatedCourses?.length || 0;
       
-      if (isFreeUser && hasGeneratedCourse) {
+      let maxCourses = 0;
+      let limitReached = false;
+      
+      // Set max courses based on subscription tier
+      switch (tier) {
+        case 'Free':
+          maxCourses = 1;
+          limitReached = generatedCoursesCount >= maxCourses;
+          break;
+        case 'Basic':
+          maxCourses = 3;
+          limitReached = generatedCoursesCount >= maxCourses;
+          break;
+        case 'Pro':
+          maxCourses = 10;
+          limitReached = generatedCoursesCount >= maxCourses;
+          break;
+        case 'Enterprise':
+          maxCourses = 30;
+          limitReached = generatedCoursesCount >= maxCourses;
+          break;
+      }
+      
+      if (limitReached) {
         toast({
-          title: language === 'ro' ? 'Acces limitat' : 'Limited access',
+          title: language === 'ro' ? 'Limită atinsă' : 'Limit reached',
           description: language === 'ro'
-            ? 'Ai deja un material în versiunea Preview. Pentru a genera mai multe cursuri, este necesar să alegi un pachet plătit.'
-            : 'You already have a material in Preview version. To generate more courses, you need to choose a paid package.',
+            ? `Ai atins limita de ${maxCourses} materiale pentru pachetul ${tier}. Pentru a genera mai multe cursuri, este necesar să alegi un pachet superior.`
+            : `You've reached the limit of ${maxCourses} materials for the ${tier} package. To generate more courses, you need to choose a higher package.`,
           variant: 'default',
         });
         

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,7 +20,8 @@ const AccountDashboard = () => {
       ? user.generatedCourses[0] 
       : null
   );
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [limitInfo, setLimitInfo] = useState({ tier: '', maxCourses: 0 });
 
   if (!user) {
     navigate('/');
@@ -27,11 +29,35 @@ const AccountDashboard = () => {
   }
 
   const handleCreateNew = () => {
-    const isFreeUser = !user.subscription || user.subscription.tier === 'Free';
-    const hasGeneratedCourse = user.generatedCourses && user.generatedCourses.length > 0;
+    const tier = user.subscription?.tier || 'Free';
+    const generatedCoursesCount = user.generatedCourses?.length || 0;
     
-    if (isFreeUser && hasGeneratedCourse) {
-      setShowUpgradeDialog(true);
+    let maxCourses = 0;
+    let limitReached = false;
+    
+    // Set max courses based on subscription tier
+    switch (tier) {
+      case 'Free':
+        maxCourses = 1;
+        limitReached = generatedCoursesCount >= maxCourses;
+        break;
+      case 'Basic':
+        maxCourses = 3;
+        limitReached = generatedCoursesCount >= maxCourses;
+        break;
+      case 'Pro':
+        maxCourses = 10;
+        limitReached = generatedCoursesCount >= maxCourses;
+        break;
+      case 'Enterprise':
+        maxCourses = 30;
+        limitReached = generatedCoursesCount >= maxCourses;
+        break;
+    }
+    
+    if (limitReached) {
+      setLimitInfo({ tier, maxCourses });
+      setShowLimitDialog(true);
     } else {
       navigate('/generate');
     }
@@ -297,20 +323,23 @@ const AccountDashboard = () => {
         </div>
       </div>
 
-      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+      {/* Dialog for when the user has reached the limit for their subscription tier */}
+      <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {language === 'ro' ? 'Alege un pachet pentru materiale complete' : 'Choose a package for complete materials'}
+              {language === 'ro' 
+                ? `Limită atinsă pentru pachetul ${limitInfo.tier}` 
+                : `Limit reached for the ${limitInfo.tier} package`}
             </DialogTitle>
             <DialogDescription>
               {language === 'ro' 
-                ? 'Ai deja un material în versiunea Preview. Pentru a genera mai multe cursuri sau pentru a accesa versiunea completă a materialelor, este necesar să alegi un pachet plătit.'
-                : 'You already have a material in Preview version. To generate more courses or to access the complete version of the materials, you need to choose a paid package.'}
+                ? `Ai atins limita de ${limitInfo.maxCourses} materiale pentru pachetul ${limitInfo.tier}. Pentru a genera mai multe cursuri, este necesar să alegi un pachet superior.`
+                : `You've reached the limit of ${limitInfo.maxCourses} materials for the ${limitInfo.tier} package. To generate more courses, you need to choose a higher package.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
+            <Button variant="outline" onClick={() => setShowLimitDialog(false)}>
               {language === 'ro' ? 'Înapoi' : 'Back'}
             </Button>
             <Button onClick={() => navigate('/packages')}>
