@@ -16,11 +16,7 @@ serve(async (req) => {
   }
 
   try {
-    const { formData } = await req.json();
-    
-    // Construct the prompt with variables replaced
-    const prompt = buildPrompt(formData);
-    
+    // Verifică dacă cheia API Claude este configurată
     if (!CLAUDE_API_KEY) {
       console.error("Claude API Key is not set!");
       return new Response(
@@ -38,84 +34,165 @@ serve(async (req) => {
       );
     }
     
+    // Verifică dacă cererea conține date valide
+    if (!req.body) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Request body is empty" 
+        }),
+        { 
+          status: 400, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    }
+
+    const { formData } = await req.json();
+    
+    // Verifică dacă formData există
+    if (!formData) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Form data is missing" 
+        }),
+        { 
+          status: 400, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    }
+
+    // Construct the prompt with variables replaced
+    const prompt = buildPrompt(formData);
+    
     console.log("Sending request to Claude API with formData:", JSON.stringify(formData));
     
-    // Configure the request to Claude API
-    const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": CLAUDE_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-3-opus-20240229",
-        max_tokens: 4000,
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        system: "You are an expert in instructional design and education. Your task is to create comprehensive course materials based on the provided specifications. Output your response in a structured JSON format with separate sections for 'Plan și obiective', 'Materiale trainer', and 'Materiale suport', each with appropriate categories."
-      })
-    });
-
-    if (!claudeResponse.ok) {
-      const errorData = await claudeResponse.text();
-      console.error("Claude API error:", errorData);
-      throw new Error(`Claude API error: ${claudeResponse.status} ${errorData}`);
-    }
-    
-    const claudeData = await claudeResponse.json();
-    console.log("Claude API response received");
-    
-    // Parse Claude's JSON response - Claude returns a text response that we need to parse as JSON
-    let courseData;
     try {
-      const contentText = claudeData.content[0].text;
-      // Extract JSON from Claude's response if it's wrapped
-      const jsonMatch = contentText.match(/```json\s*([\s\S]*?)\s*```/) || 
-                        contentText.match(/```\s*([\s\S]*?)\s*```/) ||
-                        [null, contentText];
-      
-      const jsonText = jsonMatch[1].trim();
-      courseData = JSON.parse(jsonText);
-    } catch (parseError) {
-      console.error("Error parsing Claude response:", parseError);
-      console.log("Claude response content:", claudeData.content[0].text);
-      
-      // Fallback to structured mock data
-      courseData = mockCourseData(formData);
-    }
-    
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        data: courseData 
-      }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+      // Configure the request to Claude API
+      const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": CLAUDE_API_KEY,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: "claude-3-opus-20240229",
+          max_tokens: 4000,
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          system: "You are an expert in instructional design and education. Your task is to create comprehensive course materials based on the provided specifications. Output your response in a structured JSON format with separate sections for 'Plan și obiective', 'Materiale trainer', and 'Materiale suport', each with appropriate categories."
+        })
+      });
+
+      if (!claudeResponse.ok) {
+        const errorData = await claudeResponse.text();
+        console.error("Claude API error:", errorData);
+        throw new Error(`Claude API error: ${claudeResponse.status} ${errorData}`);
       }
-    );
+      
+      const claudeData = await claudeResponse.json();
+      console.log("Claude API response received");
+      
+      // Parse Claude's JSON response - Claude returns a text response that we need to parse as JSON
+      let courseData;
+      try {
+        const contentText = claudeData.content[0].text;
+        // Extract JSON from Claude's response if it's wrapped
+        const jsonMatch = contentText.match(/```json\s*([\s\S]*?)\s*```/) || 
+                          contentText.match(/```\s*([\s\S]*?)\s*```/) ||
+                          [null, contentText];
+        
+        const jsonText = jsonMatch[1].trim();
+        courseData = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error("Error parsing Claude response:", parseError);
+        console.log("Claude response content:", claudeData.content[0].text);
+        
+        // Fallback to structured mock data
+        courseData = mockCourseData(formData);
+      }
+    
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: courseData 
+        }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    } catch (claudeError) {
+      console.error("Error with Claude API:", claudeError);
+      
+      // În caz de eroare cu Claude API, folosește mock data
+      const mockData = mockCourseData(formData);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: mockData,
+          note: "Generated using backup system due to Claude API error" 
+        }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    }
   } catch (error) {
     console.error('Error generating course:', error);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
-      }),
-      { 
-        status: 500, 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
-    );
+    
+    // Încearcă să oferi date mock în caz de eroare generală
+    try {
+      const requestData = await req.json();
+      const mockData = mockCourseData(requestData.formData || {});
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          data: mockData,
+          note: "Generated using fallback system" 
+        }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    } catch (fallbackError) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Failed to generate course: " + error.message 
+        }),
+        { 
+          status: 500, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    }
   }
 });
 
