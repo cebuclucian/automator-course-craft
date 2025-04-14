@@ -3,3 +3,8 @@ project_id = "ittzxpynkyzcrytyudlt"
 
 [functions.generate-course]
 verify_jwt = true
+
+[functions]
+[functions.config]
+allowed_domains = ["https://automator.ro"]
+
