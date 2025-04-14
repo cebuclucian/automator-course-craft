@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [emailConfirmationRequired, setEmailConfirmationRequired] = useState(false);
 
-  // Reset state when modal opens or mode changes
   useEffect(() => {
     if (isOpen) {
       setRegistrationError(null);
@@ -61,12 +59,10 @@ const AuthModal: React.FC<AuthModalProps> = ({
         const result = await register(email, password, name);
         console.log("Registration result:", result);
         
-        if (result) {
-          if ('emailConfirmationRequired' in result && result.emailConfirmationRequired) {
-            setEmailConfirmationRequired(true);
-          } else {
-            onClose();
-          }
+        if (result && typeof result === 'object' && 'emailConfirmationRequired' in result) {
+          setEmailConfirmationRequired(result.emailConfirmationRequired);
+        } else if (result === true) {
+          onClose();
         }
       }
     } catch (error) {
@@ -81,7 +77,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
     try {
       setIsSubmitting(true);
       await loginWithGoogle();
-      // Nu închidem modalul aici, deoarece redirecționarea va fi gestionată de Supabase
     } catch (error) {
       console.error("Google login error:", error);
     } finally {
@@ -99,7 +94,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
     setEmailConfirmationRequired(false);
   };
 
-  // If email confirmation is required, show a different UI
   if (emailConfirmationRequired) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>

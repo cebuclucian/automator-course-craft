@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@/types";
@@ -41,12 +40,12 @@ export const useAuthActions = () => {
         description: `Bine ai revenit, ${mockUser.name}!`,
       });
       
-      return mockUser;
+      return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred during login";
       setError(errorMessage);
       console.error("Login error:", err);
-      return null;
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +60,7 @@ export const useAuthActions = () => {
       
       // First, check if the email is already registered
       const { data: existingUser, error: checkError } = await supabase
-        .from('users')
+        .from('subscribers')
         .select('email')
         .eq('email', email)
         .maybeSingle();
@@ -127,12 +126,12 @@ export const useAuthActions = () => {
         description: `Bine ai venit, ${name}!`,
       });
       
-      return mockUser;
+      return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred during registration";
       setError(errorMessage);
       console.error("Registration error:", err);
-      return null;
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -166,7 +165,7 @@ export const useAuthActions = () => {
       const errorMessage = err instanceof Error ? err.message : "An error occurred during Google authentication";
       setError(errorMessage);
       console.error("Google login error:", err);
-      return null;
+      return false;
     } finally {
       setIsLoading(false);
     }
