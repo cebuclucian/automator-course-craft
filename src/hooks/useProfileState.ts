@@ -16,15 +16,34 @@ export const useProfileState = () => {
       setError(null);
 
       const { data: updatedProfile, error: updateError } = await supabase
-        .from('profiles')
-        .update(data)
-        .eq('id', profile?.id)
+        .from('subscribers')
+        .update({
+          email: data.email,
+          subscription_tier: data.subscription?.tier,
+          subscription_end: data.subscription?.expiresAt?.toISOString(),
+          subscribed: data.subscription?.active
+        })
+        .eq('user_id', profile?.id)
         .select()
         .single();
 
       if (updateError) throw updateError;
 
-      setProfile(updatedProfile as User);
+      // Map the database fields to User interface
+      const mappedProfile: User = {
+        id: updatedProfile.user_id,
+        email: updatedProfile.email,
+        name: profile?.name,
+        subscription: {
+          tier: updatedProfile.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise',
+          expiresAt: updatedProfile.subscription_end ? new Date(updatedProfile.subscription_end) : new Date(),
+          active: !!updatedProfile.subscribed
+        },
+        generationsLeft: profile?.generationsLeft || 0,
+        generatedCourses: profile?.generatedCourses || []
+      };
+
+      setProfile(mappedProfile);
       toast({
         title: "Profil actualizat",
         description: "Datele profilului au fost actualizate cu succes."
@@ -52,16 +71,30 @@ export const useProfileState = () => {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session?.user) return null;
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
+      const { data: subscriberData, error: profileError } = await supabase
+        .from('subscribers')
         .select('*')
-        .eq('id', session.session.user.id)
+        .eq('user_id', session.session.user.id)
         .single();
 
       if (profileError) throw profileError;
 
-      setProfile(profile as User);
-      return profile as User;
+      // Map the database fields to User interface
+      const mappedProfile: User = {
+        id: subscriberData.user_id,
+        email: subscriberData.email,
+        name: subscriberData.email?.split('@')[0] || '',
+        subscription: {
+          tier: subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise',
+          expiresAt: subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : new Date(),
+          active: !!subscriberData.subscribed
+        },
+        generationsLeft: 0,
+        generatedCourses: []
+      };
+
+      setProfile(mappedProfile);
+      return mappedProfile;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Eroare la încărcarea profilului";
       setError(message);
