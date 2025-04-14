@@ -10,15 +10,15 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     // Check user subscription limits
     const { data: userData } = await supabase.auth.getUser();
     if (userData?.user) {
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('subscription, generatedCourses')
-        .eq('id', userData.user.id)
-        .single();
-        
-      if (userProfile) {
-        const tier = userProfile.subscription?.tier || 'Free';
-        const generatedCoursesCount = userProfile.generatedCourses?.length || 0;
+      // We need to check the user's subscription details from our auth system
+      // Since we're using a mock auth system in this demo, we'll retrieve the user from localStorage
+      const storedUserData = localStorage.getItem("automatorUser");
+      let userProfile = null;
+      
+      if (storedUserData) {
+        userProfile = JSON.parse(storedUserData);
+        const tier = userProfile?.subscription?.tier || 'Free';
+        const generatedCoursesCount = userProfile?.generatedCourses?.length || 0;
         
         let maxCourses = 1; // Default for Free tier
         
