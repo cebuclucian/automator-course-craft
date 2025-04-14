@@ -7,6 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -19,9 +21,73 @@ serve(async (req) => {
     // Construct the prompt with variables replaced
     const prompt = buildPrompt(formData);
     
-    // In a real implementation, this would call Claude API
-    // For now, we'll use the mock data until we have the API key
-    const courseData = mockCourseData(formData);
+    if (!CLAUDE_API_KEY) {
+      console.error("Claude API Key is not set!");
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Claude API Key is not configured" 
+        }),
+        { 
+          status: 500, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    }
+    
+    console.log("Sending request to Claude API with formData:", JSON.stringify(formData));
+    
+    // Configure the request to Claude API
+    const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": CLAUDE_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-3-opus-20240229",
+        max_tokens: 4000,
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        system: "You are an expert in instructional design and education. Your task is to create comprehensive course materials based on the provided specifications. Output your response in a structured JSON format with separate sections for 'Plan și obiective', 'Materiale trainer', and 'Materiale suport', each with appropriate categories."
+      })
+    });
+
+    if (!claudeResponse.ok) {
+      const errorData = await claudeResponse.text();
+      console.error("Claude API error:", errorData);
+      throw new Error(`Claude API error: ${claudeResponse.status} ${errorData}`);
+    }
+    
+    const claudeData = await claudeResponse.json();
+    console.log("Claude API response received");
+    
+    // Parse Claude's JSON response - Claude returns a text response that we need to parse as JSON
+    let courseData;
+    try {
+      const contentText = claudeData.content[0].text;
+      // Extract JSON from Claude's response if it's wrapped
+      const jsonMatch = contentText.match(/```json\s*([\s\S]*?)\s*```/) || 
+                        contentText.match(/```\s*([\s\S]*?)\s*```/) ||
+                        [null, contentText];
+      
+      const jsonText = jsonMatch[1].trim();
+      courseData = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.error("Error parsing Claude response:", parseError);
+      console.log("Claude response content:", claudeData.content[0].text);
+      
+      // Fallback to structured mock data
+      courseData = mockCourseData(formData);
+    }
     
     return new Response(
       JSON.stringify({ 
@@ -33,7 +99,7 @@ serve(async (req) => {
           ...corsHeaders, 
           'Content-Type': 'application/json' 
         } 
-      },
+      }
     );
   } catch (error) {
     console.error('Error generating course:', error);
@@ -48,7 +114,7 @@ serve(async (req) => {
           ...corsHeaders, 
           'Content-Type': 'application/json' 
         } 
-      },
+      }
     );
   }
 });
@@ -65,18 +131,91 @@ const buildPrompt = (formData) => {
 - Durată: {{DURATA}} (1 oră/2 ore/4 ore/8 ore/2 zile/3 zile/4 zile/5 zile)
 - Ton: {{TON}} (Socratic/Energizant/Haios/Profesional)
 - Context: {{CONTEXT}} (Corporativ/Academic)
-- Tip generare: {{TIP_GENERARE}} (CAMP ASCUNS: Preview/Complet)`;
+- Tip generare: {{TIP_GENERARE}} (CAMP ASCUNS: Preview/Complet)
+
+Ți se cere să generezi trei tipuri de materiale:
+
+1. Plan și obiective
+   - Obiective de învățare - liste cu 5-10 obiective specifice, măsurabile
+   - Structura cursului - o listă cu titluri de module și o scurtă descriere
+
+2. Materiale trainer
+   - Ghid trainer - detalii despre cum să fie livrat cursul
+   - Note de prezentare - ce să spună trainerul pentru fiecare slide
+
+3. Materiale suport
+   - Handout-uri - materiale tipărite pentru participanți
+   - Exerciții - activități practice pentru consolidarea cunoștințelor
+
+IMPORTANT: Răspunde DOAR cu un obiect JSON care conține cele trei secțiuni de mai sus, fiecare cu propriile categorii. Nu include text explicativ sau markdown în afara structurii JSON. Structura JSON trebuie să respecte formatul următor:
+
+{
+  "sections": [
+    {
+      "title": "Plan și obiective",
+      "content": "Descriere generală a planului",
+      "categories": [
+        {
+          "name": "Obiective de învățare",
+          "content": "Text detaliat cu obiectivele"
+        },
+        {
+          "name": "Structura cursului",
+          "content": "Text detaliat cu structura"
+        }
+      ]
+    },
+    {
+      "title": "Materiale trainer",
+      "content": "Descriere generală a materialelor pentru trainer",
+      "categories": [
+        {
+          "name": "Ghid trainer",
+          "content": "Text detaliat pentru ghid"
+        },
+        {
+          "name": "Note de prezentare",
+          "content": "Text detaliat cu notele"
+        }
+      ]
+    },
+    {
+      "title": "Materiale suport",
+      "content": "Descriere generală a materialelor suport",
+      "categories": [
+        {
+          "name": "Handout-uri",
+          "content": "Text detaliat pentru handout-uri"
+        },
+        {
+          "name": "Exerciții",
+          "content": "Text detaliat cu exerciții"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "subject": "{{SUBIECT}}",
+    "level": "{{NIVEL}}",
+    "audience": "{{PUBLICUL_TINTA}}",
+    "duration": "{{DURATA}}",
+    "createdAt": "CURRENT_DATE",
+    "expiresAt": "EXPIRY_DATE"
+  }
+}`;
 
   // Replace variables in template
   promptTemplate = promptTemplate
-    .replace('{{LIMBA}}', formData.language)
-    .replace('{{SUBIECT}}', formData.subject)
-    .replace('{{NIVEL}}', formData.level)
-    .replace('{{PUBLICUL_TINTA}}', formData.audience)
-    .replace('{{DURATA}}', formData.duration)
-    .replace('{{TON}}', formData.tone)
-    .replace('{{CONTEXT}}', formData.context)
-    .replace('{{TIP_GENERARE}}', formData.generationType || 'Preview');
+    .replace(/{{LIMBA}}/g, formData.language)
+    .replace(/{{SUBIECT}}/g, formData.subject)
+    .replace(/{{NIVEL}}/g, formData.level)
+    .replace(/{{PUBLICUL_TINTA}}/g, formData.audience)
+    .replace(/{{DURATA}}/g, formData.duration)
+    .replace(/{{TON}}/g, formData.tone)
+    .replace(/{{CONTEXT}}/g, formData.context)
+    .replace(/{{TIP_GENERARE}}/g, formData.generationType || 'Preview')
+    .replace(/CURRENT_DATE/g, new Date().toISOString())
+    .replace(/EXPIRY_DATE/g, new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString());
 
   return promptTemplate;
 };
