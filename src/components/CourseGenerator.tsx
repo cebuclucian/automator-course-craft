@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { CourseFormData, GenerationType } from '@/types';
@@ -17,7 +18,7 @@ import { generateCourse } from '@/services/claude';
 import { supabase } from "@/integrations/supabase/client";
 
 const CourseGenerator = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { t, language } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -85,13 +86,6 @@ const CourseGenerator = () => {
     try {
       const generatedCourse = await generateCourse(fullFormData);
       
-      toast({
-        title: language === 'ro' ? 'Material generat cu succes!' : 'Material successfully generated!',
-        description: language === 'ro' 
-          ? 'Poți accesa materialul din contul tău.' 
-          : 'You can access the material from your account.',
-      });
-      
       if (user) {
         const mockGeneratedCourse = {
           id: 'course-' + Date.now(),
@@ -111,9 +105,20 @@ const CourseGenerator = () => {
         };
         
         localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
+        
+        // Important: Await the refreshUser operation to ensure data is updated
+        await refreshUser();
+        
+        toast({
+          title: language === 'ro' ? 'Material generat cu succes!' : 'Material successfully generated!',
+          description: language === 'ro' 
+            ? 'Poți accesa materialul din contul tău.' 
+            : 'You can access the material from your account.',
+        });
+
+        // Navigate after refreshUser and toast operations are complete
+        navigate('/account');
       }
-      
-      navigate('/account');
     } catch (error: any) {
       console.error("Error generating course:", error);
       toast({
@@ -123,7 +128,6 @@ const CourseGenerator = () => {
           ? `A apărut o eroare la generarea materialului: ${error.message}` 
           : `An error occurred while generating the material: ${error.message}`,
       });
-    } finally {
       setLoading(false);
     }
   };

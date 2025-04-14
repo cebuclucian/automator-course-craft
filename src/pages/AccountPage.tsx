@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import AccountDashboard from '@/components/AccountDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -7,6 +7,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const AccountPage = () => {
   const { user, isLoading, refreshUser } = useAuth();
+  
+  // Refresh user data when the account page loads
+  useEffect(() => {
+    if (user) {
+      refreshUser();
+    }
+  }, []);
   
   if (isLoading) {
     return (

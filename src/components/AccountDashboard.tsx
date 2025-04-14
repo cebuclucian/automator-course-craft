@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,17 +20,22 @@ const AccountDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [selectedCourse, setSelectedCourse] = useState<GeneratedCourse | null>(
-    user?.generatedCourses && user.generatedCourses.length > 0 
-      ? user.generatedCourses[0] 
-      : null
-  );
+  const [selectedCourse, setSelectedCourse] = useState<GeneratedCourse | null>(null);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [limitInfo, setLimitInfo] = useState({ tier: '', maxCourses: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [hasGeneratingCourse, setHasGeneratingCourse] = useState(false);
 
-  // Verifică dacă există vreun curs în curs de generare
+  useEffect(() => {
+    if (user?.generatedCourses && user.generatedCourses.length > 0) {
+      if (!selectedCourse || !user.generatedCourses.find(c => c.id === selectedCourse.id)) {
+        setSelectedCourse(user.generatedCourses[0]);
+      }
+    } else {
+      setSelectedCourse(null);
+    }
+  }, [user?.generatedCourses]);
+
   useEffect(() => {
     if (!user?.generatedCourses || user.generatedCourses.length === 0) return;
     
@@ -41,26 +45,30 @@ const AccountDashboard = () => {
     
     setHasGeneratingCourse(!!generatingCourse);
     
-    // Dacă avem cursuri în generare, setăm un interval pentru a verifica starea
     if (generatingCourse) {
+      console.log("Setting up refresh interval for generating course:", generatingCourse.id);
+      
       const checkInterval = setInterval(async () => {
-        console.log("Verificăm actualizări pentru cursuri în generare...");
+        console.log("Checking for updates on generating courses...");
         await refreshUser();
         
-        // Verifică dacă cursul a fost generat
-        const updatedUser = await supabase.auth.getUser();
-        if (!updatedUser.data.user?.user_metadata?.generatedCourses) return;
+        const storedUser = localStorage.getItem("automatorUser");
+        if (!storedUser) return;
         
-        const updatedGeneratingCourse = updatedUser.data.user.user_metadata.generatedCourses.find(
+        const parsedUser = JSON.parse(storedUser);
+        if (!parsedUser.generatedCourses) return;
+        
+        const updatedGeneratingCourse = parsedUser.generatedCourses.find(
           (c: GeneratedCourse) => c.id === generatingCourse.id
         );
         
         if (updatedGeneratingCourse?.sections && updatedGeneratingCourse.sections.length > 0) {
           clearInterval(checkInterval);
+          
           await refreshUser();
+          
           setHasGeneratingCourse(false);
           
-          // Actualizăm cursul selectat
           if (selectedCourse?.id === updatedGeneratingCourse.id) {
             setSelectedCourse(updatedGeneratingCourse);
           }
@@ -73,32 +81,11 @@ const AccountDashboard = () => {
             variant: "default",
           });
         }
-      }, 5000); // Verifică la fiecare 5 secunde
+      }, 5000);
       
       return () => clearInterval(checkInterval);
     }
   }, [user?.generatedCourses, refreshUser, selectedCourse?.id, language, toast]);
-
-  // Actualizează cursul selectat când se schimbă lista de cursuri
-  useEffect(() => {
-    if (user?.generatedCourses && user.generatedCourses.length > 0) {
-      // Dacă cursul curent selectat există încă în listă, actualizează-l cu noile date
-      if (selectedCourse) {
-        const updatedCourse = user.generatedCourses.find(c => c.id === selectedCourse.id);
-        if (updatedCourse) {
-          setSelectedCourse(updatedCourse);
-        } else {
-          // Dacă cursul selectat nu mai există, selectează primul curs
-          setSelectedCourse(user.generatedCourses[0]);
-        }
-      } else {
-        // Dacă nu este selectat niciun curs, selectează primul
-        setSelectedCourse(user.generatedCourses[0]);
-      }
-    } else {
-      setSelectedCourse(null);
-    }
-  }, [user?.generatedCourses]);
 
   if (!user) {
     navigate('/');
@@ -126,7 +113,6 @@ const AccountDashboard = () => {
     let maxCourses = 0;
     let limitReached = false;
     
-    // Set max courses based on subscription tier
     switch (tier) {
       case 'Free':
         maxCourses = 1;
@@ -456,7 +442,6 @@ const AccountDashboard = () => {
         </div>
       </div>
 
-      {/* Dialog for when the user has reached the limit for their subscription tier */}
       <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
