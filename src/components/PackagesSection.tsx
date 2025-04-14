@@ -30,7 +30,7 @@ const PackagesSection = () => {
         features: [
           'Materiale complete',
           'Maxim 3 cursuri complete/lună',
-          'Export în format .docx și .pptx',
+          'Documente editabile',
           'Disponibil 72 de ore',
           'Suport prin email'
         ],
@@ -45,7 +45,7 @@ const PackagesSection = () => {
         features: [
           'Materiale complete',
           'Maxim 10 cursuri complete/lună',
-          'Export în toate formatele',
+          'Documente editabile',
           'Disponibil 72 de ore',
           'Suport prin email',
         ],
@@ -60,7 +60,7 @@ const PackagesSection = () => {
         features: [
           'Materiale complete',
           'Maxim 30 cursuri complete/lună',
-          'Export în toate formatele',
+          'Documente editabile',
           'Disponibil 72 de ore',
           'Suport prin email',
         ],
@@ -90,7 +90,7 @@ const PackagesSection = () => {
         features: [
           'Complete materials',
           'Maximum 3 complete courses/month',
-          'Export in .docx and .pptx format',
+          'Editable documents',
           'Available for 72 hours',
           'Email support'
         ],
@@ -105,7 +105,7 @@ const PackagesSection = () => {
         features: [
           'Complete materials',
           'Maximum 10 complete courses/month',
-          'Export in all formats',
+          'Editable documents',
           'Available for 72 hours',
           'Email support',
         ],
@@ -120,7 +120,7 @@ const PackagesSection = () => {
         features: [
           'Complete materials',
           'Maximum 30 complete courses/month',
-          'Export in all formats',
+          'Editable documents',
           'Available for 72 hours',
           'Email support',
         ],
