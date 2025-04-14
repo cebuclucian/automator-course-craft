@@ -35,7 +35,7 @@ const PackagesSection = () => {
           'Suport prin email'
         ],
         button: 'Alege Basic',
-        highlight: true
+        highlight: false
       },
       {
         name: 'Pro',
@@ -50,7 +50,7 @@ const PackagesSection = () => {
           'Suport prin email',
         ],
         button: 'Alege Pro',
-        highlight: false
+        highlight: true
       },
       {
         name: 'Enterprise',
@@ -64,7 +64,7 @@ const PackagesSection = () => {
           'Disponibil 72 de ore',
           'Suport prin email',
         ],
-        button: 'Contactează-ne',
+        button: 'Alege Enterprise',
         highlight: false
       }
     ],
@@ -95,7 +95,7 @@ const PackagesSection = () => {
           'Email support'
         ],
         button: 'Choose Basic',
-        highlight: true
+        highlight: false
       },
       {
         name: 'Pro',
@@ -110,7 +110,7 @@ const PackagesSection = () => {
           'Email support',
         ],
         button: 'Choose Pro',
-        highlight: false
+        highlight: true
       },
       {
         name: 'Enterprise',
@@ -124,7 +124,7 @@ const PackagesSection = () => {
           'Available for 72 hours',
           'Email support',
         ],
-        button: 'Contact Us',
+        button: 'Choose Enterprise',
         highlight: false
       }
     ]
