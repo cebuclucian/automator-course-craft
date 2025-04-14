@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -9,7 +8,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, ArrowRight, RefreshCw } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 interface StripeRedirectDialogProps {
@@ -20,21 +19,71 @@ interface StripeRedirectDialogProps {
 
 const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirectDialogProps) => {
   const { language } = useLanguage();
+  const [countdown, setCountdown] = useState(5);
+  const [isAttemptingRedirect, setIsAttemptingRedirect] = useState(false);
+  
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    
+    if (open && redirectUrl && countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (open && redirectUrl && countdown === 0 && !isAttemptingRedirect) {
+      handleRedirect();
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [open, countdown, redirectUrl, isAttemptingRedirect]);
+  
+  useEffect(() => {
+    if (open) {
+      setCountdown(5);
+      setIsAttemptingRedirect(false);
+    }
+  }, [open]);
   
   const handleRedirect = () => {
     if (redirectUrl) {
-      // Try opening in current tab
+      setIsAttemptingRedirect(true);
+      
+      console.info("Redirecting to URL:", redirectUrl);
+      
       window.location.href = redirectUrl;
+      
+      setTimeout(() => {
+        console.info("Still here after redirect attempt, keeping dialog open");
+      }, 1000);
     }
-    onOpenChange(false);
   };
   
   const handleOpenNewTab = () => {
     if (redirectUrl) {
-      // Open in new tab
-      window.open(redirectUrl, '_blank');
+      const newWindow = window.open(redirectUrl, '_blank');
+      
+      if (newWindow) {
+        console.info("Opened in new tab successfully");
+        onOpenChange(false);
+      } else {
+        console.warn("Failed to open in new tab - popup might be blocked");
+      }
     }
-    onOpenChange(false);
+  };
+  
+  const handleManualCopy = () => {
+    if (redirectUrl) {
+      navigator.clipboard.writeText(redirectUrl)
+        .then(() => {
+          alert(language === 'ro' 
+            ? 'Link-ul de plată a fost copiat în clipboard!' 
+            : 'Payment link has been copied to clipboard!');
+        })
+        .catch(err => {
+          console.error('Failed to copy URL: ', err);
+        });
+    }
   };
   
   return (
@@ -52,10 +101,29 @@ const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirec
         </DialogHeader>
         
         <div className="flex flex-col space-y-2 mt-4">
-          <p className="text-sm text-muted-foreground">
+          {countdown > 0 && (
+            <div className="text-center p-2 bg-muted rounded-md">
+              <p className="text-sm font-medium">
+                {language === 'ro'
+                  ? `Redirecționare automată în ${countdown} secunde...` 
+                  : `Automatic redirect in ${countdown} seconds...`}
+              </p>
+              <RefreshCw className="animate-spin mx-auto mt-2 h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
+          
+          <p className="text-sm text-muted-foreground pt-2">
             {language === 'ro'
               ? 'Dacă redirecționarea nu funcționează automat, alege una dintre opțiunile de mai jos:'
               : 'If the redirection doesn\'t work automatically, choose one of the options below:'}
+          </p>
+        </div>
+        
+        <div className="flex flex-col space-y-2 bg-secondary/30 p-3 rounded-md">
+          <p className="text-xs text-muted-foreground">
+            {language === 'ro'
+              ? 'În mediul de dezvoltare Lovable, redirecționările automate pot fi blocate. Încearcă una dintre opțiunile alternative:'
+              : 'In the Lovable development environment, automatic redirections may be blocked. Try one of the alternative options:'}
           </p>
         </div>
         
@@ -71,11 +139,21 @@ const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirec
           </Button>
           
           <Button
+            type="button"
+            variant="outline"
+            onClick={handleManualCopy}
+            className="flex items-center justify-center gap-2"
+          >
+            {language === 'ro' ? 'Copiază link' : 'Copy link'}
+          </Button>
+          
+          <Button
             type="button" 
             onClick={handleRedirect}
             className="flex items-center gap-2"
           >
             {language === 'ro' ? 'Continuă la plată' : 'Continue to payment'}
+            <ArrowRight size={16} />
           </Button>
         </DialogFooter>
       </DialogContent>
