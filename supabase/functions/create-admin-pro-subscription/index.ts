@@ -24,15 +24,12 @@ serve(async (req) => {
     // Hardcoded email for admin
     const adminEmail = "admin@automator.ro";
 
-    // Find the user in Supabase
-    const { data: userData, error: userError } = await supabaseClient
-      .from('profiles')  // Assuming you have a profiles table
-      .select('*')
-      .eq('email', adminEmail)
-      .single();
-
+    // Find the user in Supabase auth
+    const { data: { users }, error: userError } = await supabaseClient.auth.admin.listUsers();
+    const adminUser = users.find(user => user.email === adminEmail);
+    
     if (userError) throw new Error(`User lookup error: ${userError.message}`);
-    if (!userData) throw new Error("User not found");
+    if (!adminUser) throw new Error("Admin user not found");
 
     // Check if the user already exists in Stripe
     const existingCustomers = await stripe.customers.list({ email: adminEmail, limit: 1 });
@@ -49,23 +46,20 @@ serve(async (req) => {
       customerId = customer.id;
     }
 
-    // Create a Pro subscription
+    // Create a Pro subscription that's automatically active
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
-      items: [
-        {
-          price: "price_1PMZmXKyxqFxRVYEOCRZyOqm", // Replace with actual Pro tier price ID
-          quantity: 1
-        }
-      ],
+      items: [{ price: "price_1PMZmXKyxqFxRVYEOCRZyOqm" }],
       payment_behavior: 'default_incomplete',
-      expand: ['latest_invoice.payment_intent']
+      trial_end: 'now', // This will activate the subscription immediately
+      expand: ['latest_invoice.payment_intent'],
+      cancel_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).getTime() / 1000, // Set to expire in 1 year
     });
 
     // Update Supabase subscribers table
     await supabaseClient.from('subscribers').upsert({
       email: adminEmail,
-      user_id: userData.id,
+      user_id: adminUser.id,
       stripe_customer_id: customerId,
       subscribed: true,
       subscription_tier: 'Pro',
@@ -89,3 +83,4 @@ serve(async (req) => {
     });
   }
 });
+
