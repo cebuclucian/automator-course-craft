@@ -66,8 +66,15 @@ serve(async (req) => {
     
     console.log(`Found admin user with ID: ${adminUser.id}`);
 
-    // Create a mock subscription data (we don't need to actually create a Stripe subscription)
-    console.log("Creating Pro subscription data in Supabase directly");
+    // Log current subscriber status before update
+    const { data: currentSubscriberData, error: currentSubscriberError } = await supabaseClient
+      .from('subscribers')
+      .select('*')
+      .eq('email', adminEmail)
+      .single();
+
+    console.log("Current subscriber data:", currentSubscriberData);
+    console.log("Current subscriber error:", currentSubscriberError);
     
     // Set subscription to expire in 1 year
     const subscriptionEnd = new Date();
@@ -93,6 +100,16 @@ serve(async (req) => {
     }
     
     console.log("Subscriber record updated successfully");
+
+    // Log updated subscriber data after update
+    const { data: updatedSubscriberData, error: updatedSubscriberError } = await supabaseClient
+      .from('subscribers')
+      .select('*')
+      .eq('email', adminEmail)
+      .single();
+
+    console.log("Updated subscriber data:", updatedSubscriberData);
+    console.log("Updated subscriber error:", updatedSubscriberError);
 
     // For demonstration purposes, store subscription data in local storage
     const adminProData = {
@@ -123,3 +140,4 @@ serve(async (req) => {
     });
   }
 });
+
