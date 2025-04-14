@@ -30,8 +30,14 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
 
       console.log("Calling customer-portal");
       
+      if (!user?.email) {
+        throw new Error('User email is missing');
+      }
+      
+      // Pass email directly to avoid authentication issues
       const { data, error } = await supabase.functions.invoke('customer-portal', {
-        method: 'POST'
+        method: 'POST',
+        body: { email: user.email }
       });
 
       console.log("Response from customer-portal:", data, error);

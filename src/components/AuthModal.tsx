@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,8 +43,8 @@ const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   const handleGoogleLogin = async () => {
-    await loginWithGoogle();
-    // We don't close the modal here as the page will redirect to Google
+    const success = await loginWithGoogle();
+    if (success) onClose();
   };
 
   const toggleMode = () => {
@@ -62,11 +62,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
           <DialogTitle>
             {mode === "login" ? t("auth.loginButton") : t("auth.registerButton")}
           </DialogTitle>
-          <DialogDescription>
-            {mode === "login" 
-              ? t("auth.loginDescription") || "Sign in to your account to continue."
-              : t("auth.registerDescription") || "Create a new account to get started."}
-          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col space-y-4">
           <Button 

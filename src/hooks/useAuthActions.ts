@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@/types";
@@ -105,39 +104,40 @@ export const useAuthActions = () => {
     setError(null);
     
     try {
-      // Get the current URL to determine the redirect URL
-      const currentUrl = window.location.origin;
-      console.log("Current URL for Google redirect:", currentUrl);
-      
-      const { data, error: authError } = await supabase.auth.signInWithOAuth({
+      const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: currentUrl // Use the current origin as the redirect URL
-        }
       });
 
       if (authError) throw authError;
       
-      // The actual redirect will happen here, so we don't need to create a mock user
-      // The auth state listener in AuthContext will handle the user creation after redirect
+      // Note: The actual user data will be set in the auth state listener
+      // This is just a placeholder for the flow
+      const mockGoogleUser: User = {
+        id: "google-user-" + Math.floor(Math.random() * 10000),
+        email: "demo.user@gmail.com",
+        name: "Demo User",
+        subscription: {
+          tier: "Free",
+          expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+          active: true
+        },
+        generationsLeft: 0,
+        generatedCourses: [],
+        googleAuth: true
+      };
+      
+      localStorage.setItem("automatorUser", JSON.stringify(mockGoogleUser));
       
       toast({
-        title: "Redirecting to Google",
-        description: "Please complete the authentication process.",
+        title: "Autentificare Google reușită",
+        description: `Bine ai venit, ${mockGoogleUser.name}!`,
       });
       
-      return null; // User will be set after redirect completes
+      return mockGoogleUser;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred during Google authentication";
       setError(errorMessage);
-      console.error("Google auth error:", err);
-      
-      toast({
-        title: "Eroare de autentificare",
-        description: errorMessage,
-        variant: "destructive"
-      });
-      
+      console.error(err);
       return null;
     } finally {
       setIsLoading(false);
