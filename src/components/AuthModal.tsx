@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -59,10 +60,13 @@ const AuthModal: React.FC<AuthModalProps> = ({
         const result = await register(email, password, name);
         console.log("Registration result:", result);
         
-        if (result && typeof result === 'object' && 'emailConfirmationRequired' in result) {
-          setEmailConfirmationRequired(result.emailConfirmationRequired);
-        } else if (result === true) {
-          onClose();
+        // Add null check before accessing properties
+        if (result !== null && result !== false) {
+          if (typeof result === 'object' && 'emailConfirmationRequired' in result) {
+            setEmailConfirmationRequired(result.emailConfirmationRequired);
+          } else if (result === true) {
+            onClose();
+          }
         }
       }
     } catch (error) {
