@@ -1,20 +1,35 @@
-
 import { CourseFormData } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
 
-// In a real app, this would be a call to an API service
-// For our demo purposes, we'll simulate the API call
+// Function to generate course materials using Claude API via Supabase Edge Function
 export const generateCourse = async (formData: CourseFormData): Promise<any> => {
-  // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 3000));
-  
-  // Construct the prompt with variables replaced
-  const prompt = buildPrompt(formData);
-  
-  // In a real application, this would call Claude Haiku API
-  // For demo, return a mock response
-  return mockCourseData(formData);
+  try {
+    console.log("Generating course with data:", formData);
+    
+    // Call the Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('generate-course', {
+      body: { formData },
+    });
+    
+    if (error) {
+      console.error("Error calling generate-course function:", error);
+      throw new Error(error.message || "Failed to generate course");
+    }
+    
+    if (!data || !data.success) {
+      console.error("API returned an error:", data?.error);
+      throw new Error(data?.error || "Failed to generate course");
+    }
+    
+    console.log("Course generated successfully:", data);
+    return data.data;
+  } catch (error) {
+    console.error("Error in generateCourse:", error);
+    throw error;
+  }
 };
 
+// Keeping the buildPrompt function for reference, but the actual implementation is in the edge function
 const buildPrompt = (formData: CourseFormData): string => {
   // Template string from the brief
   let promptTemplate = `# Sistem pentru generarea automată a materialelor de curs fizic și academic
@@ -43,56 +58,9 @@ const buildPrompt = (formData: CourseFormData): string => {
   return promptTemplate;
 };
 
+// Keeping the mock data function for reference, but the actual implementation is in the edge function
 const mockCourseData = (formData: CourseFormData): any => {
   // Mock data structure that would come from the Claude API
-  const isPreview = formData.generationType !== 'Complet';
-  
-  return {
-    sections: [
-      {
-        title: "Plan și obiective",
-        content: `Plan de curs pentru ${formData.subject}`,
-        categories: [
-          {
-            name: "Obiective de învățare",
-            content: isPreview 
-              ? "Aceasta este o versiune preview a obiectivelor de învățare. Pentru versiunea completă, faceți upgrade la un abonament plătit.\n\n1. Înțelegerea conceptelor de bază\n2. Dezvoltarea abilităților practice" 
-              : "Lista completă a obiectivelor de învățare pentru acest curs...\n\n1. Înțelegerea conceptelor de bază\n2. Dezvoltarea abilităților practice\n3. Aplicarea cunoștințelor în situații reale\n4. Evaluarea și îmbunătățirea performanței"
-          },
-          {
-            name: "Structura cursului",
-            content: isPreview 
-              ? "Aceasta este o versiune preview a structurii cursului. Pentru versiunea completă, faceți upgrade la un abonament plătit.\n\nModulul 1: Introducere\nModulul 2: Concepte fundamentale" 
-              : "Structura completă a cursului...\n\nModulul 1: Introducere\nModulul 2: Concepte fundamentale\nModulul 3: Aplicații practice\nModulul 4: Studii de caz\nModulul 5: Evaluare și feedback"
-          }
-        ]
-      },
-      {
-        title: "Materiale trainer",
-        content: `Materiale pentru trainer pe tema ${formData.subject}`,
-        categories: [
-          {
-            name: "Ghid trainer",
-            content: isPreview 
-              ? "Aceasta este o versiune preview a ghidului pentru trainer. Pentru versiunea completă, faceți upgrade la un abonament plătit.\n\nIntroducere:\nAcest curs este conceput pentru a fi interactiv și practic." 
-              : "Ghidul complet pentru trainer...\n\nIntroducere:\nAcest curs este conceput pentru a fi interactiv și practic.\n\nMetodologie:\nUtilizați o combinație de prezentări, discuții și exerciții practice.\n\nSugestii de facilitare:\n1. Începeți cu un exercițiu de spargere a gheții\n2. Încurajați participarea activă\n3. Utilizați exemple relevante pentru domeniul participanților"
-          },
-          {
-            name: "Note de prezentare",
-            content: isPreview 
-              ? "Aceasta este o versiunea preview a notelor de prezentare. Pentru versiunea completă, faceți upgrade la un abonament plătit.\n\nSlide 1: Introducere\nPrezentați-vă și stabiliți obiectivele cursului." 
-              : "Notele complete de prezentare pentru fiecare slide...\n\nSlide 1: Introducere\nPrezentați-vă și stabiliți obiectivele cursului.\n\nSlide 2: Agenda\nPrezentați pe scurt structura zilei și ce vor învăța participanții.\n\nSlide 3: Concepte cheie\nExplicați conceptele fundamentale cu exemple concrete din industria relevantă."
-          }
-        ]
-      }
-    ],
-    metadata: {
-      subject: formData.subject,
-      level: formData.level,
-      audience: formData.audience,
-      duration: formData.duration,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString() // 72 hours
-    }
-  };
+  // Implementation moved to the edge function
+  return {};
 };

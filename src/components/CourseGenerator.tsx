@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { CourseFormData, GenerationType } from '@/types';
 import { Loader2 } from 'lucide-react';
 import AuthModal from './AuthModal';
+import { generateCourse } from '@/services/claude';
+import { supabase } from "@/integrations/supabase/client";
 
 const CourseGenerator = () => {
   const { user } = useAuth();
@@ -69,7 +70,6 @@ const CourseGenerator = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Determine generation type based on subscription
     let generationType: GenerationType = 'Preview';
     if (user.subscription && user.subscription.tier !== 'Free') {
       generationType = 'Complet';
@@ -82,12 +82,9 @@ const CourseGenerator = () => {
     
     setLoading(true);
     
-    // In a real app, we would call an API here
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      const generatedCourse = await generateCourse(fullFormData);
       
-      // Navigate to the results page (we'll create this later)
       toast({
         title: language === 'ro' ? 'Material generat cu succes!' : 'Material successfully generated!',
         description: language === 'ro' 
@@ -95,14 +92,13 @@ const CourseGenerator = () => {
           : 'You can access the material from your account.',
       });
       
-      // For demo: add a mock generated course to user
       if (user) {
         const mockGeneratedCourse = {
           id: 'course-' + Date.now(),
           createdAt: new Date(),
           expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000), // 72 hours
           formData: fullFormData,
-          sections: [],
+          sections: generatedCourse.sections,
           previewMode: generationType === 'Preview'
         };
         
@@ -114,18 +110,18 @@ const CourseGenerator = () => {
           ]
         };
         
-        // Update localStorage (in a real app this would be handled by an API)
         localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
       }
       
       navigate('/account');
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error generating course:", error);
       toast({
         variant: 'destructive',
         title: language === 'ro' ? 'Eroare' : 'Error',
         description: language === 'ro' 
-          ? 'A apărut o eroare la generarea materialului.' 
-          : 'An error occurred while generating the material.',
+          ? `A apărut o eroare la generarea materialului: ${error.message}` 
+          : `An error occurred while generating the material: ${error.message}`,
       });
     } finally {
       setLoading(false);
