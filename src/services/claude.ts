@@ -1,6 +1,7 @@
 
 import { CourseFormData } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 // Function to generate course materials using Claude API via Supabase Edge Function
 export const generateCourse = async (formData: CourseFormData): Promise<any> => {
@@ -40,25 +41,43 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
       }
     }
     
-    // Call the Supabase Edge Function
-    const { data, error } = await supabase.functions.invoke('generate-course', {
+    console.log("Calling Supabase Edge Function: generate-course");
+    
+    // Call the Supabase Edge Function with timeout handling
+    const functionPromise = supabase.functions.invoke('generate-course', {
       body: { formData },
     });
     
-    if (error) {
-      console.error("Error calling generate-course function:", error);
-      throw new Error(error.message || "Failed to generate course");
+    // Set a timeout to handle potential hanging requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Generarea a durat prea mult. Vă rugăm să încercați din nou.")), 60000); // 60s timeout
+    });
+    
+    // Race between function call and timeout
+    const result = await Promise.race([functionPromise, timeoutPromise]);
+    
+    if ('error' in result && result.error) {
+      console.error("Error from generate-course function:", result.error);
+      throw new Error(result.error.message || "Nu am putut genera cursul");
     }
+    
+    const { data } = result;
     
     if (!data || !data.success) {
       console.error("API returned an error:", data?.error);
-      throw new Error(data?.error || "Failed to generate course");
+      throw new Error(data?.error || "Nu am putut genera cursul");
     }
     
     console.log("Course generated successfully:", data);
     return data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in generateCourse:", error);
+    // Display toast error for feedback
+    toast({
+      title: "Eroare la generarea materialelor",
+      description: error.message || "A apărut o eroare neașteptată",
+      variant: "destructive"
+    });
     throw error;
   }
 };

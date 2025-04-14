@@ -1,12 +1,13 @@
 
 import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Separator } from "@/components/ui/separator";
+import { Loader2 } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -26,25 +27,45 @@ const AuthModal: React.FC<AuthModalProps> = ({
   const [name, setName] = useState("");
   const { login, register, loginWithGoogle, isLoading, error } = useAuth();
   const { t } = useLanguage();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === "login") {
-      const success = await login(email, password);
-      if (success) onClose();
-    } else {
-      if (password !== confirmPassword) {
-        alert("Passwords don't match!");
-        return;
+    setIsSubmitting(true);
+    setRegistrationError(null);
+    
+    try {
+      if (mode === "login") {
+        const success = await login(email, password);
+        if (success) onClose();
+      } else {
+        if (password !== confirmPassword) {
+          setRegistrationError("Parolele nu coincid!");
+          setIsSubmitting(false);
+          return;
+        }
+        const success = await register(email, password, name);
+        if (success) onClose();
       }
-      const success = await register(email, password, name);
-      if (success) onClose();
+    } catch (error) {
+      console.error("Auth error:", error);
+      setRegistrationError(error instanceof Error ? error.message : "Eroare la autentificare");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    const success = await loginWithGoogle();
-    if (success) onClose();
+    try {
+      setIsSubmitting(true);
+      await loginWithGoogle();
+      // Nu închidem modalul aici, deoarece redirecționarea va fi gestionată de Supabase
+    } catch (error) {
+      console.error("Google login error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleMode = () => {
@@ -53,6 +74,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
     setPassword("");
     setConfirmPassword("");
     setName("");
+    setRegistrationError(null);
   };
 
   return (
@@ -62,13 +84,18 @@ const AuthModal: React.FC<AuthModalProps> = ({
           <DialogTitle>
             {mode === "login" ? t("auth.loginButton") : t("auth.registerButton")}
           </DialogTitle>
+          <DialogDescription>
+            {mode === "login" 
+              ? "Introduceți datele pentru a vă autentifica" 
+              : "Completați formularul pentru a crea un cont nou"}
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col space-y-4">
           <Button 
             variant="outline" 
             className="w-full flex items-center justify-center gap-2"
             onClick={handleGoogleLogin}
-            disabled={isLoading}
+            disabled={isSubmitting}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chrome">
               <circle cx="12" cy="12" r="10"/>
@@ -77,7 +104,12 @@ const AuthModal: React.FC<AuthModalProps> = ({
               <line x1="3.95" y1="6.06" x2="8.54" y2="14"/>
               <line x1="10.88" y1="21.94" x2="15.46" y2="14"/>
             </svg>
-            {mode === "login" 
+            {isSubmitting ? (
+              <span className="flex items-center">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Se procesează...
+              </span>
+            ) : mode === "login" 
               ? t("auth.continueWithGoogle") 
               : t("auth.signupWithGoogle")}
           </Button>
@@ -135,12 +167,17 @@ const AuthModal: React.FC<AuthModalProps> = ({
               />
             </div>
           )}
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {(error || registrationError) && (
+            <p className="text-destructive text-sm">{error || registrationError}</p>
+          )}
           <div className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading
-                ? "Loading..."
-                : mode === "login"
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <span className="flex items-center justify-center">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {mode === "login" ? "Se autentifică..." : "Se înregistrează..."}
+                </span>
+              ) : mode === "login"
                 ? t("auth.loginButton")
                 : t("auth.registerButton")}
             </Button>
@@ -149,6 +186,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
               variant="ghost"
               onClick={toggleMode}
               className="w-full"
+              disabled={isSubmitting}
             >
               {mode === "login"
                 ? t("auth.switchToRegister")

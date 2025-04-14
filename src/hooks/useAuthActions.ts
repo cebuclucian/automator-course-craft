@@ -45,7 +45,7 @@ export const useAuthActions = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred during login";
       setError(errorMessage);
-      console.error(err);
+      console.error("Login error:", err);
       return null;
     } finally {
       setIsLoading(false);
@@ -57,6 +57,8 @@ export const useAuthActions = () => {
     setError(null);
     
     try {
+      console.log("Attempting to register user:", { email, name });
+      
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -67,7 +69,17 @@ export const useAuthActions = () => {
         }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error("Auth error during registration:", authError);
+        throw authError;
+      }
+
+      console.log("Registration response:", data);
+      
+      // Verificăm dacă avem un user valid returnat
+      if (!data.user) {
+        throw new Error("Nu am putut crea contul. Te rugăm să încerci din nou.");
+      }
       
       const mockUser: User = {
         id: data.user?.id || "user" + Math.floor(Math.random() * 10000),
@@ -93,7 +105,7 @@ export const useAuthActions = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred during registration";
       setError(errorMessage);
-      console.error(err);
+      console.error("Registration error:", err);
       return null;
     } finally {
       setIsLoading(false);
@@ -105,40 +117,29 @@ export const useAuthActions = () => {
     setError(null);
     
     try {
+      // Definim originea actuală pentru redirectare
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      console.log("Setting Google redirect to:", redirectTo);
+      
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
+        options: {
+          redirectTo: redirectTo
+        }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error("Google auth error:", authError);
+        throw authError;
+      }
       
-      // Note: The actual user data will be set in the auth state listener
-      // This is just a placeholder for the flow
-      const mockGoogleUser: User = {
-        id: "google-user-" + Math.floor(Math.random() * 10000),
-        email: "demo.user@gmail.com",
-        name: "Demo User",
-        subscription: {
-          tier: "Free",
-          expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-          active: true
-        },
-        generationsLeft: 0,
-        generatedCourses: [],
-        googleAuth: true
-      };
-      
-      localStorage.setItem("automatorUser", JSON.stringify(mockGoogleUser));
-      
-      toast({
-        title: "Autentificare Google reușită",
-        description: `Bine ai venit, ${mockGoogleUser.name}!`,
-      });
-      
-      return mockGoogleUser;
+      // Returnăm true pentru a indica că procesul a început cu succes
+      // Autentificarea efectivă va fi gestionată de redirect
+      return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred during Google authentication";
       setError(errorMessage);
-      console.error(err);
+      console.error("Google login error:", err);
       return null;
     } finally {
       setIsLoading(false);
@@ -160,7 +161,7 @@ export const useAuthActions = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred during logout";
       setError(errorMessage);
-      console.error(err);
+      console.error("Logout error:", err);
       return false;
     } finally {
       setIsLoading(false);
@@ -176,4 +177,3 @@ export const useAuthActions = () => {
     error
   };
 };
-

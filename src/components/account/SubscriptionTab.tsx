@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface SubscriptionTabProps {
   user: User | null;
@@ -17,6 +18,7 @@ interface SubscriptionTabProps {
 const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
   const { language } = useLanguage();
   const [isLoading, setIsLoading] = React.useState(false);
+  const navigate = useNavigate();
 
   const handleManageSubscription = async () => {
     setIsLoading(true);
@@ -77,6 +79,11 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
     }
   };
 
+  const handleGoToPackages = () => {
+    // Folosim navigate pentru a naviga către pagina de pachete
+    navigate('/packages');
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -122,7 +129,7 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
             </Button>
           ) : (
             <Button 
-              onClick={() => window.location.href = '/packages'}
+              onClick={handleGoToPackages}
               className="w-full"
             >
               Alege un abonament
