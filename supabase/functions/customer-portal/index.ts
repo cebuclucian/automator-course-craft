@@ -17,42 +17,45 @@ const logStep = (step: string, details?: any) => {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
+    logStep("CORS preflight request received");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     logStep("Function started");
 
-    // Initialize Stripe
+    // Initialize environment variables
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    
+    // Validate environment variables
     if (!stripeKey) {
       logStep("ERROR: STRIPE_SECRET_KEY is not set");
       throw new Error("STRIPE_SECRET_KEY is not set");
     }
     logStep("Stripe key verified", { keyLength: stripeKey.length });
     
-    const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
-
-    // Initialize Supabase client with anon key for authentication
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    
     if (!supabaseUrl || !supabaseAnonKey) {
       logStep("ERROR: Supabase environment variables not set");
       throw new Error("Supabase environment variables not set");
     }
+    logStep("Supabase environment variables verified");
     
+    // Initialize services
+    const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-    logStep("Supabase client initialized");
+    logStep("Services initialized");
 
-    // Get user from auth header
+    // Get and validate auth header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       logStep("ERROR: No authorization header provided");
       throw new Error("No authorization header provided");
     }
-    logStep("Authorization header found", { authHeader: authHeader.substring(0, 20) + '...' });
+    logStep("Authorization header found");
 
+    // Authenticate user
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     
@@ -61,15 +64,21 @@ serve(async (req) => {
       throw new Error(`Authentication error: ${userError.message}`);
     }
     
+    if (!userData?.user) {
+      logStep("ERROR: No user found in auth response");
+      throw new Error("Authentication failed: No user data found");
+    }
+    
     const user = userData.user;
     if (!user?.email) {
-      logStep("ERROR: User not authenticated or email not available");
+      logStep("ERROR: User email not available");
       throw new Error("User not authenticated or email not available");
     }
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    // Find or create a Stripe customer for this user
+    // Find Stripe customer
     try {
+      logStep("Searching for Stripe customer with email", { email: user.email });
       const customers = await stripe.customers.list({ email: user.email, limit: 1 });
       
       if (customers.data.length === 0) {
@@ -82,6 +91,8 @@ serve(async (req) => {
 
       // Create a customer portal session
       const origin = req.headers.get("origin") || "https://automator.ro";
+      logStep("Creating customer portal session", { origin });
+      
       const session = await stripe.billingPortal.sessions.create({
         customer: customerId,
         return_url: `${origin}/account`,
@@ -95,13 +106,18 @@ serve(async (req) => {
         status: 200,
       });
     } catch (stripeError) {
-      logStep("ERROR: Stripe operation failed", stripeError);
-      throw new Error(`Stripe error: ${stripeError.message}`);
+      const errorMessage = stripeError instanceof Error ? stripeError.message : String(stripeError);
+      logStep("ERROR: Stripe operation failed", { message: errorMessage, error: stripeError });
+      throw new Error(`Stripe error: ${errorMessage}`);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`[CUSTOMER-PORTAL] ERROR: ${errorMessage}`);
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    console.error(`[CUSTOMER-PORTAL] ERROR: ${errorMessage}`, error);
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      time: new Date().toISOString(),
+      path: "customer-portal"
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
