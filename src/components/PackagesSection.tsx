@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -13,6 +13,7 @@ const PackagesSection = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [processingPackage, setProcessingPackage] = React.useState('');
 
   const packages = {
     ro: [
@@ -157,6 +158,7 @@ const PackagesSection = () => {
     if (isProcessing) return;
     
     setIsProcessing(true);
+    setProcessingPackage(packageName);
 
     // Show loading state
     toast({
@@ -178,6 +180,7 @@ const PackagesSection = () => {
           variant: "default"
         });
         setIsProcessing(false);
+        setProcessingPackage('');
         return;
       }
 
@@ -196,9 +199,17 @@ const PackagesSection = () => {
       }
 
       if (data && data.url) {
-        // Important fix: Use window.location.href to redirect to Stripe checkout
-        // This ensures the browser actually navigates to the URL rather than just setting it
-        window.location.href = data.url;
+        console.log("Redirecting to URL:", data.url);
+        
+        // Critical fix: Use direct browser navigation
+        window.location.replace(data.url);
+        
+        // Add a final safety timeout to force navigation after 2 seconds
+        setTimeout(() => {
+          console.log("Forcing navigation after timeout");
+          window.location.href = data.url;
+        }, 2000);
+        
         return; // This prevents the isProcessing state from being updated unnecessarily
       } else if (data && data.free) {
         // Handle free package
@@ -224,6 +235,7 @@ const PackagesSection = () => {
     } finally {
       // Only update isProcessing if we haven't redirected
       setIsProcessing(false);
+      setProcessingPackage('');
     }
   };
 
@@ -272,8 +284,11 @@ const PackagesSection = () => {
                   onClick={() => handlePackageSelect(pkg.name)}
                   disabled={isProcessing}
                 >
-                  {isProcessing ? (
-                    language === 'ro' ? 'Se procesează...' : 'Processing...'
+                  {isProcessing && processingPackage === pkg.name ? (
+                    <span className="flex items-center justify-center">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {language === 'ro' ? 'Se procesează...' : 'Processing...'}
+                    </span>
                   ) : (
                     pkg.button
                   )}

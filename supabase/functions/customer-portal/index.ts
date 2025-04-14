@@ -81,7 +81,7 @@ serve(async (req) => {
       logStep("Found existing Stripe customer", { customerId });
 
       // Create a customer portal session
-      const origin = req.headers.get("origin") || "http://localhost:3000";
+      const origin = req.headers.get("origin") || "https://automator.ro";
       const session = await stripe.billingPortal.sessions.create({
         customer: customerId,
         return_url: `${origin}/account`,
