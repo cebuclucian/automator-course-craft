@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,6 +8,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { CourseCategory, CourseSection, GeneratedCourse } from '@/types';
 import { Download, Clock, AlertCircle, PlusCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const AccountDashboard = () => {
   const { user } = useAuth();
@@ -19,6 +19,7 @@ const AccountDashboard = () => {
       ? user.generatedCourses[0] 
       : null
   );
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 
   if (!user) {
     navigate('/');
@@ -26,7 +27,14 @@ const AccountDashboard = () => {
   }
 
   const handleCreateNew = () => {
-    navigate('/generate');
+    const isFreeUser = !user.subscription || user.subscription.tier === 'Free';
+    const hasGeneratedCourse = user.generatedCourses && user.generatedCourses.length > 0;
+    
+    if (isFreeUser && hasGeneratedCourse) {
+      setShowUpgradeDialog(true);
+    } else {
+      navigate('/generate');
+    }
   };
 
   const calculateTimeLeft = (expiresAt: Date): string => {
@@ -46,9 +54,7 @@ const AccountDashboard = () => {
   return (
     <div className="container mx-auto px-4 py-10">
       <div className="flex flex-col md:flex-row gap-8">
-        {/* Sidebar with user info and course list */}
         <div className="w-full md:w-64 space-y-6">
-          {/* User info card */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle>{user.name || user.email.split('@')[0]}</CardTitle>
@@ -68,7 +74,6 @@ const AccountDashboard = () => {
             </CardContent>
           </Card>
           
-          {/* Create new course button */}
           <Button 
             onClick={handleCreateNew}
             className="w-full flex items-center justify-center"
@@ -77,7 +82,6 @@ const AccountDashboard = () => {
             {language === 'ro' ? 'Generează curs nou' : 'Generate new course'}
           </Button>
           
-          {/* Course list */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle>
@@ -128,7 +132,6 @@ const AccountDashboard = () => {
           </Card>
         </div>
         
-        {/* Main content - course details */}
         <div className="flex-1">
           {selectedCourse ? (
             <Card className="min-h-[600px]">
@@ -160,7 +163,6 @@ const AccountDashboard = () => {
               </CardHeader>
               
               <CardContent className="pt-6">
-                {/* Course metadata */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
                   <div>
                     <div className="font-medium">
@@ -196,7 +198,6 @@ const AccountDashboard = () => {
                   </div>
                 </div>
                 
-                {/* Course content */}
                 {selectedCourse.previewMode && (
                   <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 p-4 rounded-md mb-6">
                     <div className="flex items-start">
@@ -265,7 +266,6 @@ const AccountDashboard = () => {
                     <Button 
                       variant="outline"
                       onClick={() => {
-                        // Reload the page to simulate refresh
                         window.location.reload();
                       }}
                     >
@@ -296,6 +296,29 @@ const AccountDashboard = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'ro' ? 'Alege un pachet pentru materiale complete' : 'Choose a package for complete materials'}
+            </DialogTitle>
+            <DialogDescription>
+              {language === 'ro' 
+                ? 'Ai deja un material în versiunea Preview. Pentru a genera mai multe cursuri sau pentru a accesa versiunea completă a materialelor, este necesar să alegi un pachet plătit.'
+                : 'You already have a material in Preview version. To generate more courses or to access the complete version of the materials, you need to choose a paid package.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
+              {language === 'ro' ? 'Înapoi' : 'Back'}
+            </Button>
+            <Button onClick={() => navigate('/packages')}>
+              {language === 'ro' ? 'Vezi pachete disponibile' : 'See available packages'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
