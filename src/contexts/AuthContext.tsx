@@ -1,16 +1,16 @@
 
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { AuthContextType, User } from "@/types";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuthActions } from "@/hooks/useAuthActions";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const { login, register, loginWithGoogle, logout, error } = useAuthActions();
+  const { refreshUser } = useSubscriptionStatus();
 
   // Check for existing session on mount
   useEffect(() => {
@@ -26,196 +26,42 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoading(false);
   }, []);
 
-  // Improved refreshUser function to fetch the latest user data
-  const refreshUser = async (): Promise<void> => {
-    setIsLoading(true);
-    try {
-      // For admin@automator.ro, check for subscription in DB via Supabase
-      const storedUser = localStorage.getItem("automatorUser");
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
-        
-        // If user is admin@automator.ro, check Supabase for Pro subscription
-        if (parsedUser.email === 'admin@automator.ro') {
-          console.log("Checking admin subscription status...");
-          
-          // Query the subscribers table to get latest subscription data
-          // Use .select() instead of .single() to avoid errors when no data is found
-          const { data: subscriberData, error } = await supabase
-            .from('subscribers')
-            .select('*')
-            .eq('email', 'admin@automator.ro');
-          
-          console.log("Subscriber data from DB:", subscriberData);
-          console.log("Subscriber error:", error);
-          
-          if (subscriberData && subscriberData.length > 0 && 
-              subscriberData[0].subscription_tier === 'Pro' && 
-              subscriberData[0].subscribed) {
-            // Update the user with Pro subscription data from DB
-            parsedUser.subscription = {
-              tier: 'Pro',
-              expiresAt: new Date(subscriberData[0].subscription_end),
-              active: true
-            };
-            
-            // Update localStorage
-            localStorage.setItem("automatorUser", JSON.stringify(parsedUser));
-            
-            console.log("Updated user with Pro subscription:", parsedUser);
-          }
-        }
-        
-        setUser(parsedUser);
-      }
-    } catch (err) {
-      console.error("Error refreshing user data", err);
-      setError(err instanceof Error ? err.message : "An error occurred while refreshing user data");
-    } finally {
-      setIsLoading(false);
-    }
+  const handleLogin = async (email: string, password: string) => {
+    const loggedInUser = await login(email, password);
+    if (loggedInUser) setUser(loggedInUser);
   };
 
-  // For demo purposes, using localStorage
-  // In a real app, this would connect to an authentication API
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // For demo, just create a user
-      const mockUser: User = {
-        id: "user123",
-        email,
-        name: email.split("@")[0],
-        subscription: {
-          tier: "Free",
-          expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-          active: true
-        },
-        generationsLeft: 0,
-        generatedCourses: []
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem("automatorUser", JSON.stringify(mockUser));
-      
-      toast({
-        title: "Autentificare reușită",
-        description: `Bine ai revenit, ${mockUser.name}!`,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred during login");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleRegister = async (email: string, password: string, name: string) => {
+    const registeredUser = await register(email, password, name);
+    if (registeredUser) setUser(registeredUser);
   };
 
-  const register = async (email: string, password: string, name: string) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Create a new user
-      const mockUser: User = {
-        id: "user" + Math.floor(Math.random() * 10000),
-        email,
-        name,
-        subscription: {
-          tier: "Free", 
-          expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-          active: true
-        },
-        generationsLeft: 0,
-        generatedCourses: []
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem("automatorUser", JSON.stringify(mockUser));
-      
-      toast({
-        title: "Înregistrare reușită",
-        description: `Bine ai venit, ${name}!`,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred during registration");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleGoogleLogin = async () => {
+    const googleUser = await loginWithGoogle();
+    if (googleUser) setUser(googleUser);
   };
 
-  const loginWithGoogle = async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Mock Google authentication API call
-      await new Promise(resolve => setTimeout(resolve, 1200));
-      
-      // Create a mock Google user for testing
-      const mockGoogleUser: User = {
-        id: "google-user-" + Math.floor(Math.random() * 10000),
-        email: "demo.user@gmail.com",
-        name: "Demo User",
-        subscription: {
-          tier: "Free",
-          expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-          active: true
-        },
-        generationsLeft: 0,
-        generatedCourses: [],
-        googleAuth: true
-      };
-      
-      setUser(mockGoogleUser);
-      localStorage.setItem("automatorUser", JSON.stringify(mockGoogleUser));
-      
-      toast({
-        title: "Autentificare Google reușită",
-        description: `Bine ai venit, ${mockGoogleUser.name}!`,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred during Google authentication");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleLogout = async () => {
+    const success = await logout();
+    if (success) setUser(null);
   };
 
-  const logout = async () => {
+  const handleRefreshUser = async () => {
     setIsLoading(true);
-    try {
-      localStorage.removeItem("automatorUser");
-      setUser(null);
-      toast({
-        title: "Deconectare reușită",
-        description: "Te-ai deconectat cu succes.",
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred during logout");
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+    const refreshedUser = await refreshUser();
+    if (refreshedUser) setUser(refreshedUser);
+    setIsLoading(false);
   };
 
   const value = {
     user,
-    login,
-    register,
-    loginWithGoogle,
-    logout,
+    login: handleLogin,
+    register: handleRegister,
+    loginWithGoogle: handleGoogleLogin,
+    logout: handleLogout,
     isLoading,
     error,
-    refreshUser
+    refreshUser: handleRefreshUser
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
