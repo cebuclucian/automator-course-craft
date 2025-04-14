@@ -1,17 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { ExternalLink, ArrowRight, RefreshCw, Clipboard, Check } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { Button } from './ui/button';
+import { Loader2, Copy, ExternalLink, Check } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 interface StripeRedirectDialogProps {
   open: boolean;
@@ -20,199 +12,177 @@ interface StripeRedirectDialogProps {
 }
 
 const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirectDialogProps) => {
-  const { language } = useLanguage();
-  const { toast } = useToast();
-  const [countdown, setCountdown] = useState(5);
-  const [isAttemptingRedirect, setIsAttemptingRedirect] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const [redirectFailed, setRedirectFailed] = useState(false);
   const [copied, setCopied] = useState(false);
-  
+  const [countdown, setCountdown] = useState(10);
+
+  // Handle auto-redirect logic
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    
-    if (open && redirectUrl && countdown > 0) {
-      timer = setTimeout(() => {
-        setCountdown(prev => prev - 1);
+    if (open && redirectUrl) {
+      setRedirecting(true);
+      setRedirectFailed(false);
+      setCountdown(10);
+
+      // Show toast notification about redirect
+      toast({
+        title: "Redirecționare către Stripe",
+        description: "Vei fi redirecționat către pagina de plată Stripe în câteva secunde...",
+        variant: "default"
+      });
+      
+      // Start countdown
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
-    } else if (open && redirectUrl && countdown === 0 && !isAttemptingRedirect) {
-      handleRedirect();
-    }
-    
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [open, countdown, redirectUrl, isAttemptingRedirect]);
-  
-  useEffect(() => {
-    if (open) {
-      setCountdown(5);
-      setIsAttemptingRedirect(false);
-      setCopied(false);
-    }
-  }, [open]);
-  
-  const handleRedirect = () => {
-    if (redirectUrl) {
-      setIsAttemptingRedirect(true);
       
-      console.info("Redirecting to URL:", redirectUrl);
-      
-      // Try to open in current tab
-      try {
-        window.location.href = redirectUrl;
-        
-        // If we're still here after 1.5 seconds, the redirect didn't happen
-        setTimeout(() => {
-          console.info("Still here after redirect attempt");
-          toast({
-            title: language === 'ro' ? "Redirectare blocată" : "Redirect blocked",
-            description: language === 'ro' 
-              ? "Încercați să deschideți în tab nou sau copiați link-ul" 
-              : "Try opening in a new tab or copying the link",
-            variant: "destructive" // Changed from "warning" to "destructive"
-          });
-        }, 1500);
-      } catch (error) {
-        console.error("Redirect error:", error);
-        toast({
-          title: language === 'ro' ? "Eroare la redirectare" : "Redirect error",
-          description: language === 'ro' 
-            ? "Vă rugăm să încercați una dintre opțiunile alternative" 
-            : "Please try one of the alternative options",
-          variant: "destructive"
-        });
-      }
-    }
-  };
-  
-  const handleOpenNewTab = () => {
-    if (redirectUrl) {
-      try {
-        const newWindow = window.open(redirectUrl, '_blank');
-        
-        if (newWindow) {
-          console.info("Opened in new tab successfully");
-          toast({
-            title: language === 'ro' ? "Deschis în tab nou" : "Opened in new tab",
-            description: language === 'ro' 
-              ? "Verificați noul tab deschis pentru a continua" 
-              : "Check the new tab to continue",
-          });
-          onOpenChange(false);
-        } else {
-          console.warn("Failed to open in new tab - popup might be blocked");
-          toast({
-            title: language === 'ro' ? "Pop-up blocat" : "Popup blocked",
-            description: language === 'ro' 
-              ? "Vă rugăm să permiteți pop-up-urile sau să copiați link-ul" 
-              : "Please allow popups or copy the link instead",
-            variant: "destructive" // Changed from "warning" to "destructive"
-          });
-        }
-      } catch (error) {
-        console.error("New tab error:", error);
-      }
-    }
-  };
-  
-  const handleManualCopy = () => {
-    if (redirectUrl) {
-      navigator.clipboard.writeText(redirectUrl)
-        .then(() => {
-          setCopied(true);
-          toast({
-            title: language === 'ro' ? "Link copiat" : "Link copied",
-            description: language === 'ro' 
-              ? "Link-ul de plată a fost copiat în clipboard" 
-              : "Payment link has been copied to clipboard",
-          });
+      // Attempt redirect after delay
+      const redirectTimeout = setTimeout(() => {
+        try {
+          console.log("Redirecting to:", redirectUrl);
           
-          // Reset copied state after 2 seconds
-          setTimeout(() => setCopied(false), 2000);
-        })
-        .catch(err => {
-          console.error('Failed to copy URL: ', err);
-          toast({
-            title: language === 'ro' ? "Eroare la copiere" : "Copy error",
-            description: language === 'ro' 
-              ? "Nu s-a putut copia link-ul" 
-              : "Failed to copy the link",
-            variant: "destructive"
-          });
-        });
+          // Try to open in current tab
+          window.location.href = redirectUrl;
+          
+          // If we're still here after 5 seconds, mark as failed
+          const backupTimeout = setTimeout(() => {
+            console.log("Redirect might have failed, showing manual options");
+            setRedirectFailed(true);
+            setRedirecting(false);
+          }, 5000);
+          
+          return () => clearTimeout(backupTimeout);
+        } catch (error) {
+          console.error("Redirect error:", error);
+          setRedirectFailed(true);
+          setRedirecting(false);
+        } finally {
+          clearInterval(countdownInterval);
+        }
+      }, 3000);
+      
+      return () => {
+        clearTimeout(redirectTimeout);
+        clearInterval(countdownInterval);
+      };
+    }
+  }, [open, redirectUrl]);
+  
+  // Handle countdown reaching zero
+  useEffect(() => {
+    if (countdown === 0 && !redirectFailed) {
+      handleManualRedirect();
+    }
+  }, [countdown, redirectFailed]);
+
+  const handleManualRedirect = () => {
+    try {
+      window.open(redirectUrl, '_blank');
+      toast({
+        title: "Pagină nouă deschisă",
+        description: "Am deschis pagina de plată într-o fereastră nouă.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error("Manual redirect error:", error);
+      setRedirectFailed(true);
+      toast({
+        title: "Redirecționare eșuată",
+        description: "Te rugăm să folosești butonul 'Copiază link' și să deschizi link-ul manual.",
+        variant: "destructive"
+      });
     }
   };
-  
+
+  const handleCopyLink = () => {
+    try {
+      navigator.clipboard.writeText(redirectUrl);
+      setCopied(true);
+      toast({
+        title: "Link copiat",
+        description: "Link-ul a fost copiat în clipboard.",
+        variant: "default"
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Copy error:", error);
+      toast({
+        title: "Eroare la copiere",
+        description: "Nu am putut copia link-ul. Te rugăm să încerci din nou.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {language === 'ro' ? 'Redirecționare către plată' : 'Redirecting to payment'}
-          </DialogTitle>
+          <DialogTitle>Redirecționare către pagina de plată</DialogTitle>
           <DialogDescription>
-            {language === 'ro' 
-              ? 'Vei fi redirecționat către pagina de plată Stripe pentru a finaliza abonamentul.' 
-              : 'You will be redirected to the Stripe payment page to complete your subscription.'}
+            {redirecting ? (
+              <span>Vei fi redirecționat automat în {countdown} secunde...</span>
+            ) : redirectFailed ? (
+              <span>Redirecționarea automată a eșuat. Te rugăm să folosești una din opțiunile de mai jos.</span>
+            ) : (
+              <span>Te redirecționăm către pagina de plată Stripe pentru a finaliza comanda.</span>
+            )}
           </DialogDescription>
         </DialogHeader>
         
-        <div className="flex flex-col space-y-2 mt-4">
-          {countdown > 0 && (
-            <div className="text-center p-2 bg-muted rounded-md">
-              <p className="text-sm font-medium">
-                {language === 'ro'
-                  ? `Redirecționare automată în ${countdown} secunde...` 
-                  : `Automatic redirect in ${countdown} seconds...`}
+        <div className="flex flex-col space-y-4 py-4">
+          {redirectFailed && (
+            <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+              <p className="text-amber-800 dark:text-amber-300 text-sm">
+                Redirecționarea automată nu a funcționat. Acest lucru se poate întâmpla din cauza setărilor browserului sau a blocării pop-up-urilor.
               </p>
-              <RefreshCw className="animate-spin mx-auto mt-2 h-5 w-5 text-muted-foreground" />
             </div>
           )}
           
-          <p className="text-sm text-muted-foreground pt-2">
-            {language === 'ro'
-              ? 'Dacă redirecționarea nu funcționează automat, alege una dintre opțiunile de mai jos:'
-              : 'If the redirection doesn\'t work automatically, choose one of the options below:'}
-          </p>
+          {redirecting ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-automator-500" />
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button 
+                onClick={handleManualRedirect}
+                className="flex-1"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Deschide pagina de plată
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={handleCopyLink}
+                className="flex-1"
+              >
+                {copied ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4" /> 
+                    Link copiat
+                  </>
+                ) : (
+                  <>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiază link
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
         
-        <div className="flex flex-col space-y-2 bg-secondary/30 p-3 rounded-md">
-          <p className="text-xs text-muted-foreground">
-            {language === 'ro'
-              ? 'În mediul de dezvoltare Lovable, redirecționările automate pot fi blocate. Încearcă una dintre opțiunile alternative:'
-              : 'In the Lovable development environment, automatic redirections may be blocked. Try one of the alternative options:'}
-          </p>
+        <div className="flex justify-center text-xs text-gray-500 dark:text-gray-400">
+          Vei finaliza plata prin platforma securizată Stripe
         </div>
-        
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
-          <Button
-            type="button"
-            variant="outline" 
-            onClick={handleOpenNewTab}
-            className="flex items-center justify-center gap-2"
-          >
-            <ExternalLink size={16} />
-            {language === 'ro' ? 'Deschide în tab nou' : 'Open in new tab'}
-          </Button>
-          
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleManualCopy}
-            className="flex items-center justify-center gap-2"
-          >
-            {copied ? <Check size={16} /> : <Clipboard size={16} />}
-            {language === 'ro' ? 'Copiază link' : 'Copy link'}
-          </Button>
-          
-          <Button
-            type="button" 
-            onClick={handleRedirect}
-            className="flex items-center gap-2"
-          >
-            {language === 'ro' ? 'Continuă la plată' : 'Continue to payment'}
-            <ArrowRight size={16} />
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
