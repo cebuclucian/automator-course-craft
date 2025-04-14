@@ -63,8 +63,6 @@ const PackagesSection = () => {
           'Export în toate formatele',
           'Disponibil 72 de ore',
           'Suport dedicat',
-          'Customizare materiale cu logo și brand',
-          'API pentru integrare',
         ],
         button: 'Contactează-ne',
         highlight: false
@@ -125,8 +123,6 @@ const PackagesSection = () => {
           'Export in all formats',
           'Available for 72 hours',
           'Dedicated support',
-          'Customize materials with logo and brand',
-          'API for integration',
         ],
         button: 'Contact Us',
         highlight: false
