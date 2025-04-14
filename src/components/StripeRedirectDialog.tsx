@@ -68,7 +68,7 @@ const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirec
             description: language === 'ro' 
               ? "Încercați să deschideți în tab nou sau copiați link-ul" 
               : "Try opening in a new tab or copying the link",
-            variant: "warning"
+            variant: "destructive" // Changed from "warning" to "destructive"
           });
         }, 1500);
       } catch (error) {
@@ -105,7 +105,7 @@ const StripeRedirectDialog = ({ open, onOpenChange, redirectUrl }: StripeRedirec
             description: language === 'ro' 
               ? "Vă rugăm să permiteți pop-up-urile sau să copiați link-ul" 
               : "Please allow popups or copy the link instead",
-            variant: "warning"
+            variant: "destructive" // Changed from "warning" to "destructive"
           });
         }
       } catch (error) {

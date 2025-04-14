@@ -184,7 +184,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       toast({
         title: "Avertisment la deconectare",
         description: "Sesiunea a fost curățată local, dar a apărut o eroare la server.",
-        variant: "warning"
+        variant: "destructive" // Changed from "warning" to "destructive"
       });
       
       return true; // Return true anyway as we've cleaned up locally
