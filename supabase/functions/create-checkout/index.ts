@@ -25,28 +25,47 @@ serve(async (req) => {
 
     // Initialize Stripe
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    if (!stripeKey) {
+      logStep("ERROR: STRIPE_SECRET_KEY is not set");
+      throw new Error("STRIPE_SECRET_KEY is not set");
+    }
     logStep("Stripe key verified");
     
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
     // Initialize Supabase client with anon key for authentication
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      logStep("ERROR: Supabase environment variables not set");
+      throw new Error("Supabase environment variables not set");
+    }
+    
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    logStep("Supabase client initialized");
 
     // Get user from auth header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader) {
+      logStep("ERROR: No authorization header provided");
+      throw new Error("No authorization header provided");
+    }
     logStep("Authorization header found");
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    
+    if (userError) {
+      logStep(`ERROR: Authentication error - ${userError.message}`);
+      throw new Error(`Authentication error: ${userError.message}`);
+    }
     
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
+    if (!user?.email) {
+      logStep("ERROR: User not authenticated or email not available");
+      throw new Error("User not authenticated or email not available");
+    }
     logStep("User authenticated", { userId: user.id, email: user.email });
 
     // Get request body
@@ -55,7 +74,6 @@ serve(async (req) => {
     logStep("Request data", { packageName });
 
     // Map package names to actual prices
-    // In a real implementation, you would use actual Stripe price IDs or fetch them from a database
     const priceMap: Record<string, { amount: number, interval: string }> = {
       'Basic': { amount: 1900, interval: 'month' },
       'Pro': { amount: 4900, interval: 'month' },
@@ -63,7 +81,11 @@ serve(async (req) => {
       'Premium': { amount: 4900, interval: 'month' } // For English language
     };
 
-    const packagePrice = priceMap[packageName] || { amount: 4900, interval: 'month' }; // Default to Pro pricing
+    const packagePrice = priceMap[packageName];
+    if (!packagePrice) {
+      logStep(`ERROR: Invalid package name: ${packageName}`);
+      throw new Error(`Invalid package name: ${packageName}`);
+    }
     logStep("Package pricing", packagePrice);
 
     // Find or create a Stripe customer for this user
@@ -112,9 +134,15 @@ serve(async (req) => {
     logStep("Checkout session created", { sessionId: session.id, url: session.url });
     
     // Initialize Supabase service client for updating the subscribers table
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseServiceKey) {
+      logStep("ERROR: SUPABASE_SERVICE_ROLE_KEY is not set");
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
+    }
+    
     const supabaseService = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      supabaseUrl,
+      supabaseServiceKey,
       { auth: { persistSession: false } }
     );
 
