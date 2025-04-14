@@ -6,5 +6,4 @@ verify_jwt = true
 
 [functions]
 [functions.config]
-allowed_domains = ["https://automator.ro"]
-
+allowed_domains = ["https://automator.ro", "http://automator.ro", "https://www.automator.ro", "http://www.automator.ro"]
