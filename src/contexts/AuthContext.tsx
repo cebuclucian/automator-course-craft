@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { AuthContextType, User } from "@/types";
 import { useToast } from "@/components/ui/use-toast";
@@ -39,20 +40,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           console.log("Checking admin subscription status...");
           
           // Query the subscribers table to get latest subscription data
+          // Use .select() instead of .single() to avoid errors when no data is found
           const { data: subscriberData, error } = await supabase
             .from('subscribers')
             .select('*')
-            .eq('email', 'admin@automator.ro')
-            .single();
+            .eq('email', 'admin@automator.ro');
           
           console.log("Subscriber data from DB:", subscriberData);
           console.log("Subscriber error:", error);
           
-          if (subscriberData && subscriberData.subscription_tier === 'Pro' && subscriberData.subscribed) {
+          if (subscriberData && subscriberData.length > 0 && 
+              subscriberData[0].subscription_tier === 'Pro' && 
+              subscriberData[0].subscribed) {
             // Update the user with Pro subscription data from DB
             parsedUser.subscription = {
               tier: 'Pro',
-              expiresAt: new Date(subscriberData.subscription_end),
+              expiresAt: new Date(subscriberData[0].subscription_end),
               active: true
             };
             

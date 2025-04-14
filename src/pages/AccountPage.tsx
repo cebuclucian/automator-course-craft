@@ -7,24 +7,22 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const AccountPage = () => {
   const { user, isLoading: authLoading, refreshUser } = useAuth();
-  const [localLoading, setLocalLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(true);
   
   // Refresh user data when the account page loads
   useEffect(() => {
     const loadUserData = async () => {
-      if (user) {
-        setLocalLoading(true);
-        try {
-          // Fetch fresh user data when the account page loads
-          await refreshUser();
-        } finally {
-          setLocalLoading(false);
-        }
+      setLocalLoading(true);
+      try {
+        // Fetch fresh user data when the account page loads
+        await refreshUser();
+      } finally {
+        setLocalLoading(false);
       }
     };
     
     loadUserData();
-  }, []);
+  }, [refreshUser]);
   
   if (authLoading || localLoading) {
     return (

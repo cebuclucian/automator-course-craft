@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,18 +7,41 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const AccountDashboard = () => {
   const { user, refreshUser } = useAuth();
   const { toast } = useToast();
   const [isCreatingProSubscription, setIsCreatingProSubscription] = useState(false);
   const [lastResponse, setLastResponse] = useState<any>(null);
+  const [showDialog, setShowDialog] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
 
   // Format date helper function
   const formatDate = (dateString: Date | string | undefined) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString();
   };
+
+  // Check subscription status
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (user?.email === 'admin@automator.ro') {
+        try {
+          const { data, error } = await supabase
+            .from('subscribers')
+            .select('*')
+            .eq('email', 'admin@automator.ro');
+          
+          setSubscriptionStatus({ data, error });
+        } catch (err) {
+          console.error("Error checking subscription:", err);
+        }
+      }
+    };
+    
+    checkSubscription();
+  }, [user]);
 
   const isAdmin = user?.email === 'admin@automator.ro';
 
@@ -47,6 +70,17 @@ const AccountDashboard = () => {
         title: "Abonament creat cu succes",
         description: "Abonamentul Pro a fost creat pentru contul de administrator.",
       });
+      
+      // Check subscription status after creating
+      const { data: newStatus, error: statusError } = await supabase
+        .from('subscribers')
+        .select('*')
+        .eq('email', 'admin@automator.ro');
+      
+      setSubscriptionStatus({ data: newStatus, error: statusError });
+      
+      // Show dialog with details
+      setShowDialog(true);
       
       // Refresh user data to show updated subscription
       await refreshUser();
@@ -116,6 +150,13 @@ const AccountDashboard = () => {
                     <div className="mt-2 p-2 bg-muted text-xs rounded overflow-auto max-h-40">
                       <p className="font-semibold">Ultimul răspuns:</p>
                       <pre>{JSON.stringify(lastResponse, null, 2)}</pre>
+                    </div>
+                  )}
+                  
+                  {subscriptionStatus && (
+                    <div className="mt-2 p-2 bg-muted text-xs rounded overflow-auto max-h-40">
+                      <p className="font-semibold">Status abonament în baza de date:</p>
+                      <pre>{JSON.stringify(subscriptionStatus, null, 2)}</pre>
                     </div>
                   )}
                 </div>
@@ -216,6 +257,29 @@ const AccountDashboard = () => {
           </Tabs>
         </div>
       </div>
+      
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Status abonament actualizat</DialogTitle>
+            <DialogDescription>
+              Abonamentul a fost creat/actualizat în baza de date. Reîmprospătăm informațiile contului...
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-2 bg-muted text-xs rounded overflow-auto max-h-60">
+            <p>Date abonament:</p>
+            <pre>{JSON.stringify(subscriptionStatus, null, 2)}</pre>
+          </div>
+          <DialogFooter>
+            <Button onClick={async () => { 
+              await refreshUser();
+              setShowDialog(false);
+            }}>
+              Reîmprospătează cont
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
