@@ -24,7 +24,7 @@ const PackagesSection = () => {
       },
       {
         name: 'Basic',
-        price: '49',
+        price: '19',
         period: '/lună',
         description: 'Pentru profesori și traineri individuali',
         features: [
@@ -39,7 +39,7 @@ const PackagesSection = () => {
       },
       {
         name: 'Pro',
-        price: '99',
+        price: '49',
         period: '/lună',
         description: 'Pentru companii mici și departamente de training',
         features: [
@@ -54,7 +54,7 @@ const PackagesSection = () => {
       },
       {
         name: 'Enterprise',
-        price: '249',
+        price: '129',
         period: '/lună',
         description: 'Pentru companii mari și instituții educaționale',
         features: [
@@ -86,7 +86,7 @@ const PackagesSection = () => {
       },
       {
         name: 'Basic',
-        price: '49',
+        price: '19',
         period: '/month',
         description: 'For individual teachers and trainers',
         features: [
@@ -101,7 +101,7 @@ const PackagesSection = () => {
       },
       {
         name: 'Pro',
-        price: '99',
+        price: '49',
         period: '/month',
         description: 'For small companies and training departments',
         features: [
@@ -116,7 +116,7 @@ const PackagesSection = () => {
       },
       {
         name: 'Enterprise',
-        price: '249',
+        price: '129',
         period: '/month',
         description: 'For large companies and educational institutions',
         features: [
