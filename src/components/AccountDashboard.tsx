@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ const AccountDashboard = () => {
   const [lastResponse, setLastResponse] = useState<any>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Format date helper function
   const formatDate = (dateString: Date | string | undefined) => {
@@ -55,7 +56,8 @@ const AccountDashboard = () => {
       const { data: newStatus, error: statusError } = await supabase
         .from('subscribers')
         .select('*')
-        .eq('email', 'admin@automator.ro');
+        .eq('email', 'admin@automator.ro')
+        .single();
       
       setSubscriptionStatus({ data: newStatus, error: statusError });
       setShowDialog(true);
@@ -69,6 +71,27 @@ const AccountDashboard = () => {
       });
     } finally {
       setIsCreatingProSubscription(false);
+    }
+  };
+
+  const handleRefreshUser = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshUser();
+      toast({
+        title: "Cont actualizat",
+        description: "Datele contului au fost actualizate cu succes."
+      });
+      setShowDialog(false);
+    } catch (err) {
+      console.error('Error refreshing user:', err);
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut actualiza datele contului.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -125,11 +148,11 @@ const AccountDashboard = () => {
             <pre>{JSON.stringify(subscriptionStatus, null, 2)}</pre>
           </div>
           <DialogFooter>
-            <Button onClick={async () => { 
-              await refreshUser();
-              setShowDialog(false);
-            }}>
-              Reîmprospătează cont
+            <Button 
+              onClick={handleRefreshUser}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? "Se actualizează..." : "Reîmprospătează cont"}
             </Button>
           </DialogFooter>
         </DialogContent>

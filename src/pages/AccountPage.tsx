@@ -4,10 +4,12 @@ import AccountDashboard from '@/components/AccountDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 const AccountPage = () => {
   const { user, isLoading: authLoading, refreshUser } = useAuth();
   const [localLoading, setLocalLoading] = useState(true);
+  const { toast } = useToast();
   
   // Refresh user data when the account page loads
   useEffect(() => {
@@ -16,6 +18,14 @@ const AccountPage = () => {
       try {
         // Fetch fresh user data when the account page loads
         await refreshUser();
+        console.log("User data refreshed on account page load");
+      } catch (error) {
+        console.error("Error refreshing user data:", error);
+        toast({
+          title: "Eroare",
+          description: "Nu s-a putut actualiza informațiile contului.",
+          variant: "destructive"
+        });
       } finally {
         setLocalLoading(false);
       }

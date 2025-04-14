@@ -2,8 +2,11 @@
 import { useState } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "./use-toast";
 
 export const useSubscriptionStatus = () => {
+  const { toast } = useToast();
+  
   const refreshUser = async (): Promise<User | null> => {
     try {
       const storedUser = localStorage.getItem("automatorUser");
@@ -16,22 +19,43 @@ export const useSubscriptionStatus = () => {
           const { data: subscriberData, error } = await supabase
             .from('subscribers')
             .select('*')
-            .eq('email', 'admin@automator.ro');
+            .eq('email', 'admin@automator.ro')
+            .single();
           
           console.log("Subscriber data from DB:", subscriberData);
-          console.log("Subscriber error:", error);
           
-          if (subscriberData && subscriberData.length > 0 && 
-              subscriberData[0].subscription_tier === 'Pro' && 
-              subscriberData[0].subscribed) {
-            parsedUser.subscription = {
-              tier: 'Pro',
-              expiresAt: new Date(subscriberData[0].subscription_end),
+          if (error) {
+            console.error("Error fetching subscription data:", error);
+            toast({
+              title: "Eroare",
+              description: "Nu s-a putut verifica statusul abonamentului.",
+              variant: "destructive"
+            });
+          }
+          
+          if (subscriberData && 
+              subscriberData.subscription_tier === 'Pro' && 
+              subscriberData.subscribed) {
+            
+            // Create a new subscription object with the updated data
+            const updatedSubscription = {
+              tier: subscriberData.subscription_tier,
+              expiresAt: new Date(subscriberData.subscription_end),
               active: true
             };
             
-            localStorage.setItem("automatorUser", JSON.stringify(parsedUser));
-            console.log("Updated user with Pro subscription:", parsedUser);
+            // Create a new user object with the updated subscription
+            const updatedUser = {
+              ...parsedUser,
+              subscription: updatedSubscription,
+              generationsLeft: parsedUser.generationsLeft || 10 // Default to 10 generations for Pro users
+            };
+            
+            // Save the updated user to localStorage
+            localStorage.setItem("automatorUser", JSON.stringify(updatedUser));
+            console.log("Updated user with Pro subscription:", updatedUser);
+            
+            return updatedUser;
           }
         }
         
@@ -40,6 +64,11 @@ export const useSubscriptionStatus = () => {
       return null;
     } catch (err) {
       console.error("Error refreshing user data", err);
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut actualiza datele utilizatorului.",
+        variant: "destructive"
+      });
       return null;
     }
   };

@@ -31,9 +31,11 @@ serve(async (req) => {
       throw new Error("Missing required environment variables");
     }
     
+    // Initialize Stripe
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", { apiVersion: "2023-10-16" });
     console.log("Stripe initialized");
 
+    // Initialize Supabase client with service role key for admin access
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     
@@ -57,14 +59,17 @@ serve(async (req) => {
     }
     
     console.log(`Found ${users?.length || 0} users in total`);
+    
+    // Either find the admin user or create a placeholder ID
+    let adminUserId = "admin-user-placeholder";
     const adminUser = users.find(user => user.email === adminEmail);
     
-    if (!adminUser) {
-      console.error("Admin user not found");
-      throw new Error("Admin user not found");
+    if (adminUser) {
+      console.log(`Found admin user with ID: ${adminUser.id}`);
+      adminUserId = adminUser.id;
+    } else {
+      console.log("Admin user not found in auth.users, using placeholder ID");
     }
-    
-    console.log(`Found admin user with ID: ${adminUser.id}`);
 
     // Log current subscriber status before update
     const { data: currentSubscriberData, error: currentSubscriberError } = await supabaseClient
@@ -74,25 +79,31 @@ serve(async (req) => {
       .single();
 
     console.log("Current subscriber data:", currentSubscriberData);
-    console.log("Current subscriber error:", currentSubscriberError);
+    if (currentSubscriberError) {
+      console.log("Current subscriber error (not found is expected for first creation):", currentSubscriberError);
+    }
     
     // Set subscription to expire in 1 year
     const subscriptionEnd = new Date();
     subscriptionEnd.setFullYear(subscriptionEnd.getFullYear() + 1);
     console.log(`Setting subscription end date to: ${subscriptionEnd.toISOString()}`);
 
+    // Prepare subscription data
+    const subscriptionData = {
+      email: adminEmail,
+      user_id: adminUserId,
+      stripe_customer_id: 'admin_pro_account',  // Use a placeholder value
+      subscribed: true,
+      subscription_tier: 'Pro',
+      subscription_end: subscriptionEnd.toISOString()
+    };
+
+    console.log("Updating Supabase subscribers table with data:", subscriptionData);
+    
     // Update Supabase subscribers table
-    console.log("Updating Supabase subscribers table");
     const { data: subscriberData, error: subscriberError } = await supabaseClient
       .from('subscribers')
-      .upsert({
-        email: adminEmail,
-        user_id: adminUser.id,
-        stripe_customer_id: 'admin_pro_account',  // Use a placeholder value
-        subscribed: true,
-        subscription_tier: 'Pro',
-        subscription_end: subscriptionEnd.toISOString()
-      }, { onConflict: 'email' });
+      .upsert(subscriptionData, { onConflict: 'email' });
     
     if (subscriberError) {
       console.error("Error updating subscriber record:", subscriberError);
@@ -109,20 +120,23 @@ serve(async (req) => {
       .single();
 
     console.log("Updated subscriber data:", updatedSubscriberData);
-    console.log("Updated subscriber error:", updatedSubscriberError);
+    if (updatedSubscriberError) {
+      console.error("Error fetching updated subscriber:", updatedSubscriberError);
+    }
 
-    // For demonstration purposes, store subscription data in local storage
+    // For demonstration purposes, prepare subscription data for response
     const adminProData = {
       subscriptionTier: 'Pro',
       expiresAt: subscriptionEnd.toISOString(),
       active: true
     };
     
-    console.log("Returning success response");
+    console.log("Returning success response with data:", adminProData);
     return new Response(JSON.stringify({ 
       message: "Pro subscription created successfully",
       customerId: 'admin_pro_account',
-      adminProData
+      adminProData,
+      subscriptionData: updatedSubscriberData || subscriptionData
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

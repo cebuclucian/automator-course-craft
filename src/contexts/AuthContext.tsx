@@ -3,6 +3,7 @@ import React, { createContext, useState, useContext, useEffect } from "react";
 import { AuthContextType, User } from "@/types";
 import { useAuthActions } from "@/hooks/useAuthActions";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { useToast } from "@/hooks/use-toast";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -10,20 +11,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { login, register, loginWithGoogle, logout, error } = useAuthActions();
-  const { refreshUser } = useSubscriptionStatus();
+  const { refreshUser: refreshSubscriptionStatus } = useSubscriptionStatus();
+  const { toast } = useToast();
 
   // Check for existing session on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem("automatorUser");
-    if (storedUser) {
+    const initializeUser = async () => {
+      setIsLoading(true);
       try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch (e) {
-        console.error("Error parsing stored user", e);
+        const storedUser = localStorage.getItem("automatorUser");
+        if (storedUser) {
+          try {
+            // First set the user from localStorage
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+            
+            // Then try to refresh the subscription status if needed
+            if (parsedUser.email === 'admin@automator.ro') {
+              const refreshedUser = await refreshSubscriptionStatus();
+              if (refreshedUser) {
+                setUser(refreshedUser);
+              }
+            }
+          } catch (e) {
+            console.error("Error parsing stored user", e);
+            toast({
+              title: "Eroare",
+              description: "Eroare la încărcarea datelor utilizatorului.",
+              variant: "destructive"
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing user:", error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+    
+    initializeUser();
   }, []);
 
   const handleLogin = async (email: string, password: string) => {
@@ -48,9 +74,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const handleRefreshUser = async () => {
     setIsLoading(true);
-    const refreshedUser = await refreshUser();
-    if (refreshedUser) setUser(refreshedUser);
-    setIsLoading(false);
+    try {
+      const refreshedUser = await refreshSubscriptionStatus();
+      if (refreshedUser) {
+        setUser(refreshedUser);
+        console.log("User refreshed successfully:", refreshedUser);
+      }
+    } catch (error) {
+      console.error("Error refreshing user:", error);
+      toast({
+        title: "Eroare",
+        description: "Nu s-a putut actualiza informațiile utilizatorului.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const value = {
