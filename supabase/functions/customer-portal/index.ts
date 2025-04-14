@@ -28,7 +28,7 @@ serve(async (req) => {
       logStep("ERROR: STRIPE_SECRET_KEY is not set");
       throw new Error("STRIPE_SECRET_KEY is not set");
     }
-    logStep("Stripe key verified");
+    logStep("Stripe key verified", { keyLength: stripeKey.length });
     
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 

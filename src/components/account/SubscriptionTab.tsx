@@ -27,11 +27,18 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
           : 'Creating management session...',
       });
 
+      console.log("Calling customer-portal");
+      
       const { data, error } = await supabase.functions.invoke('customer-portal', {
         method: 'POST'
       });
 
-      if (error) throw error;
+      console.log("Response from customer-portal:", data, error);
+
+      if (error) {
+        console.error("Error from function:", error);
+        throw error;
+      }
 
       if (data && data.url) {
         window.location.href = data.url;
@@ -69,7 +76,7 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
                 {user?.subscription?.active ? 'Abonament activ' : 'Inactiv'}
               </p>
             </div>
-            {user?.subscription?.tier !== 'Free' && (
+            {user?.subscription?.tier !== 'Free' && user?.subscription?.active && (
               <Badge className="bg-green-100 text-green-800">Activ</Badge>
             )}
           </div>
@@ -80,7 +87,7 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
         </div>
         
         <div className="mt-6">
-          {user?.subscription?.tier !== 'Free' ? (
+          {user?.subscription?.tier !== 'Free' && user?.subscription?.active ? (
             <Button 
               onClick={handleManageSubscription}
               disabled={isLoading}

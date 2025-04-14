@@ -29,7 +29,7 @@ serve(async (req) => {
       logStep("ERROR: STRIPE_SECRET_KEY is not set");
       throw new Error("STRIPE_SECRET_KEY is not set");
     }
-    logStep("Stripe key verified");
+    logStep("Stripe key verified", { keyLength: stripeKey.length });
     
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
@@ -73,12 +73,20 @@ serve(async (req) => {
     const { packageName } = requestData;
     logStep("Request data", { packageName });
 
+    if (!packageName) {
+      logStep("ERROR: No package name provided");
+      throw new Error("No package name provided");
+    }
+
     // Map package names to actual prices
     const priceMap: Record<string, { amount: number, interval: string }> = {
       'Basic': { amount: 1900, interval: 'month' },
       'Pro': { amount: 4900, interval: 'month' },
       'Enterprise': { amount: 12900, interval: 'month' },
-      'Premium': { amount: 4900, interval: 'month' } // For English language
+      'Premium': { amount: 4900, interval: 'month' }, // For English language
+      // Add Romanian language options
+      'Gratuit': { amount: 0, interval: 'month' },
+      'Free': { amount: 0, interval: 'month' }
     };
 
     const packagePrice = priceMap[packageName];
@@ -87,6 +95,15 @@ serve(async (req) => {
       throw new Error(`Invalid package name: ${packageName}`);
     }
     logStep("Package pricing", packagePrice);
+
+    // For free packages, don't create a checkout session
+    if (packagePrice.amount === 0) {
+      logStep("Free package selected, no checkout required");
+      return new Response(JSON.stringify({ free: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
 
     // Find or create a Stripe customer for this user
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });

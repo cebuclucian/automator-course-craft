@@ -12,6 +12,7 @@ const PackagesSection = () => {
   const { language } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [isProcessing, setIsProcessing] = React.useState(false);
 
   const packages = {
     ro: [
@@ -152,6 +153,11 @@ const PackagesSection = () => {
       return;
     }
 
+    // Prevent multiple clicks
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+
     // Show loading state
     toast({
       title: language === 'ro' ? 'Se procesează' : 'Processing',
@@ -162,15 +168,6 @@ const PackagesSection = () => {
     });
 
     try {
-      // Map package name to price ID (you would replace these with actual Stripe price IDs)
-      const priceMap: Record<string, string> = {
-        'Basic': 'price_basic',
-        'Pro': 'price_pro',
-        'Enterprise': 'price_enterprise',
-        'Gratuit': '',
-        'Free': ''
-      };
-
       // If it's a free package, just show a message
       if (packageName === 'Gratuit' || packageName === 'Free') {
         toast({
@@ -180,23 +177,36 @@ const PackagesSection = () => {
             : 'You have registered for the free package.',
           variant: "default"
         });
+        setIsProcessing(false);
         return;
       }
 
+      console.log("Calling create-checkout with packageName:", packageName);
+      
       // Call Supabase Edge function to create a Stripe checkout session
       const { data, error } = await supabase.functions.invoke('create-checkout', {
-        method: 'POST',
-        body: { 
-          priceId: priceMap[packageName],
-          packageName
-        }
+        body: { packageName }
       });
 
-      if (error) throw error;
+      console.log("Response from create-checkout:", data, error);
+
+      if (error) {
+        console.error("Error from function:", error);
+        throw error;
+      }
 
       if (data && data.url) {
         // Redirect to Stripe checkout
         window.location.href = data.url;
+      } else if (data && data.free) {
+        // Handle free package
+        toast({
+          title: language === 'ro' ? 'Pachet gratuit activat' : 'Free package activated',
+          description: language === 'ro' 
+            ? 'Pachetul gratuit a fost activat pentru contul tău.' 
+            : 'Free package has been activated for your account.',
+          variant: "default"
+        });
       } else {
         throw new Error('No checkout URL returned');
       }
@@ -209,6 +219,8 @@ const PackagesSection = () => {
           : 'An error occurred while creating the payment session.',
         variant: "destructive"
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -255,8 +267,13 @@ const PackagesSection = () => {
                   }`}
                   variant={pkg.highlight ? 'default' : 'outline'}
                   onClick={() => handlePackageSelect(pkg.name)}
+                  disabled={isProcessing}
                 >
-                  {pkg.button}
+                  {isProcessing ? (
+                    language === 'ro' ? 'Se procesează...' : 'Processing...'
+                  ) : (
+                    pkg.button
+                  )}
                 </Button>
               </div>
             </div>
@@ -268,4 +285,3 @@ const PackagesSection = () => {
 };
 
 export default PackagesSection;
-
