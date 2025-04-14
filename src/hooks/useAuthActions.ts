@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@/types";
@@ -14,12 +13,17 @@ export const useAuthActions = () => {
     setError(null);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const mockUser: User = {
-        id: "user123",
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
-        name: email.split("@")[0],
+        password
+      });
+
+      if (authError) throw authError;
+
+      const mockUser: User = {
+        id: data.user.id,
+        email: data.user.email || '',
+        name: data.user.email?.split("@")[0] || '',
         subscription: {
           tier: "Free",
           expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
@@ -52,10 +56,20 @@ export const useAuthActions = () => {
     setError(null);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name
+          }
+        }
+      });
+
+      if (authError) throw authError;
       
       const mockUser: User = {
-        id: "user" + Math.floor(Math.random() * 10000),
+        id: data.user?.id || "user" + Math.floor(Math.random() * 10000),
         email,
         name,
         subscription: {
@@ -90,8 +104,14 @@ export const useAuthActions = () => {
     setError(null);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+      });
+
+      if (authError) throw authError;
       
+      // Note: The actual user data will be set in the auth state listener
+      // This is just a placeholder for the flow
       const mockGoogleUser: User = {
         id: "google-user-" + Math.floor(Math.random() * 10000),
         email: "demo.user@gmail.com",
@@ -127,6 +147,9 @@ export const useAuthActions = () => {
   const logout = async () => {
     setIsLoading(true);
     try {
+      const { error: authError } = await supabase.auth.signOut();
+      if (authError) throw authError;
+      
       localStorage.removeItem("automatorUser");
       toast({
         title: "Deconectare reușită",

@@ -1,111 +1,204 @@
 
-import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
+import React, { createContext, useState, useContext, useEffect } from "react";
 import { AuthContextType, User } from "@/types";
-import { useAuthActions } from "@/hooks/useAuthActions";
-import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Session } from "@supabase/supabase-js";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { login, register, loginWithGoogle, logout, error } = useAuthActions();
-  const { refreshUser: refreshSubscriptionStatus } = useSubscriptionStatus();
   const { toast } = useToast();
 
-  // Check for existing session on mount
   useEffect(() => {
-    const initializeUser = async () => {
-      setIsLoading(true);
-      try {
-        const storedUser = localStorage.getItem("automatorUser");
-        if (storedUser) {
-          try {
-            // First set the user from localStorage
-            const parsedUser = JSON.parse(storedUser);
-            setUser(parsedUser);
-            
-            // Then try to refresh the subscription status if needed
-            // But only on initial load, not when refreshUser is explicitly called
-            if (parsedUser.email === 'admin@automator.ro') {
-              try {
-                const refreshedUser = await refreshSubscriptionStatus();
-                if (refreshedUser) {
-                  setUser(refreshedUser);
-                }
-              } catch (subError) {
-                console.error("Error refreshing subscription on init:", subError);
-              }
-            }
-          } catch (e) {
-            console.error("Error parsing stored user", e);
-            toast({
-              title: "Eroare",
-              description: "Eroare la încărcarea datelor utilizatorului.",
-              variant: "destructive"
-            });
-          }
+    // Set up the auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        setSession(currentSession);
+        if (currentSession?.user) {
+          const mappedUser: User = {
+            id: currentSession.user.id,
+            email: currentSession.user.email || '',
+            name: currentSession.user.email?.split('@')[0] || '',
+            subscription: {
+              tier: 'Free',
+              expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+              active: true
+            },
+            generationsLeft: 0,
+            generatedCourses: []
+          };
+          setUser(mappedUser);
+        } else {
+          setUser(null);
         }
-      } catch (error) {
-        console.error("Error initializing user:", error);
-      } finally {
-        setIsLoading(false);
       }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      if (currentSession?.user) {
+        const mappedUser: User = {
+          id: currentSession.user.id,
+          email: currentSession.user.email || '',
+          name: currentSession.user.email?.split('@')[0] || '',
+          subscription: {
+            tier: 'Free',
+            expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+            active: true
+          },
+          generationsLeft: 0,
+          generatedCourses: []
+        };
+        setUser(mappedUser);
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
     };
-    
-    initializeUser();
   }, []);
 
-  const handleLogin = async (email: string, password: string) => {
-    const loggedInUser = await login(email, password);
-    if (loggedInUser) setUser(loggedInUser);
-  };
-
-  const handleRegister = async (email: string, password: string, name: string) => {
-    const registeredUser = await register(email, password, name);
-    if (registeredUser) setUser(registeredUser);
-  };
-
-  const handleGoogleLogin = async () => {
-    const googleUser = await loginWithGoogle();
-    if (googleUser) setUser(googleUser);
-  };
-
-  const handleLogout = async () => {
-    const success = await logout();
-    if (success) setUser(null);
-  };
-
-  const handleRefreshUser = useCallback(async () => {
-    setIsLoading(true);
+  const login = async (email: string, password: string) => {
     try {
-      const refreshedUser = await refreshSubscriptionStatus();
-      if (refreshedUser) {
-        setUser(refreshedUser);
-        console.log("User refreshed successfully:", refreshedUser);
-      }
-    } catch (error) {
-      console.error("Error refreshing user:", error);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
       toast({
-        title: "Eroare",
-        description: "Nu s-a putut actualiza informațiile utilizatorului.",
+        title: "Autentificare reușită",
+        description: `Bine ai revenit, ${data.user.email}!`,
+      });
+
+      return true;
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast({
+        title: "Eroare la autentificare",
+        description: error.message,
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
+      return false;
     }
-  }, [refreshSubscriptionStatus]);
+  };
+
+  const register = async (email: string, password: string, name: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Înregistrare reușită",
+        description: "Contul tău a fost creat cu succes!",
+      });
+
+      return true;
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      toast({
+        title: "Eroare la înregistrare",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (error: any) {
+      console.error('Google login error:', error);
+      toast({
+        title: "Eroare la autentificarea cu Google",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      setUser(null);
+      setSession(null);
+
+      toast({
+        title: "Deconectare reușită",
+        description: "Te-ai deconectat cu succes.",
+      });
+
+      return true;
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      toast({
+        title: "Eroare la deconectare",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const mappedUser: User = {
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.email?.split('@')[0] || '',
+          subscription: {
+            tier: 'Free',
+            expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+            active: true
+          },
+          generationsLeft: 0,
+          generatedCourses: []
+        };
+        setUser(mappedUser);
+      }
+      return true;
+    } catch (error) {
+      console.error("Error refreshing user:", error);
+      return false;
+    }
+  };
 
   const value = {
     user,
-    login: handleLogin,
-    register: handleRegister,
-    loginWithGoogle: handleGoogleLogin,
-    logout: handleLogout,
+    login,
+    register,
+    loginWithGoogle,
+    logout,
     isLoading,
-    error,
-    refreshUser: handleRefreshUser
+    error: null,
+    refreshUser
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
