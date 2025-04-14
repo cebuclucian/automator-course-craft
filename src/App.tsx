@@ -1,12 +1,12 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import React from 'react'; // Added React import
+import React from 'react';
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
+import { UserProfileProvider } from "./contexts/UserProfileContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Layout from "./components/Layout";
@@ -18,9 +18,7 @@ import PackagesPage from "./pages/PackagesPage";
 import ContactPage from "./pages/ContactPage";
 import AccountPage from "./pages/AccountPage";
 
-// Create QueryClient inside the component function
 const App = () => {
-  // Create a new QueryClient instance inside the component
   const queryClient = new QueryClient();
   
   return (
@@ -31,20 +29,22 @@ const App = () => {
         <LanguageProvider>
           <ThemeProvider>
             <AuthProvider>
-              <BrowserRouter>
-                <Layout>
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/about" element={<AboutPage />} />
-                    <Route path="/how-it-works" element={<HowItWorksPage />} />
-                    <Route path="/generate" element={<GeneratePage />} />
-                    <Route path="/packages" element={<PackagesPage />} />
-                    <Route path="/contact" element={<ContactPage />} />
-                    <Route path="/account" element={<AccountPage />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Layout>
-              </BrowserRouter>
+              <UserProfileProvider>
+                <BrowserRouter>
+                  <Layout>
+                    <Routes>
+                      <Route path="/" element={<HomePage />} />
+                      <Route path="/about" element={<AboutPage />} />
+                      <Route path="/how-it-works" element={<HowItWorksPage />} />
+                      <Route path="/generate" element={<GeneratePage />} />
+                      <Route path="/packages" element={<PackagesPage />} />
+                      <Route path="/contact" element={<ContactPage />} />
+                      <Route path="/account" element={<AccountPage />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Layout>
+                </BrowserRouter>
+              </UserProfileProvider>
             </AuthProvider>
           </ThemeProvider>
         </LanguageProvider>

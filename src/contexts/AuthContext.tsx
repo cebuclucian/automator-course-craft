@@ -20,7 +20,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     logout,
     isLoading,
     error: null,
-    refreshUser
+    refreshUser: async () => {
+      const updatedUser = await refreshUser();
+      return !!updatedUser;
+    }
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
