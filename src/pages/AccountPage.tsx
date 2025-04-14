@@ -11,6 +11,7 @@ const AccountPage = () => {
   // Refresh user data when the account page loads
   useEffect(() => {
     if (user) {
+      // Fetch fresh user data when the account page loads
       refreshUser();
     }
   }, []);

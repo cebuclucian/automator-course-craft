@@ -20,6 +20,11 @@ export const supabase = createClient<Database>(
       headers: {
         'X-Client-Info': 'automator-app'
       }
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10
+      }
     }
   }
 );
