@@ -66,41 +66,13 @@ serve(async (req) => {
     
     console.log(`Found admin user with ID: ${adminUser.id}`);
 
-    // Check if the user already exists in Stripe
-    console.log("Looking up customer in Stripe by email");
-    const existingCustomers = await stripe.customers.list({ email: adminEmail, limit: 1 });
-    let customerId;
-
-    if (existingCustomers.data.length > 0) {
-      customerId = existingCustomers.data[0].id;
-      console.log(`Found existing Stripe customer with ID: ${customerId}`);
-    } else {
-      // Create a new Stripe customer if not exists
-      console.log("Creating new Stripe customer");
-      const customer = await stripe.customers.create({
-        email: adminEmail,
-        name: "Admin User"
-      });
-      customerId = customer.id;
-      console.log(`Created new Stripe customer with ID: ${customerId}`);
-    }
-
-    // Get or create a product and price if needed
-    console.log("Checking for Pro subscription price");
-    const priceId = "price_1PMZmXKyxqFxRVYEOCRZyOqm";
+    // Create a mock subscription data (we don't need to actually create a Stripe subscription)
+    console.log("Creating Pro subscription data in Supabase directly");
     
-    // Create a Pro subscription that's automatically active
-    console.log("Creating Pro subscription");
-    const subscription = await stripe.subscriptions.create({
-      customer: customerId,
-      items: [{ price: priceId }],
-      payment_behavior: 'default_incomplete',
-      trial_end: 'now', // This will activate the subscription immediately
-      expand: ['latest_invoice.payment_intent'],
-      cancel_at: Math.floor(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).getTime() / 1000), // Set to expire in 1 year
-    });
-    
-    console.log(`Created subscription with ID: ${subscription.id}`);
+    // Set subscription to expire in 1 year
+    const subscriptionEnd = new Date();
+    subscriptionEnd.setFullYear(subscriptionEnd.getFullYear() + 1);
+    console.log(`Setting subscription end date to: ${subscriptionEnd.toISOString()}`);
 
     // Update Supabase subscribers table
     console.log("Updating Supabase subscribers table");
@@ -109,10 +81,10 @@ serve(async (req) => {
       .upsert({
         email: adminEmail,
         user_id: adminUser.id,
-        stripe_customer_id: customerId,
+        stripe_customer_id: 'admin_pro_account',  // Use a placeholder value
         subscribed: true,
         subscription_tier: 'Pro',
-        subscription_end: new Date(subscription.current_period_end * 1000).toISOString()
+        subscription_end: subscriptionEnd.toISOString()
       }, { onConflict: 'email' });
     
     if (subscriberError) {
@@ -122,17 +94,18 @@ serve(async (req) => {
     
     console.log("Subscriber record updated successfully");
 
-    // For demonstration purposes, also store this in localStorage
+    // For demonstration purposes, store subscription data in local storage
+    const adminProData = {
+      subscriptionTier: 'Pro',
+      expiresAt: subscriptionEnd.toISOString(),
+      active: true
+    };
+    
     console.log("Returning success response");
     return new Response(JSON.stringify({ 
       message: "Pro subscription created successfully",
-      subscriptionId: subscription.id,
-      customerId: customerId,
-      adminProData: {
-        subscriptionTier: 'Pro',
-        expiresAt: new Date(subscription.current_period_end * 1000).toISOString(),
-        active: true
-      }
+      customerId: 'admin_pro_account',
+      adminProData
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
