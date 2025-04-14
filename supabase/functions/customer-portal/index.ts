@@ -45,12 +45,7 @@ serve(async (req) => {
 
     // Find the Stripe customer for this user
     try {
-      logStep("Looking for customer with email", { email });
       const customers = await stripe.customers.list({ email: email, limit: 1 });
-      logStep("Stripe customer search result", { 
-        found: customers.data.length > 0,
-        customersCount: customers.data.length
-      });
       
       if (customers.data.length === 0) {
         logStep("ERROR: No Stripe customer found for this user");
@@ -62,8 +57,6 @@ serve(async (req) => {
 
       // Create a customer portal session
       const origin = req.headers.get("origin") || "https://automator.ro";
-      logStep("Creating portal session", { origin, returnUrl: `${origin}/account` });
-      
       const session = await stripe.billingPortal.sessions.create({
         customer: customerId,
         return_url: `${origin}/account`,

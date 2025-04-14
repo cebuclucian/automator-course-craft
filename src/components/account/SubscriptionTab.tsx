@@ -8,7 +8,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Loader2 } from 'lucide-react';
-import StripeRedirectDialog from '@/components/StripeRedirectDialog';
 
 interface SubscriptionTabProps {
   user: User | null;
@@ -18,8 +17,6 @@ interface SubscriptionTabProps {
 const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
   const { language } = useLanguage();
   const [isLoading, setIsLoading] = React.useState(false);
-  const [redirectUrl, setRedirectUrl] = React.useState<string>('');
-  const [showRedirectDialog, setShowRedirectDialog] = React.useState(false);
 
   const handleManageSubscription = async () => {
     setIsLoading(true);
@@ -51,13 +48,18 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
       }
 
       if (data && data.url) {
-        console.log("Showing redirect dialog with URL:", data.url);
+        console.log("Redirecting to URL:", data.url);
         
-        // În loc să redirecționăm direct, stocăm URL-ul și afișăm dialogul
-        setRedirectUrl(data.url);
-        setShowRedirectDialog(true);
+        // Use window.location.replace for more reliable redirection
+        window.location.replace(data.url);
         
-        return;
+        // Add a final safety timeout to force navigation after 2 seconds
+        setTimeout(() => {
+          console.log("Forcing navigation after timeout");
+          window.location.href = data.url;
+        }, 2000);
+        
+        return; // Prevent state update
       } else {
         throw new Error('No portal URL returned');
       }
@@ -66,8 +68,8 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
       toast({
         title: language === 'ro' ? 'Eroare' : 'Error',
         description: language === 'ro' 
-          ? 'A apărut o eroare la crearea sesiunii de gestionare. Încearcă din nou.' 
-          : 'An error occurred while creating the management session. Please try again.',
+          ? 'A apărut o eroare la crearea sesiunii de gestionare.' 
+          : 'An error occurred while creating the management session.',
         variant: "destructive"
       });
     } finally {
@@ -128,12 +130,6 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
           )}
         </div>
       </CardContent>
-      
-      <StripeRedirectDialog
-        open={showRedirectDialog}
-        onOpenChange={setShowRedirectDialog}
-        redirectUrl={redirectUrl}
-      />
     </Card>
   );
 };

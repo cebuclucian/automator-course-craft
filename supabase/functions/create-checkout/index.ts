@@ -95,18 +95,12 @@ serve(async (req) => {
     // Find or create a Stripe customer for this user
     let customerId;
     try {
-      logStep("Looking for customer with email", { email });
       const customers = await stripe.customers.list({ email: email, limit: 1 });
-      logStep("Stripe customer search result", { 
-        found: customers.data.length > 0,
-        customersCount: customers.data.length
-      });
       
       if (customers.data.length > 0) {
         customerId = customers.data[0].id;
         logStep("Found existing Stripe customer", { customerId });
       } else {
-        logStep("Creating new Stripe customer");
         const newCustomer = await stripe.customers.create({
           email: email,
           metadata: {
@@ -123,16 +117,6 @@ serve(async (req) => {
 
     // Create a subscription checkout session
     const origin = req.headers.get("origin") || "https://automator.ro";
-    logStep("Creating checkout session", { 
-      origin, 
-      customerId, 
-      packageName, 
-      amount: packagePrice.amount,
-      interval: packagePrice.interval,
-      success_url: `${origin}/account?checkout_success=true`,
-      cancel_url: `${origin}/packages?checkout_canceled=true`
-    });
-    
     let session;
     try {
       session = await stripe.checkout.sessions.create({
@@ -176,7 +160,6 @@ serve(async (req) => {
     
     // Update the subscribers table with the pending subscription
     try {
-      logStep("Updating subscribers table");
       await supabaseClient.from("subscribers").upsert({
         email: email,
         user_id: userId || null,

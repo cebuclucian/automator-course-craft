@@ -6,7 +6,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import StripeRedirectDialog from './StripeRedirectDialog';
 
 const PackagesSection = () => {
   const { language } = useLanguage();
@@ -14,8 +13,6 @@ const PackagesSection = () => {
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [processingPackage, setProcessingPackage] = React.useState('');
-  const [redirectUrl, setRedirectUrl] = React.useState<string>('');
-  const [showRedirectDialog, setShowRedirectDialog] = React.useState(false);
 
   const packages = {
     ro: [
@@ -200,10 +197,14 @@ const PackagesSection = () => {
       }
 
       if (data && data.url) {
-        console.log("Showing redirect dialog with URL:", data.url);
+        console.log("Redirecting to URL:", data.url);
         
-        setRedirectUrl(data.url);
-        setShowRedirectDialog(true);
+        window.location.replace(data.url);
+        
+        setTimeout(() => {
+          console.log("Forcing navigation after timeout");
+          window.location.href = data.url;
+        }, 2000);
         
         return;
       } else if (data && data.free) {
@@ -222,8 +223,8 @@ const PackagesSection = () => {
       toast({
         title: language === 'ro' ? 'Eroare' : 'Error',
         description: language === 'ro' 
-          ? 'A apărut o eroare la crearea sesiunii de plată. Încearcă din nou.' 
-          : 'An error occurred while creating the payment session. Please try again.',
+          ? 'A apărut o eroare la crearea sesiunii de plată.' 
+          : 'An error occurred while creating the payment session.',
         variant: "destructive"
       });
     } finally {
@@ -291,12 +292,6 @@ const PackagesSection = () => {
           ))}
         </div>
       </div>
-      
-      <StripeRedirectDialog
-        open={showRedirectDialog}
-        onOpenChange={setShowRedirectDialog}
-        redirectUrl={redirectUrl}
-      />
     </section>
   );
 };
