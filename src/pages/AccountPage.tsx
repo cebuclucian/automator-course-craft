@@ -1,22 +1,32 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import AccountDashboard from '@/components/AccountDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const AccountPage = () => {
-  const { user, isLoading, refreshUser } = useAuth();
+  const { user, isLoading: authLoading, refreshUser } = useAuth();
+  const [localLoading, setLocalLoading] = useState(false);
   
   // Refresh user data when the account page loads
   useEffect(() => {
-    if (user) {
-      // Fetch fresh user data when the account page loads
-      refreshUser();
-    }
+    const loadUserData = async () => {
+      if (user) {
+        setLocalLoading(true);
+        try {
+          // Fetch fresh user data when the account page loads
+          await refreshUser();
+        } finally {
+          setLocalLoading(false);
+        }
+      }
+    };
+    
+    loadUserData();
   }, []);
   
-  if (isLoading) {
+  if (authLoading || localLoading) {
     return (
       <div className="container mx-auto px-4 py-10">
         <div className="flex flex-col md:flex-row gap-8">

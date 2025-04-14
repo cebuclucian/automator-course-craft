@@ -25,6 +25,7 @@ const AccountDashboard = () => {
   const [limitInfo, setLimitInfo] = useState({ tier: '', maxCourses: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [hasGeneratingCourse, setHasGeneratingCourse] = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.generatedCourses && user.generatedCourses.length > 0) {
@@ -152,6 +153,48 @@ const AccountDashboard = () => {
     return language === 'ro' 
       ? `Expiră în ${hoursLeft} ore` 
       : `Expires in ${hoursLeft} hours`;
+  };
+
+  const handleDownload = (categoryName: string, content: string) => {
+    setDownloading(categoryName);
+    try {
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      
+      const url = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const courseName = selectedCourse?.formData.subject || 'course';
+      link.download = `${courseName.replace(/\s+/g, '-')}_${categoryName.replace(/\s+/g, '-')}.txt`;
+      
+      document.body.appendChild(link);
+      
+      link.click();
+      
+      document.body.removeChild(link);
+      
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: language === 'ro' ? "Descărcare reușită" : "Download successful",
+        description: language === 'ro' 
+          ? `Am descărcat ${categoryName}` 
+          : `Downloaded ${categoryName}`,
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({
+        title: language === 'ro' ? "Eroare" : "Error",
+        description: language === 'ro' 
+          ? "Nu am putut descărca fișierul" 
+          : "Could not download file",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloading(null);
+    }
   };
 
   return (
@@ -406,8 +449,17 @@ const AccountDashboard = () => {
                                 </pre>
                               </div>
                               <div className="mt-2 flex justify-end">
-                                <Button variant="outline" size="sm">
-                                  <Download className="h-4 w-4 mr-2" />
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => handleDownload(category.name, category.content)}
+                                  disabled={downloading === category.name}
+                                >
+                                  {downloading === category.name ? (
+                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4 mr-2" />
+                                  )}
                                   {language === 'ro' ? 'Descarcă' : 'Download'}
                                 </Button>
                               </div>

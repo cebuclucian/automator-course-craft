@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { AuthContextType, User } from "@/types";
 import { useToast } from "@/components/ui/use-toast";
@@ -25,21 +24,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoading(false);
   }, []);
 
-  // Added refreshUser function to fetch the latest user data
-  const refreshUser = async () => {
+  // Improved refreshUser function to fetch the latest user data
+  const refreshUser = async (): Promise<void> => {
     setIsLoading(true);
-    try {
-      const storedUser = localStorage.getItem("automatorUser");
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
+    return new Promise((resolve, reject) => {
+      try {
+        setTimeout(() => {
+          const storedUser = localStorage.getItem("automatorUser");
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+            setIsLoading(false);
+            resolve();
+          } else {
+            setIsLoading(false);
+            reject(new Error("No user data found"));
+          }
+        }, 500); // Small delay to ensure any localStorage updates have happened
+      } catch (err) {
+        console.error("Error refreshing user data", err);
+        setError(err instanceof Error ? err.message : "An error occurred while refreshing user data");
+        setIsLoading(false);
+        reject(err);
       }
-    } catch (err) {
-      console.error("Error refreshing user data", err);
-      setError(err instanceof Error ? err.message : "An error occurred while refreshing user data");
-    } finally {
-      setIsLoading(false);
-    }
+    });
   };
 
   // For demo purposes, using localStorage
@@ -181,7 +189,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     logout,
     isLoading,
     error,
-    refreshUser // Add refreshUser to the context value
+    refreshUser
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
