@@ -129,7 +129,7 @@ serve(async (req) => {
     }
 
     // Create a subscription checkout session
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    const origin = req.headers.get("origin") || "https://automator.ro";
     let session;
     try {
       session = await stripe.checkout.sessions.create({
@@ -154,12 +154,22 @@ serve(async (req) => {
         success_url: `${origin}/account?checkout_success=true`,
         cancel_url: `${origin}/packages?checkout_canceled=true`,
       });
+
+      logStep("Checkout session created", { 
+        sessionId: session.id, 
+        url: session.url,
+        success_url: `${origin}/account?checkout_success=true`,
+        cancel_url: `${origin}/packages?checkout_canceled=true`
+      });
     } catch (stripeError) {
       logStep("ERROR: Stripe session creation failed", stripeError);
       throw new Error(`Stripe session error: ${stripeError.message}`);
     }
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+    if (!session.url) {
+      logStep("ERROR: No URL in created session");
+      throw new Error("No URL in created session");
+    }
     
     // Initialize Supabase service client for updating the subscribers table
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");

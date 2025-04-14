@@ -42,8 +42,17 @@ const SubscriptionTab = ({ user, formatDate }: SubscriptionTabProps) => {
       }
 
       if (data && data.url) {
-        // Use window.location.href to ensure browser navigation
-        window.location.href = data.url;
+        console.log("Redirecting to URL:", data.url);
+        
+        // Use window.location.replace for more reliable redirection
+        window.location.replace(data.url);
+        
+        // Add a final safety timeout to force navigation after 2 seconds
+        setTimeout(() => {
+          console.log("Forcing navigation after timeout");
+          window.location.href = data.url;
+        }, 2000);
+        
         return; // Prevent state update
       } else {
         throw new Error('No portal URL returned');
