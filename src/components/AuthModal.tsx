@@ -50,13 +50,9 @@ const AuthModal: React.FC<AuthModalProps> = ({
     setEmail(email);
     
     try {
-      const result = await register(email, password, name);
-      if (result !== null && result !== false) {
-        if (typeof result === 'object' && 'emailConfirmationRequired' in result) {
-          setEmailConfirmationRequired(true);
-        } else if (result === true) {
-          onClose();
-        }
+      const success = await register(email, password, name);
+      if (success) {
+        setEmailConfirmationRequired(true);
       }
     } catch (error) {
       setRegistrationError(error instanceof Error ? error.message : "Eroare la înregistrare");
