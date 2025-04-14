@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, Loader2 } from 'lucide-react';
@@ -297,3 +298,4 @@ const PackagesSection = () => {
 };
 
 export default PackagesSection;
+

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@/types";
@@ -175,3 +176,4 @@ export const useAuthActions = () => {
     error
   };
 };
+
