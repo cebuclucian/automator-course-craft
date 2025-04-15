@@ -46,6 +46,8 @@ export interface GeneratedCourse {
   formData: CourseFormData;
   sections: CourseSection[];
   previewMode: boolean;
+  status?: 'processing' | 'completed' | 'error';
+  jobId?: string;
 }
 
 export interface AuthContextType {

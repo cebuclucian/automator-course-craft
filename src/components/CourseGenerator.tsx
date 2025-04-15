@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -17,6 +16,7 @@ import AuthModal from './AuthModal';
 import { generateCourse } from '@/services/claude';
 import { supabase } from "@/integrations/supabase/client";
 import { useUserProfile } from '@/contexts/UserProfileContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const CourseGenerator = () => {
   const { user, refreshUser } = useAuth();
@@ -35,6 +35,7 @@ const CourseGenerator = () => {
     duration: '1 zi',
     tone: 'Profesional',
   });
+  const [showLongGenerationWarning, setShowLongGenerationWarning] = useState(false);
 
   if (!user) {
     return (
@@ -73,7 +74,6 @@ const CourseGenerator = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Verificăm dacă utilizatorul are generări disponibile
     if (!profile || profile.generationsLeft <= 0) {
       toast({
         title: language === 'ro' ? 'Limită atinsă' : 'Limit reached',
@@ -103,7 +103,6 @@ const CourseGenerator = () => {
       const generatedCourse = await generateCourse(fullFormData);
       
       if (user) {
-        // Decrementăm numărul de generări disponibile DOAR dacă generarea a reușit
         if (profile) {
           await decrementGenerationsLeft(user.id);
         }
@@ -114,7 +113,9 @@ const CourseGenerator = () => {
           expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000), // 72 hours
           formData: fullFormData,
           sections: generatedCourse.sections,
-          previewMode: generationType === 'Preview'
+          previewMode: generationType === 'Preview',
+          status: generatedCourse.status || 'completed',
+          jobId: generatedCourse.jobId
         };
         
         const updatedUser = { 
@@ -127,19 +128,24 @@ const CourseGenerator = () => {
         
         localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
         
-        // Important: Await the refreshUser operation to ensure data is updated
         await refreshUser();
-        // Reîmprospătăm și profilul pentru a avea datele cele mai recente
         await refreshProfile();
         
+        const isProcessing = generatedCourse.status === 'processing';
+        
         toast({
-          title: language === 'ro' ? 'Material generat cu succes!' : 'Material successfully generated!',
+          title: language === 'ro' 
+            ? isProcessing ? 'Generare în curs...' : 'Material generat cu succes!' 
+            : isProcessing ? 'Generation in progress...' : 'Material successfully generated!',
           description: language === 'ro' 
-            ? 'Poți accesa materialul din contul tău.' 
-            : 'You can access the material from your account.',
+            ? isProcessing 
+              ? 'Generarea materialelor de curs poate dura până la câteva minute pentru cursurile complexe. Vei fi notificat când procesul este finalizat.' 
+              : 'Poți accesa materialul din contul tău.'
+            : isProcessing
+              ? 'Course material generation may take up to several minutes for complex courses. You will be notified when the process is complete.'
+              : 'You can access the material from your account.',
         });
 
-        // Navigate after refreshUser and toast operations are complete
         navigate('/account');
       }
     } catch (error: any) {
@@ -157,6 +163,12 @@ const CourseGenerator = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDurationChange = (value: string) => {
+    const longDurations = ['2 zile', '3 zile', '4 zile', '5 zile'];
+    setShowLongGenerationWarning(longDurations.includes(value));
+    handleChange('duration', value);
   };
 
   return (
@@ -283,7 +295,7 @@ const CourseGenerator = () => {
                 <Label htmlFor="duration">{t('form.duration')}</Label>
                 <Select 
                   value={formData.duration} 
-                  onValueChange={(value) => handleChange('duration', value as any)}
+                  onValueChange={handleDurationChange}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -335,6 +347,19 @@ const CourseGenerator = () => {
                 </Select>
               </div>
             </div>
+
+            {showLongGenerationWarning && (
+              <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-900/20">
+                <AlertTitle className="text-amber-800 dark:text-amber-400">
+                  {language === 'ro' ? 'Atenție' : 'Warning'}
+                </AlertTitle>
+                <AlertDescription className="text-amber-700 dark:text-amber-300">
+                  {language === 'ro' 
+                    ? 'Generarea materialelor pentru cursuri de mai multe zile poate dura până la câteva minute. Vei fi notificat când procesul este finalizat.'
+                    : 'Generating materials for multi-day courses can take several minutes. You will be notified when the process is complete.'}
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div>
               <Button 
