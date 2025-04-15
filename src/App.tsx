@@ -17,6 +17,8 @@ import GeneratePage from "./pages/GeneratePage";
 import PackagesPage from "./pages/PackagesPage";
 import ContactPage from "./pages/ContactPage";
 import AccountPage from "./pages/AccountPage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 
 const App = () => {
   const queryClient = new QueryClient();
@@ -40,6 +42,8 @@ const App = () => {
                       <Route path="/packages" element={<PackagesPage />} />
                       <Route path="/contact" element={<ContactPage />} />
                       <Route path="/account" element={<AccountPage />} />
+                      <Route path="/terms" element={<TermsPage />} />
+                      <Route path="/privacy" element={<PrivacyPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Layout>
