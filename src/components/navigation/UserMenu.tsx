@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { User } from '@supabase/supabase-js';
+import { User } from '@/types';
 
 interface UserMenuProps {
   user: User;
@@ -19,7 +19,7 @@ const UserMenu = ({ user }: UserMenuProps) => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline">
-          {user.user_metadata?.name || user.email?.split('@')[0]}
+          {user.name || user.email?.split('@')[0]}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
