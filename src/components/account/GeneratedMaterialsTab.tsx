@@ -3,19 +3,32 @@ import React from 'react';
 import { User } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface GeneratedMaterialsTabProps {
   user: User | null;
 }
 
 const GeneratedMaterialsTab = ({ user }: GeneratedMaterialsTabProps) => {
+  const navigate = useNavigate();
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Materiale generate</CardTitle>
-        <CardDescription>
-          Vedeți și descărcați materialele generate anterior
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Materiale generate</CardTitle>
+          <CardDescription>
+            Vedeți și descărcați materialele generate anterior
+          </CardDescription>
+        </div>
+        <Button 
+          onClick={() => navigate('/generate')}
+          className="flex items-center gap-2"
+        >
+          <Plus size={18} />
+          Generează curs
+        </Button>
       </CardHeader>
       <CardContent>
         {user?.generatedCourses?.length ? (
