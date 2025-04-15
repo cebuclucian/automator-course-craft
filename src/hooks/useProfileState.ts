@@ -63,6 +63,37 @@ export const useProfileState = () => {
     }
   };
 
+  // Adăugat funcție pentru a decrementa numărul de generări disponibile
+  const decrementGenerationsLeft = async (userId: string): Promise<boolean> => {
+    try {
+      // Obținem mai întâi datele curente ale abonamentului pentru a afla tier-ul
+      const { data: subscriberData, error: getError } = await supabase
+        .from('subscribers')
+        .select('subscription_tier')
+        .eq('user_id', userId)
+        .single();
+      
+      if (getError) throw getError;
+      
+      // Determinăm numărul nou de generări disponibile bazat pe tier
+      // Pentru moment, implementăm doar decrementarea cu 1
+      // În viitor, această logică poate fi extinsă pentru a gestiona diferite consumuri în funcție de tier
+      
+      // Actualizăm profilul dacă există
+      if (profile) {
+        setProfile({
+          ...profile,
+          generationsLeft: Math.max(0, (profile.generationsLeft || 0) - 1)
+        });
+      }
+      
+      return true;
+    } catch (err) {
+      console.error("Eroare la decrementarea generărilor disponibile:", err);
+      return false;
+    }
+  };
+
   const refreshProfile = async (): Promise<User | null> => {
     try {
       setIsLoading(true);
@@ -135,6 +166,7 @@ export const useProfileState = () => {
     profile,
     updateProfile,
     refreshProfile,
+    decrementGenerationsLeft,
     isLoading,
     error
   };

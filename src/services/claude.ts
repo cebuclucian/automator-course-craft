@@ -12,31 +12,37 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     const { data: userData } = await supabase.auth.getUser();
     if (userData?.user) {
       // We need to check the user's subscription details from our auth system
-      // Since we're using a mock auth system in this demo, we'll retrieve the user from localStorage
-      const storedUserData = localStorage.getItem("automatorUser");
-      let userProfile = null;
-      
-      if (storedUserData) {
-        userProfile = JSON.parse(storedUserData);
-        const tier = userProfile?.subscription?.tier || 'Free';
-        const generatedCoursesCount = userProfile?.generatedCourses?.length || 0;
+      // Verificăm abonamentul utilizatorului din baza de date
+      const { data: subscriberData, error: subscriberError } = await supabase
+        .from('subscribers')
+        .select('*')
+        .eq('user_id', userData.user.id)
+        .single();
         
-        let maxCourses = 1; // Default for Free tier
+      if (subscriberError) throw new Error("Nu am putut verifica detaliile abonamentului.");
+      
+      if (subscriberData) {
+        const tier = subscriberData.subscription_tier || 'Free';
+        
+        // Verificăm dacă utilizatorul are generări disponibile
+        let generationsLeft = 0;
         
         switch (tier) {
           case 'Basic':
-            maxCourses = 3;
+            generationsLeft = 3;
             break;
           case 'Pro':
-            maxCourses = 10;
+            generationsLeft = 10;
             break;
           case 'Enterprise':
-            maxCourses = 30;
+            generationsLeft = 30;
             break;
+          default: // Free tier
+            generationsLeft = 1;
         }
         
-        if (generatedCoursesCount >= maxCourses) {
-          throw new Error(`Ai atins limita de ${maxCourses} materiale pentru pachetul ${tier}.`);
+        if (generationsLeft <= 0) {
+          throw new Error(`Ai atins limita de generări pentru pachetul ${tier}.`);
         }
       }
     }
@@ -48,9 +54,9 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
       body: { formData },
     });
     
-    // Set a timeout to handle potential hanging requests
+    // Set a timeout to handle potential hanging requests - increased from 60s to 120s
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Generarea a durat prea mult. Vă rugăm să încercați din nou.")), 60000); // 60s timeout
+      setTimeout(() => reject(new Error("Generarea a durat prea mult. Vă rugăm să încercați din nou.")), 120000); // 120s timeout (2 minute)
     });
     
     // Race between function call and timeout

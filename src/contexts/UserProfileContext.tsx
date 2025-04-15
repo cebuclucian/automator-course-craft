@@ -7,6 +7,7 @@ interface UserProfileContextType {
   profile: User | null;
   updateProfile: (data: Partial<User>) => Promise<boolean>;
   refreshProfile: () => Promise<User | null>;
+  decrementGenerationsLeft: (userId: string) => Promise<boolean>;
   isLoading: boolean;
   error: string | null;
 }
@@ -14,12 +15,13 @@ interface UserProfileContextType {
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
 
 export const UserProfileProvider = ({ children }: { children: React.ReactNode }) => {
-  const { profile, updateProfile, refreshProfile, isLoading, error } = useProfileState();
+  const { profile, updateProfile, refreshProfile, decrementGenerationsLeft, isLoading, error } = useProfileState();
 
   const value = {
     profile,
     updateProfile,
     refreshProfile,
+    decrementGenerationsLeft,
     isLoading,
     error
   };

@@ -16,9 +16,11 @@ import { Loader2 } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { generateCourse } from '@/services/claude';
 import { supabase } from "@/integrations/supabase/client";
+import { useUserProfile } from '@/contexts/UserProfileContext';
 
 const CourseGenerator = () => {
   const { user, refreshUser } = useAuth();
+  const { profile, refreshProfile, decrementGenerationsLeft } = useUserProfile();
   const { t, language } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -71,6 +73,20 @@ const CourseGenerator = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Verificăm dacă utilizatorul are generări disponibile
+    if (!profile || profile.generationsLeft <= 0) {
+      toast({
+        title: language === 'ro' ? 'Limită atinsă' : 'Limit reached',
+        description: language === 'ro' 
+          ? 'Nu mai aveți generări disponibile pentru acest abonament. Pentru a genera mai multe cursuri, alegeți un pachet superior.' 
+          : 'You have no more available generations for this subscription. To generate more courses, choose a higher package.',
+        variant: 'default',
+      });
+      
+      navigate('/packages');
+      return;
+    }
+    
     let generationType: GenerationType = 'Preview';
     if (user.subscription && user.subscription.tier !== 'Free') {
       generationType = 'Complet';
@@ -87,6 +103,11 @@ const CourseGenerator = () => {
       const generatedCourse = await generateCourse(fullFormData);
       
       if (user) {
+        // Decrementăm numărul de generări disponibile
+        if (profile) {
+          await decrementGenerationsLeft(user.id);
+        }
+        
         const mockGeneratedCourse = {
           id: 'course-' + Date.now(),
           createdAt: new Date(),
@@ -108,6 +129,8 @@ const CourseGenerator = () => {
         
         // Important: Await the refreshUser operation to ensure data is updated
         await refreshUser();
+        // Reîmprospătăm și profilul pentru a avea datele cele mai recente
+        await refreshProfile();
         
         toast({
           title: language === 'ro' ? 'Material generat cu succes!' : 'Material successfully generated!',
@@ -313,7 +336,7 @@ const CourseGenerator = () => {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={loading}
+                disabled={loading || (profile && profile.generationsLeft <= 0)}
               >
                 {loading ? (
                   <>
@@ -324,13 +347,24 @@ const CourseGenerator = () => {
                   t('form.submit')
                 )}
               </Button>
-              {user.subscription?.tier === 'Free' && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                  {language === 'ro' 
-                    ? 'Cont gratuit - se va genera versiunea Preview cu primele 2 pagini din fiecare tip de material.' 
-                    : 'Free account - the Preview version will be generated with the first 2 pages of each type of material.'}
-                </p>
-              )}
+              
+              <div className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                {profile && (
+                  <p>
+                    {language === 'ro' 
+                      ? `Generări disponibile: ${profile.generationsLeft}` 
+                      : `Available generations: ${profile.generationsLeft}`}
+                  </p>
+                )}
+                
+                {user.subscription?.tier === 'Free' && (
+                  <p className="mt-1">
+                    {language === 'ro' 
+                      ? 'Cont gratuit - se va genera versiunea Preview cu primele 2 pagini din fiecare tip de material.' 
+                      : 'Free account - the Preview version will be generated with the first 2 pages of each type of material.'}
+                  </p>
+                )}
+              </div>
             </div>
           </form>
         </CardContent>
