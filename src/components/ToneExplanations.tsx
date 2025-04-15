@@ -80,7 +80,7 @@ const ToneExplanations = () => {
           'Keep ideas clear and focused.'
         ],
         example: 'Think of feedback as your ninja tool—silent, precise, and powerful when used right!',
-        avoid: '"You're gonna learn some REALLY AWESOME stuff today!!" – overly excited without substance.'
+        avoid: "\"You're gonna learn some REALLY AWESOME stuff today!!\" – overly excited without substance."
       },
       {
         title: 'Humorous',
@@ -91,7 +91,7 @@ const ToneExplanations = () => {
           'Avoid sarcasm, clichés, or culturally sensitive jokes.'
         ],
         example: 'Passive-aggressive feedback is like a cupcake with chili inside. Sweet at first… then it hits you.',
-        avoid: '"Feedback? That's when you smile on the outside and cry on the inside." – inappropriate or negative humor.'
+        avoid: '"Feedback? That\'s when you smile on the outside and cry on the inside." – inappropriate or negative humor.'
       },
       {
         title: 'Professional',
