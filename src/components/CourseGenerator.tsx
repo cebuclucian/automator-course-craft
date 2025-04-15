@@ -103,7 +103,7 @@ const CourseGenerator = () => {
       const generatedCourse = await generateCourse(fullFormData);
       
       if (user) {
-        // Decrementăm numărul de generări disponibile
+        // Decrementăm numărul de generări disponibile DOAR dacă generarea a reușit
         if (profile) {
           await decrementGenerationsLeft(user.id);
         }
@@ -151,6 +151,10 @@ const CourseGenerator = () => {
           ? `A apărut o eroare la generarea materialului: ${error.message}` 
           : `An error occurred while generating the material: ${error.message}`,
       });
+      
+      // Very important: don't decrement the available generations if there's an error
+      // No need to add anything else here since we didn't decrement yet
+    } finally {
       setLoading(false);
     }
   };

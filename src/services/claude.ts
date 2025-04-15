@@ -54,9 +54,9 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
       body: { formData },
     });
     
-    // Set a timeout to handle potential hanging requests - increased from 60s to 120s
+    // Set a timeout to handle potential hanging requests - increased from 60s to 180s
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Generarea a durat prea mult. Vă rugăm să încercați din nou.")), 120000); // 120s timeout (2 minute)
+      setTimeout(() => reject(new Error("Generarea a durat prea mult. Vă rugăm să încercați din nou.")), 180000); // 180s timeout (3 minute)
     });
     
     // Race between function call and timeout
