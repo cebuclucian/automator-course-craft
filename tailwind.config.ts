@@ -53,7 +53,7 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Adăugăm culorile pentru automator pentru a putea folosi clase precum text-automator-600
+        // Optional: Add Automator specific colors if needed
         automator: {
           400: "#9b87f5",
           600: "#7E69AB",
