@@ -23,7 +23,7 @@ const ToneExplanations = () => {
           'Ghidează, nu impune concluzii.'
         ],
         example: 'Feedback-ul constructiv presupune claritate, empatie și intenție de sprijin. Cum crezi că s-ar schimba o conversație dacă am începe prin a cere acordul persoanei pentru a oferi feedback?',
-        avoid: '„Ce este feedback-ul? Cum îl oferi? Ce zici de ton?" – fără context sau explicație.'
+        avoid: 'Vor fi evitate: „Ce este feedback-ul? Cum îl oferi? Ce zici de ton?" – fără context sau explicație.'
       },
       {
         title: 'Energizant',
@@ -34,7 +34,7 @@ const ToneExplanations = () => {
           'Menține claritatea ideilor.'
         ],
         example: 'Gândește-te la feedback ca la un instrument ninja—fără zgomot, dar cu impact maxim atunci când e folosit corect!',
-        avoid: '„O să înveți niște chestii SUPER TARI azi!!" – exagerări fără substanță.'
+        avoid: 'Vor fi evitate: „O să înveți niște chestii SUPER TARI azi!!" – exagerări fără substanță.'
       },
       {
         title: 'Haios',
@@ -45,7 +45,7 @@ const ToneExplanations = () => {
           'Nu folosi sarcasm sau glume controversate.'
         ],
         example: 'Feedback-ul pasiv-agresiv e ca o prăjitură cu ardei iute în mijloc. La început pare dulce, dar apoi începi să regreți că ai gustat.',
-        avoid: '„Feedback? E momentul în care plângi pe interior și zâmbești pe exterior." – umor nepotrivit.'
+        avoid: 'Vor fi evitate: „Feedback? E momentul în care plângi pe interior și zâmbești pe exterior." – umor nepotrivit.'
       },
       {
         title: 'Profesional',
@@ -56,7 +56,7 @@ const ToneExplanations = () => {
           'Este potrivit pentru contexte corporative sau academice.'
         ],
         example: 'Feedback-ul constructiv reprezintă o practică de comunicare esențială, cu scopul de a îmbunătăți performanța individuală și colaborarea în cadrul echipei.',
-        avoid: '„Transmisiunea verbală a observațiilor de ordin comportamental în context profesional trebuie să fie reglementată procedural..." – prea rigid și greoi.'
+        avoid: 'Vor fi evitate: „Transmisiunea verbală a observațiilor de ordin comportamental în context profesional trebuie să fie reglementată procedural..." – prea rigid și greoi.'
       }
     ],
     en: [
