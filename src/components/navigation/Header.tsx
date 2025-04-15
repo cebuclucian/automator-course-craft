@@ -10,8 +10,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import DesktopNav from './DesktopNav';
 import MobileNav from './MobileNav';
 import UserMenu from './UserMenu';
-import Logo from '@/assets/automator-white-logo.png';
-import LogoDark from '@/assets/automator-black-logo.png';
+// Import logo files directly
+import WhiteLogo from '../../assets/automator-white-logo.png';
+import BlackLogo from '../../assets/automator-black-logo.png';
 
 const Header = () => {
   const { user } = useAuth();
@@ -30,7 +31,7 @@ const Header = () => {
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center">
           <img 
-            src={theme === 'dark' ? Logo : LogoDark} 
+            src={theme === 'dark' ? WhiteLogo : BlackLogo} 
             alt="Automator.ro Logo" 
             className="h-10 w-auto"
           />
