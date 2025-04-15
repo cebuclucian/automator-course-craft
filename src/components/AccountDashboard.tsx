@@ -126,7 +126,7 @@ const AccountDashboard = () => {
             </TabsList>
 
             <TabsContent value="generated">
-              <GeneratedMaterialsTab user={user} />
+              <GeneratedMaterialsTab />
             </TabsContent>
 
             <TabsContent value="subscription">

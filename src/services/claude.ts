@@ -1,6 +1,7 @@
 
 import { CourseFormData } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { toast } from "@/hooks/use-toast";
 
 // Function to generate course materials using Claude API via Supabase Edge Function
@@ -196,6 +197,8 @@ const getMockData = (formData: CourseFormData) => {
       duration: formData.duration,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString() // 72 hours
-    }
+    },
+    jobId: null, // Add default jobId property
+    status: 'completed' // Add default status property
   };
 };
