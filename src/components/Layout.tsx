@@ -6,7 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, Sun, Moon, Globe } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AuthModal from './AuthModal';
 import { 
   DropdownMenu, 
@@ -21,10 +21,18 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const { theme, toggleTheme } = useTheme();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [sheetOpen, setSheetOpen] = useState(false);
+  
+  const navigate = useNavigate();
 
   const handleOpenAuthModal = (mode: 'login' | 'register') => {
     setAuthMode(mode);
     setIsAuthModalOpen(true);
+  };
+
+  const handleNavigate = (path: string) => {
+    setSheetOpen(false); // Închide meniul când se accesează o pagină
+    navigate(path);
   };
 
   return (
@@ -108,7 +116,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             )}
 
             {/* Mobile menu */}
-            <Sheet>
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="md:hidden">
                   <Menu className="h-5 w-5" />
@@ -116,34 +124,55 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               </SheetTrigger>
               <SheetContent side="right">
                 <div className="flex flex-col h-full py-6 space-y-6">
-                  <Link to="/about" className="text-lg font-medium">
+                  <button 
+                    onClick={() => handleNavigate('/about')} 
+                    className="text-lg font-medium text-left"
+                  >
                     {t('nav.about')}
-                  </Link>
-                  <Link to="/how-it-works" className="text-lg font-medium">
+                  </button>
+                  <button 
+                    onClick={() => handleNavigate('/how-it-works')} 
+                    className="text-lg font-medium text-left"
+                  >
                     {t('nav.howItWorks')}
-                  </Link>
-                  <Link to="/generate" className="text-lg font-medium">
+                  </button>
+                  <button 
+                    onClick={() => handleNavigate('/generate')} 
+                    className="text-lg font-medium text-left"
+                  >
                     {t('nav.generate')}
-                  </Link>
-                  <Link to="/packages" className="text-lg font-medium">
+                  </button>
+                  <button 
+                    onClick={() => handleNavigate('/packages')} 
+                    className="text-lg font-medium text-left"
+                  >
                     {t('nav.packages')}
-                  </Link>
-                  <Link to="/contact" className="text-lg font-medium">
+                  </button>
+                  <button 
+                    onClick={() => handleNavigate('/contact')} 
+                    className="text-lg font-medium text-left"
+                  >
                     {t('nav.contact')}
-                  </Link>
+                  </button>
                   
                   {!user && (
                     <>
                       <Button 
                         variant="outline" 
-                        onClick={() => { handleOpenAuthModal('login') }}
+                        onClick={() => { 
+                          setSheetOpen(false);
+                          handleOpenAuthModal('login'); 
+                        }}
                         className="w-full"
                       >
                         {t('nav.login')}
                       </Button>
                       <Button 
                         variant="default" 
-                        onClick={() => { handleOpenAuthModal('register') }}
+                        onClick={() => { 
+                          setSheetOpen(false);
+                          handleOpenAuthModal('register'); 
+                        }}
                         className="w-full"
                       >
                         {t('nav.register')}
