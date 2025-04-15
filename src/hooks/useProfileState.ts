@@ -79,6 +79,28 @@ export const useProfileState = () => {
 
       if (profileError) throw profileError;
 
+      // Determină numărul de generări disponibile bazat pe tier
+      let generationsLeft = 0;
+      const tier = subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise';
+      
+      // Asigură că fiecare cont are cel puțin o generare disponibilă (pentru Preview)
+      switch (tier) {
+        case 'Free':
+          generationsLeft = 1; // Conturile Free primesc 1 generare pentru Preview
+          break;
+        case 'Basic':
+          generationsLeft = 3;
+          break;
+        case 'Pro':
+          generationsLeft = 10;
+          break;
+        case 'Enterprise':
+          generationsLeft = 30;
+          break;
+        default:
+          generationsLeft = 1; // Valoare implicită pentru siguranță
+      }
+
       // Map the database fields to User interface
       const mappedProfile: User = {
         id: subscriberData.user_id,
@@ -89,7 +111,7 @@ export const useProfileState = () => {
           expiresAt: subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : new Date(),
           active: !!subscriberData.subscribed
         },
-        generationsLeft: 0,
+        generationsLeft: generationsLeft,
         generatedCourses: []
       };
 
