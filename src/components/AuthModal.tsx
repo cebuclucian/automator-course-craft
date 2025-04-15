@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Facebook, Github } from "lucide-react";
 import LoginForm from "./auth/LoginForm";
 import RegisterForm from "./auth/RegisterForm";
 import EmailConfirmation from "./auth/EmailConfirmation";
@@ -21,7 +23,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [email, setEmail] = useState("");
-  const { login, register, loginWithGoogle, error } = useAuth();
+  const { login, register, loginWithGoogle, loginWithGithub, loginWithFacebook, error } = useAuth();
   const { t } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
@@ -72,6 +74,28 @@ const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const handleGithubLogin = async () => {
+    try {
+      setIsSubmitting(true);
+      await loginWithGithub();
+    } catch (error) {
+      console.error("GitHub login error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFacebookLogin = async () => {
+    try {
+      setIsSubmitting(true);
+      await loginWithFacebook();
+    } catch (error) {
+      console.error("Facebook login error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const toggleMode = () => {
     setMode(mode === "login" ? "register" : "login");
     setRegistrationError(null);
@@ -103,23 +127,43 @@ const AuthModal: React.FC<AuthModalProps> = ({
         </DialogHeader>
 
         <div className="flex flex-col space-y-4">
-          <Button 
-            variant="outline" 
-            className="w-full flex items-center justify-center gap-2"
-            onClick={handleGoogleLogin}
-            disabled={isSubmitting}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chrome">
-              <circle cx="12" cy="12" r="10"/>
-              <circle cx="12" cy="12" r="4"/>
-              <line x1="21.17" y1="8" x2="12" y2="8"/>
-              <line x1="3.95" y1="6.06" x2="8.54" y2="14"/>
-              <line x1="10.88" y1="21.94" x2="15.46" y2="14"/>
-            </svg>
-            {mode === "login" 
-              ? t("auth.continueWithGoogle") 
-              : t("auth.signupWithGoogle")}
-          </Button>
+          <div className="grid grid-cols-3 gap-2">
+            <Button 
+              variant="outline" 
+              className="flex items-center justify-center gap-2"
+              onClick={handleGoogleLogin}
+              disabled={isSubmitting}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-chrome">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="12" r="4"/>
+                <line x1="21.17" y1="8" x2="12" y2="8"/>
+                <line x1="3.95" y1="6.06" x2="8.54" y2="14"/>
+                <line x1="10.88" y1="21.94" x2="15.46" y2="14"/>
+              </svg>
+              <span className="sr-only md:not-sr-only md:inline-block">Google</span>
+            </Button>
+
+            <Button 
+              variant="outline" 
+              className="flex items-center justify-center gap-2"
+              onClick={handleFacebookLogin}
+              disabled={isSubmitting}
+            >
+              <Facebook size={16} />
+              <span className="sr-only md:not-sr-only md:inline-block">Facebook</span>
+            </Button>
+
+            <Button 
+              variant="outline" 
+              className="flex items-center justify-center gap-2"
+              onClick={handleGithubLogin}
+              disabled={isSubmitting}
+            >
+              <Github size={16} />
+              <span className="sr-only md:not-sr-only md:inline-block">GitHub</span>
+            </Button>
+          </div>
           
           <div className="flex items-center space-x-2">
             <Separator className="flex-1" />

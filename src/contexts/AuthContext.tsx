@@ -9,7 +9,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoading } = useSession();
-  const { login, register, loginWithGoogle, logout } = useAuthMethods();
+  const { login, register, loginWithGoogle, loginWithGithub, loginWithFacebook, logout } = useAuthMethods();
   const { refreshUser } = useUserRefresh();
 
   const value = {
@@ -17,6 +17,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     login,
     register,
     loginWithGoogle,
+    loginWithGithub,
+    loginWithFacebook,
     logout,
     isLoading,
     error: null,

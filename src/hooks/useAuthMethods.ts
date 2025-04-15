@@ -81,6 +81,44 @@ export const useAuthMethods = () => {
     }
   };
 
+  const loginWithGithub = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (error: any) {
+      console.error('GitHub login error:', error);
+      toast({
+        title: "Eroare la autentificarea cu GitHub",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const loginWithFacebook = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'facebook',
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (error: any) {
+      console.error('Facebook login error:', error);
+      toast({
+        title: "Eroare la autentificarea cu Facebook",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
   const logout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -103,5 +141,5 @@ export const useAuthMethods = () => {
     }
   };
 
-  return { login, register, loginWithGoogle, logout };
+  return { login, register, loginWithGoogle, loginWithGithub, loginWithFacebook, logout };
 };
