@@ -14,6 +14,8 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
+import Logo from '@/assets/automator-white-logo.png';
+import LogoDark from '@/assets/automator-black-logo.png';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const { user, logout } = useAuth();
@@ -41,8 +43,12 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="font-bold text-2xl text-automator-700 dark:text-automator-400">
-            Automator.ro
+          <Link to="/" className="flex items-center">
+            <img 
+              src={theme === 'dark' ? Logo : LogoDark} 
+              alt="Automator.ro Logo" 
+              className="h-10 w-auto"
+            />
           </Link>
 
           {/* Desktop Navigation */}
