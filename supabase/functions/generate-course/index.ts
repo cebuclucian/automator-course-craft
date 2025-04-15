@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
@@ -415,7 +414,38 @@ IMPORTANT: Răspunde DOAR cu un obiect JSON care conține cele trei secțiuni de
     "createdAt": "CURRENT_DATE",
     "expiresAt": "EXPIRY_DATE"
   }
-}`;
+}
+
+# Instrucțiuni pentru tonul de redactare / Writing Tone Instructions
+
+## Ton: Socratic / Tone: Socratic
+**RO:**  
+Combină explicații clare cu întrebări deschise care provoacă gândirea critică. După fiecare idee importantă, adaugă o întrebare pentru reflecție. Nu transforma tot conținutul într-o succesiune de întrebări. Ghidează cursantul spre descoperire, fără a oferi toate răspunsurile direct.
+
+**EN:**  
+Combine clear explanations with open-ended questions that spark critical thinking. After each key idea, insert a reflective question. Do not turn the entire content into a sequence of questions. Guide the learner toward insights without giving all the answers upfront.
+
+## Ton: Energizant / Tone: Energizing
+**RO:**  
+Folosește un limbaj pozitiv, activ și motivant. Încurajează implicarea prin expresii dinamice. Adaugă analogii scurte și menține ideile clare.
+
+**EN:**  
+Use dynamic, positive, and action-oriented language. Encourage involvement and motivation through active expressions. Include short analogies and keep ideas clear.
+
+## Ton: Haios / Tone: Humorous
+**RO:**  
+Adaugă umor subtil și creativ, cu comparații inteligente. Păstrează un ton relaxat și prietenos. Umorul trebuie să susțină ideea, nu să distragă.
+
+**EN:**  
+Add subtle humor, creative metaphors, and playful language. Keep a friendly, relaxed tone. Humor must support the message, not distract from it.
+
+## Ton: Profesional / Tone: Professional
+**RO:**  
+Folosește un limbaj clar, formal și structurat. Concentrează-te pe acuratețea ideilor și evită exprimările informale sau glumele.
+
+**EN:**  
+Use clear, formal, and structured language. Focus on accuracy and logical flow. Avoid informal expressions or humor.
+`;
 
   // Replace variables in template
   promptTemplate = promptTemplate
@@ -750,35 +780,4 @@ function generateDetailedExercises(formData, multiplier = 1) {
 3. Documentați procesul, provocările și soluțiile
 4. Pregătiți o prezentare de 10 minute
 
-### Exercițiul 5: Coaching colegial
-**Obiectiv:** Dezvoltarea abilităților de feedback și coaching
-**Durată:** 60 minute
-**Instrucțiuni:**
-1. Formați perechi
-2. Fiecare participant prezintă o provocare reală legată de ${formData.subject}
-3. Partenerul oferă coaching utilizând modelul GROW
-4. Schimbați rolurile și repetați procesul`;
-
-    if (formData.duration === '4 zile' || formData.duration === '5 zile') {
-      baseExercises += `\n\n### Exercițiul 6: Implementare ghidată
-**Obiectiv:** Dezvoltarea unui plan de acțiune concret
-**Durată:** 120 minute
-**Instrucțiuni:**
-1. Identificați o oportunitate reală de aplicare în organizația dvs.
-2. Dezvoltați un plan detaliat de implementare pe 90 de zile
-3. Anticipați obstacole și pregătiți strategii de depășire
-4. Stabiliți indicatori de succes și metode de măsurare
-
-### Exercițiul 7: Studiu de caz extins
-**Obiectiv:** Analiza aprofundată a unei situații complexe
-**Durată:** 180 minute
-**Instrucțiuni:**
-1. Analizați studiul de caz complex furnizat
-2. Documentați toate aspectele relevante utilizând cadrul SWOT
-3. Dezvoltați trei strategii alternative de abordare
-4. Recomandați și justificați cea mai potrivită strategie`;
-    }
-  }
-  
-  return baseExercises;
-}
+### Ex
