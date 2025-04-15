@@ -8,6 +8,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
+  const handleOpenAuthModal = (mode: 'login' | 'register') => {
+    setAuthMode(mode);
+    setIsAuthModalOpen(true);
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />

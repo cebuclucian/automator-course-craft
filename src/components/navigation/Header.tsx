@@ -10,9 +10,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import DesktopNav from './DesktopNav';
 import MobileNav from './MobileNav';
 import UserMenu from './UserMenu';
-// Import logo files directly
-import WhiteLogo from '../../assets/automator-white-logo.png';
-import BlackLogo from '../../assets/automator-black-logo.png';
+
+// Import logo files with absolute paths to ensure they're found
+import WhiteLogo from '@/assets/automator-white-logo.png';
+import BlackLogo from '@/assets/automator-black-logo.png';
 
 const Header = () => {
   const { user } = useAuth();
