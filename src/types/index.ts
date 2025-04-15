@@ -55,6 +55,8 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
+  loginWithGithub: () => Promise<boolean>; // Added GitHub login method
+  loginWithFacebook: () => Promise<boolean>; // Added Facebook login method
   logout: () => Promise<boolean>;
   isLoading: boolean;
   error: string | null;
