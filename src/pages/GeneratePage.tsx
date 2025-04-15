@@ -5,6 +5,7 @@ import { useToast } from '@/components/ui/use-toast';
 import CourseGenerator from '@/components/CourseGenerator';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import ToneExplanations from '@/components/ToneExplanations';
 
 const GeneratePage = () => {
   const { user } = useAuth();
@@ -57,9 +58,12 @@ const GeneratePage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6 text-center">
-        {language === 'ro' ? 'Generator de Materiale' : 'Materials Generator'}
-      </h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">
+          {language === 'ro' ? 'Generator de Materiale' : 'Materials Generator'}
+        </h1>
+        <ToneExplanations />
+      </div>
       <CourseGenerator />
     </div>
   );
