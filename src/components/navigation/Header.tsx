@@ -11,10 +11,6 @@ import DesktopNav from './DesktopNav';
 import MobileNav from './MobileNav';
 import UserMenu from './UserMenu';
 
-// Import logo files with absolute paths to ensure they're found
-import WhiteLogo from '@/assets/automator-white-logo.png';
-import BlackLogo from '@/assets/automator-black-logo.png';
-
 const Header = () => {
   const { user } = useAuth();
   const { language, setLanguage } = useLanguage();
@@ -32,7 +28,7 @@ const Header = () => {
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center">
           <img 
-            src={theme === 'dark' ? WhiteLogo : BlackLogo} 
+            src={theme === 'dark' ? '/automator-white-logo.png' : '/automator-black-logo.png'} 
             alt="Automator.ro Logo" 
             className="h-10 w-auto"
           />
