@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Globe, Sun, Moon } from 'lucide-react';
@@ -10,19 +9,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import DesktopNav from './DesktopNav';
 import MobileNav from './MobileNav';
 import UserMenu from './UserMenu';
-
+import AuthModal from '@/components/AuthModal'; // Asigurați-vă că calea este corectă
 const Header = () => {
   const { user } = useAuth();
   const { language, setLanguage } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
   const [authMode, setAuthMode] = React.useState<'login' | 'register'>('login');
-
   const handleOpenAuthModal = (mode: 'login' | 'register') => {
     setAuthMode(mode);
     setIsAuthModalOpen(true);
   };
-
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -33,9 +30,7 @@ const Header = () => {
             className="h-10 w-auto"
           />
         </Link>
-
         <DesktopNav />
-
         <div className="flex items-center space-x-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -52,11 +47,9 @@ const Header = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
             {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
-
           {user ? (
             <UserMenu user={user} />
           ) : (
@@ -68,15 +61,23 @@ const Header = () => {
               {language === 'ro' ? 'Autentificare / Înregistrare' : 'Login / Register'}
             </Button>
           )}
-
           <MobileNav 
             onOpenAuthModal={handleOpenAuthModal}
             isAuthenticated={!!user}
           />
         </div>
       </div>
+      
+      {/* Adăugați acest AuthModal la sfârșitul componentei Header */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        initialMode={authMode} 
+      />
     </header>
   );
 };
-
 export default Header;
+
+
+
