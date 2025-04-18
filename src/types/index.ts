@@ -1,3 +1,5 @@
+import { SupportedCourseLanguage } from '@/config/supportedCourseLanguages';
+
 export interface User {
   id: string;
   email: string;
