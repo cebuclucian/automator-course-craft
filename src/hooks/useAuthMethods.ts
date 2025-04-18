@@ -32,48 +32,35 @@ export const useAuthMethods = () => {
   };
 
   const register = async (email: string, password: string, name: string) => {
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name: name
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name
+          }
         }
-      }
-    });
-    if (error) throw error;
-    // Adăugăm inițializarea pentru generationsLeft în user_profiles
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .upsert({
-          user_id: data.user.id,
-          email: email,
-          name: name,
-          generations_left: 1, // Inițializăm cu o generare gratuită
-          created_at: new Date().toISOString()
-        });
-      if (profileError) {
-        console.error('Error setting initial generations:', profileError);
-        // Nu aruncăm eroarea aici, pentru a permite înregistrarea să continue
-      }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Înregistrare reușită",
+        description: "Contul tău a fost creat cu succes!",
+      });
+
+      return true;
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      toast({
+        title: "Eroare la înregistrare",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
     }
-    toast({
-      title: "Înregistrare reușită",
-      description: "Contul tău a fost creat cu succes!",
-    });
-    return true;
-  } catch (error: any) {
-    console.error('Registration error:', error);
-    toast({
-      title: "Eroare la înregistrare",
-      description: error.message,
-      variant: "destructive"
-    });
-    return false;
-  }
-};
+  };
 
   const loginWithGoogle = async () => {
     try {
