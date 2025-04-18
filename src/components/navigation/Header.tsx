@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Globe, Sun, Moon } from 'lucide-react';
@@ -9,23 +10,30 @@ import { useAuth } from '@/contexts/AuthContext';
 import DesktopNav from './DesktopNav';
 import MobileNav from './MobileNav';
 import UserMenu from './UserMenu';
-import AuthModal from '@/components/AuthModal'; // Asigurați-vă că calea este corectă
+import AuthModal from '@/components/AuthModal';
+
+// Import logos for direct use
+import BlackLogo from '@/assets/automator-black-logo.png';
+import WhiteLogo from '@/assets/automator-white-logo.png';
+
 const Header = () => {
   const { user } = useAuth();
   const { language, setLanguage } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
   const [authMode, setAuthMode] = React.useState<'login' | 'register'>('login');
+  
   const handleOpenAuthModal = (mode: 'login' | 'register') => {
     setAuthMode(mode);
     setIsAuthModalOpen(true);
   };
+
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center">
           <img 
-            src={theme === 'dark' ? '/automator-white-logo.png' : '/automator-black-logo.png'} 
+            src={theme === 'dark' ? WhiteLogo : BlackLogo} 
             alt="Automator.ro Logo" 
             className="h-10 w-auto"
           />
@@ -68,7 +76,6 @@ const Header = () => {
         </div>
       </div>
       
-      {/* Adăugați acest AuthModal la sfârșitul componentei Header */}
       <AuthModal 
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 
@@ -77,7 +84,5 @@ const Header = () => {
     </header>
   );
 };
+
 export default Header;
-
-
-
