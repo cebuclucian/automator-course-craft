@@ -28,13 +28,46 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const authMethods = useAuthMethods();
-  const { refreshUser } = useUserRefresh();
-  
-  // Initialize user state and loading state
+  // Initialize central user state and loading state
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Get auth methods with state setters passed in
+  const { 
+    login, 
+    register, 
+    loginWithGoogle, 
+    loginWithGithub, 
+    loginWithFacebook, 
+    logout 
+  } = useAuthMethods({
+    setUser,
+    setIsLoading,
+    setError
+  });
+  
+  const { refreshUser } = useUserRefresh();
+
+  // Effect to update user data when refreshed
+  useEffect(() => {
+    const initializeUser = async () => {
+      try {
+        await refreshUser();
+        // After refresh, check if user data exists in localStorage
+        const storedUser = localStorage.getItem('automatorUser');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (err) {
+        console.error("Error initializing user:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeUser();
+  }, [refreshUser]);
   
   // Add debugging to track user state changes
   useEffect(() => {
@@ -47,20 +80,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     <AuthContext.Provider
       value={{
         user,
-        login: authMethods.login,
-        register: authMethods.register,
-        loginWithGoogle: authMethods.loginWithGoogle,
-        loginWithGithub: authMethods.loginWithGithub,
-        loginWithFacebook: authMethods.loginWithFacebook,
-        logout: authMethods.logout,
+        login,
+        register,
+        loginWithGoogle,
+        loginWithGithub,
+        loginWithFacebook,
+        logout,
         isLoading,
         error,
-        refreshUser
+        refreshUser: async () => {
+          const success = await refreshUser();
+          if (success) {
+            // After refresh, update user state from localStorage
+            const storedUser = localStorage.getItem('automatorUser');
+            if (storedUser) {
+              setUser(JSON.parse(storedUser));
+            }
+          }
+          return success;
+        }
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
-
-// Only export the components once at the top level

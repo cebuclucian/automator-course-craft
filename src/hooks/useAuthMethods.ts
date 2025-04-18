@@ -1,32 +1,17 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@/types";
 
-export const useAuthMethods = () => {
+interface AuthMethodsProps {
+  setUser: (user: User | null) => void;
+  setIsLoading: (isLoading: boolean) => void;
+  setError: (error: string | null) => void;
+}
+
+export const useAuthMethods = ({ setUser, setIsLoading, setError }: AuthMethodsProps) => {
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadUserFromStorage = () => {
-      setIsLoading(true);
-      try {
-        const storedUser = localStorage.getItem('automatorUser');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (err) {
-        console.error("Error loading user from localStorage:", err);
-        setError("Eroare la încărcarea datelor utilizatorului");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadUserFromStorage();
-  }, []);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -170,6 +155,9 @@ export const useAuthMethods = () => {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
+      // Clear user from state
+      setUser(null);
+      
       toast({
         title: "Deconectare reușită",
         description: "Te-ai deconectat cu succes.",
@@ -188,14 +176,11 @@ export const useAuthMethods = () => {
   };
 
   return { 
-    user,
     login, 
     register, 
     loginWithGoogle, 
     loginWithGithub, 
     loginWithFacebook, 
-    logout,
-    isLoading,
-    error
+    logout
   };
 };
