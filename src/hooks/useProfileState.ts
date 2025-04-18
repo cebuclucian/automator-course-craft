@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,18 +104,7 @@ export const useProfileState = () => {
       
       const newGenerations = Math.max(0, currentGenerations - 1);
       
-      const { error: updateError } = await supabase
-        .from('subscribers')
-        .update({ 
-          generations_left: newGenerations 
-        })
-        .eq('user_id', userId);
-      
-      if (updateError) {
-        console.error("Eroare la actualizarea generărilor disponibile:", updateError);
-        return false;
-      }
-      
+      // Since we can't store generations_left in the database, we'll handle it in the local state
       if (profile && profile.id === userId) {
         console.log("Decrementare cu succes, generări înainte:", profile.generationsLeft);
         setProfile({
