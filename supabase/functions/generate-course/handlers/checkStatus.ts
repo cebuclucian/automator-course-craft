@@ -29,19 +29,28 @@ export async function handleCheckStatus(requestData, corsHeaders) {
   try {
     console.log(`Checking status for job: ${jobId}`);
     console.log(`Total jobs in memory: ${jobStore.size}`);
+    console.log(`All job keys: ${[...jobStore.keys()].join(', ')}`);
     
     // Check if job exists in memory
     if (!jobStore.has(jobId)) {
       console.warn(`Job ${jobId} not found in memory store`);
       
-      // For demo purposes, create a mock response for jobs that might have been lost
+      // For demo purposes, create a mock response with more detailed information
       // In a real system, this would check a database
+      console.log(`Generating fallback response for missing job ${jobId}`);
       return new Response(
         JSON.stringify({
           success: true,
           status: "completed",
           message: "Job completed (fallback response)",
-          data: mockCourseData({}),
+          note: "Job data was not found in memory. This could be due to a function restart or timeout.",
+          data: mockCourseData({
+            subject: "Subiect necunoscut",
+            level: "Intermediar",
+            audience: "General",
+            duration: "1 zi", 
+            language: "română"
+          }),
         }),
         {
           headers: {
@@ -54,7 +63,7 @@ export async function handleCheckStatus(requestData, corsHeaders) {
     
     // Get job data
     const job = jobStore.get(jobId);
-    console.log(`Job ${jobId} status: ${job.status}`);
+    console.log(`Job ${jobId} found with status: ${job.status}`);
     
     // Check job status
     if (job.status === 'error') {
@@ -78,6 +87,30 @@ export async function handleCheckStatus(requestData, corsHeaders) {
     
     if (job.status === 'completed') {
       console.log(`Job ${jobId} completed successfully, returning data`);
+      
+      // Check if data exists and is in the expected format
+      if (!job.data || !job.data.sections || job.data.sections.length === 0) {
+        console.error(`Job ${jobId} marked as completed but has invalid or missing data`);
+        // Regenerate data as a fallback
+        const regeneratedData = mockCourseData(job.formData || {});
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: "completed",
+            message: "Data was regenerated due to corruption",
+            data: regeneratedData,
+            startedAt: job.startedAt || new Date().toISOString(),
+            completedAt: job.completedAt || new Date().toISOString()
+          }),
+          {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+      
       return new Response(
         JSON.stringify({
           success: true,

@@ -21,12 +21,18 @@ export async function processJob(jobId, prompt, formData) {
     
     console.log(`[${jobId}] Simulated processing time: ${processingTime}ms`);
     
-    // Update job status to indicate processing has started
+    // Update job status to indicate processing has started and ensure it's saved in the store
+    const existingJob = jobStore.get(jobId) || {};
     jobStore.set(jobId, {
-      ...jobStore.get(jobId),
+      ...existingJob,
       processingStarted: new Date().toISOString(),
       status: 'processing',
+      formData, // Save formData in case it wasn't saved before
     });
+    
+    // Log the current job store size for debugging
+    console.log(`[${jobId}] Current job store size: ${jobStore.size}`);
+    console.log(`[${jobId}] Job keys in store: ${[...jobStore.keys()].join(', ')}`);
     
     // Simulate processing
     console.log(`[${jobId}] Starting processing simulation`);
@@ -37,30 +43,27 @@ export async function processJob(jobId, prompt, formData) {
     // For now, we'll just update the job with mock data
     const mockResult = mockCourseData(formData);
     
-    // Ensure the job still exists in the store (it might have been deleted)
+    // Double-check the job still exists in the store before updating
     if (!jobStore.has(jobId)) {
-      console.log(`[${jobId}] Job no longer exists in store, creating a new entry`);
-      jobStore.set(jobId, {
-        status: 'completed',
-        formData,
-        startedAt: new Date().toISOString(),
-        processingStarted: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        data: mockResult
-      });
-    } else {
-      // Update existing job
-      jobStore.set(jobId, {
-        status: 'completed',
-        formData,
-        startedAt: jobStore.get(jobId)?.startedAt || new Date().toISOString(),
-        processingStarted: jobStore.get(jobId)?.processingStarted || new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        data: mockResult
-      });
+      console.log(`[${jobId}] Warning: Job no longer exists in store after processing, recreating it`);
     }
     
-    console.log(`[${jobId}] Job completed successfully, data size: ${JSON.stringify(mockResult).length} bytes`);
+    // Update existing job or create a new one
+    const updatedJob = {
+      status: 'completed',
+      formData,
+      startedAt: existingJob?.startedAt || new Date().toISOString(),
+      processingStarted: existingJob?.processingStarted || new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      data: mockResult
+    };
+    
+    // Save the updated job
+    jobStore.set(jobId, updatedJob);
+    
+    // Log the successful update
+    console.log(`[${jobId}] Job completed successfully, data sections: ${mockResult.sections.length}`);
+    console.log(`[${jobId}] Current job store size after completion: ${jobStore.size}`);
     
     // Clean up old jobs periodically (in a real system this would be handled differently)
     setTimeout(() => {
@@ -75,16 +78,15 @@ export async function processJob(jobId, prompt, formData) {
     console.error(`[${jobId}] Error processing job:`, error);
     
     // Make sure to update the job status even in case of error
-    if (jobStore.has(jobId)) {
-      jobStore.set(jobId, {
-        status: 'error',
-        formData,
-        startedAt: jobStore.get(jobId)?.startedAt || new Date().toISOString(),
-        processingStarted: jobStore.get(jobId)?.processingStarted || new Date().toISOString(),
-        error: error.message || 'Unknown error during processing',
-        errorTimestamp: new Date().toISOString()
-      });
-    }
+    const existingJob = jobStore.get(jobId) || {};
+    jobStore.set(jobId, {
+      status: 'error',
+      formData,
+      startedAt: existingJob?.startedAt || new Date().toISOString(),
+      processingStarted: existingJob?.processingStarted || new Date().toISOString(),
+      error: error.message || 'Unknown error during processing',
+      errorTimestamp: new Date().toISOString()
+    });
     
     throw error;
   }

@@ -68,13 +68,21 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     
     console.log("Course generation job started successfully:", responseData.data);
     
-    // Return job information including status and job ID
+    // Make sure we have a jobId for status checking
     const jobId = responseData.data.jobId;
+    if (!jobId) {
+      console.error("No job ID returned from API:", responseData.data);
+      throw new Error("Eroare sistem: Nu s-a putut obține un ID pentru job");
+    }
+    
+    // Return job information including status and job ID
     const status = responseData.data.status || 'processing';
-    const mockData = getMockData(formData);
+    
+    // If data is already available, use it, otherwise use mock data temporarily
+    const resultData = responseData.data.data || getMockData(formData);
     
     return {
-      ...mockData,
+      ...resultData,
       jobId,
       status
     };
@@ -103,14 +111,26 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
       throw new Error("Nu am putut verifica statusul generării");
     }
     
-    const responseData = result as { data?: { success?: boolean, status?: string, data?: any, error?: string, startedAt?: string } };
+    const responseData = result as { data?: { success?: boolean, status?: string, data?: any, error?: string, startedAt?: string, message?: string } };
     
     if (!responseData.data || !responseData.data.success) {
       console.error("API returned an error for status check:", responseData.data);
       throw new Error(responseData.data?.error || "Nu am putut verifica statusul generării");
     }
     
+    // Log additional details about the response
     console.log("Job status:", responseData.data.status);
+    if (responseData.data.message) {
+      console.log("Job message:", responseData.data.message);
+    }
+    
+    // Validate data if completed
+    if (responseData.data.status === 'completed' && 
+        responseData.data.data && 
+        (!responseData.data.data.sections || responseData.data.data.sections.length === 0)) {
+      console.error("Job returned empty or invalid data structure:", responseData.data.data);
+    }
+    
     return {
       ...responseData.data,
       startedAt: responseData.data.startedAt || new Date().toISOString()

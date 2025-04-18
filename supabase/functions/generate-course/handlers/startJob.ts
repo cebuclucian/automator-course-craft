@@ -1,3 +1,4 @@
+
 import { jobStore } from "../index.ts";
 import { corsHeaders } from "../cors.ts";
 import { buildPrompt } from "../helpers/promptBuilder.ts";
@@ -45,8 +46,9 @@ export async function handleStartJob(requestData, corsHeaders) {
       startedAt: new Date().toISOString(),
     });
     
-    // Log the number of active jobs
+    // Log the number of active jobs and their IDs for debugging
     console.log(`Current active jobs: ${jobStore.size}`);
+    console.log(`Job keys in store: ${[...jobStore.keys()].join(', ')}`);
     
     // For long-running jobs, start the processing in the background using waitUntil
     const complexJob = formData.duration.includes('zile') || formData.duration.includes('days');
@@ -79,7 +81,7 @@ export async function handleStartJob(requestData, corsHeaders) {
       // Return mock data immediately
       const mockData = mockCourseData(formData);
       
-      console.log(`Job ${jobId} returning immediate mock data`);
+      console.log(`Job ${jobId} returning immediate mock data with ${mockData.sections.length} sections`);
       return new Response(
         JSON.stringify({
           success: true,
