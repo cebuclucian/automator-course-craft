@@ -3,7 +3,6 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
-  ScrollRestoration,
 } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
@@ -38,7 +37,6 @@ function AppContent() {
   return (
     <div className={theme === 'dark' ? 'dark' : 'light'}>
       <div className="min-h-screen bg-background text-foreground dark:bg-background dark:text-foreground">
-        <ScrollRestoration />
         <Toaster />
         <Router>
           <Layout>
