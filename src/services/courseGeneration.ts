@@ -1,3 +1,4 @@
+
 import { CourseFormData } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -45,6 +46,8 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
         formData,
         action: 'start' 
       },
+      // Add a longer timeout to prevent client-side timeout issues
+      abortSignal: AbortSignal.timeout(60000), // 60 seconds
     });
     
     console.log("Edge function response received:", result);
@@ -57,7 +60,7 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
       throw new Error(errorMessage);
     }
     
-    const responseData = result as { data?: { success?: boolean, error?: string, data?: any, jobId?: string } };
+    const responseData = result as { data?: { success?: boolean, error?: string, data?: any, jobId?: string, status?: string } };
     
     if (!responseData.data || !responseData.data.success) {
       console.error("API returned an error or invalid response:", responseData.data);
@@ -66,20 +69,18 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     
     console.log("Course generation job started successfully:", responseData.data);
     
-    // Get mock data for immediate display while actual generation happens
+    // Return job information including status and job ID
+    const jobId = responseData.data.jobId;
+    const status = responseData.data.status || 'processing';
     const mockData = getMockData(formData);
-    mockData.jobId = responseData.data.jobId;
-    mockData.status = 'processing';
     
-    console.log("Returning mock data with job ID for frontend handling:", mockData);
-    return mockData;
+    return {
+      ...mockData,
+      jobId,
+      status
+    };
   } catch (error: any) {
     console.error("Error in generateCourse:", error);
-    toast({
-      title: "Eroare la generarea materialelor",
-      description: error.message || "A apărut o eroare neașteptată",
-      variant: "destructive"
-    });
     throw error;
   }
 };
@@ -93,6 +94,8 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
         action: 'status',
         jobId 
       },
+      // Add a longer timeout
+      abortSignal: AbortSignal.timeout(30000), // 30 seconds
     });
     
     console.log("Status check response:", result);
@@ -102,7 +105,7 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
       throw new Error("Nu am putut verifica statusul generării");
     }
     
-    const responseData = result as { data?: { success?: boolean, status?: string, data?: any, error?: string } };
+    const responseData = result as { data?: { success?: boolean, status?: string, data?: any, error?: string, startedAt?: string } };
     
     if (!responseData.data || !responseData.data.success) {
       console.error("API returned an error for status check:", responseData.data);
@@ -110,7 +113,10 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
     }
     
     console.log("Job status:", responseData.data.status);
-    return responseData.data;
+    return {
+      ...responseData.data,
+      startedAt: responseData.data.startedAt || new Date().toISOString()
+    };
   } catch (error: any) {
     console.error("Error checking course generation status:", error);
     throw error;

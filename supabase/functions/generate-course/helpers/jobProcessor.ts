@@ -36,14 +36,29 @@ export async function processJob(jobId, prompt, formData) {
     // In a real implementation, we'd call the Claude API here
     // For now, we'll just update the job with mock data
     const mockResult = mockCourseData(formData);
-    jobStore.set(jobId, {
-      status: 'completed',
-      formData,
-      startedAt: jobStore.get(jobId)?.startedAt,
-      processingStarted: jobStore.get(jobId)?.processingStarted,
-      completedAt: new Date().toISOString(),
-      data: mockResult
-    });
+    
+    // Ensure the job still exists in the store (it might have been deleted)
+    if (!jobStore.has(jobId)) {
+      console.log(`[${jobId}] Job no longer exists in store, creating a new entry`);
+      jobStore.set(jobId, {
+        status: 'completed',
+        formData,
+        startedAt: new Date().toISOString(),
+        processingStarted: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        data: mockResult
+      });
+    } else {
+      // Update existing job
+      jobStore.set(jobId, {
+        status: 'completed',
+        formData,
+        startedAt: jobStore.get(jobId)?.startedAt || new Date().toISOString(),
+        processingStarted: jobStore.get(jobId)?.processingStarted || new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        data: mockResult
+      });
+    }
     
     console.log(`[${jobId}] Job completed successfully, data size: ${JSON.stringify(mockResult).length} bytes`);
     
@@ -58,14 +73,18 @@ export async function processJob(jobId, prompt, formData) {
     return mockResult;
   } catch (error) {
     console.error(`[${jobId}] Error processing job:`, error);
-    jobStore.set(jobId, {
-      status: 'error',
-      formData,
-      startedAt: jobStore.get(jobId)?.startedAt,
-      processingStarted: jobStore.get(jobId)?.processingStarted,
-      error: error.message || 'Unknown error during processing',
-      errorTimestamp: new Date().toISOString()
-    });
+    
+    // Make sure to update the job status even in case of error
+    if (jobStore.has(jobId)) {
+      jobStore.set(jobId, {
+        status: 'error',
+        formData,
+        startedAt: jobStore.get(jobId)?.startedAt || new Date().toISOString(),
+        processingStarted: jobStore.get(jobId)?.processingStarted || new Date().toISOString(),
+        error: error.message || 'Unknown error during processing',
+        errorTimestamp: new Date().toISOString()
+      });
+    }
     
     throw error;
   }

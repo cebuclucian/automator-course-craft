@@ -39,7 +39,6 @@ export async function handleCheckStatus(requestData, corsHeaders) {
       return new Response(
         JSON.stringify({
           success: true,
-          jobId: jobId,
           status: "completed",
           message: "Job completed (fallback response)",
           data: mockCourseData({}),
@@ -62,11 +61,11 @@ export async function handleCheckStatus(requestData, corsHeaders) {
       console.error(`Job ${jobId} encountered an error:`, job.error);
       return new Response(
         JSON.stringify({
-          success: false,
-          jobId: jobId,
+          success: true,
           status: "error",
           error: job.error || "Unknown error during processing",
-          message: "Job encountered an error during processing"
+          message: "Job encountered an error during processing",
+          startedAt: job.startedAt || new Date().toISOString()
         }),
         {
           headers: {
@@ -83,7 +82,9 @@ export async function handleCheckStatus(requestData, corsHeaders) {
         JSON.stringify({
           success: true,
           status: "completed",
-          data: job.data
+          data: job.data,
+          startedAt: job.startedAt || new Date().toISOString(),
+          completedAt: job.completedAt || new Date().toISOString()
         }),
         {
           headers: {
@@ -101,8 +102,8 @@ export async function handleCheckStatus(requestData, corsHeaders) {
         success: true,
         status: "processing",
         message: "Job is still being processed",
-        startedAt: job.startedAt,
-        processingStarted: job.processingStarted || null,
+        startedAt: job.startedAt || new Date().toISOString(),
+        processingStarted: job.processingStarted || new Date().toISOString(),
       }),
       {
         headers: {
@@ -115,11 +116,11 @@ export async function handleCheckStatus(requestData, corsHeaders) {
     console.error(`Error checking status for job ${jobId}:`, error);
     return new Response(
       JSON.stringify({ 
-        success: false, 
+        success: true, 
+        status: "error",
         error: error.message || "Error checking job status" 
       }),
       { 
-        status: 500, 
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json' 

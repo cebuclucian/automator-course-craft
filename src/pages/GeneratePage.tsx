@@ -18,15 +18,16 @@ const GeneratePage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [hasAttemptedProfileLoad, setHasAttemptedProfileLoad] = useState(false);
+  const [profileLoadComplete, setProfileLoadComplete] = useState(false);
 
   // Verifică dacă utilizatorul este admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
 
   useEffect(() => {
-    console.log("GeneratePage mounted");
+    console.log("GeneratePage mounted, user:", user?.id, "profile:", profile?.id);
     
     // Adăugăm un flag pentru a preveni încărcările multiple ale profilului
-    if (!hasAttemptedProfileLoad) {
+    if (!hasAttemptedProfileLoad && !profileLoadComplete) {
       console.log("First profile load attempt");
       
       async function loadProfileData() {
@@ -35,10 +36,12 @@ const GeneratePage = () => {
           if (user) {
             console.log("User is authenticated, refreshing profile");
             await refreshProfile();
+            console.log("Profile refresh completed");
           } else {
             console.log("User not authenticated");
           }
           setHasAttemptedProfileLoad(true);
+          setProfileLoadComplete(true);
         } catch (error) {
           console.error("Error refreshing profile:", error);
           setLoadingError(
@@ -54,12 +57,12 @@ const GeneratePage = () => {
       
       loadProfileData();
     }
-  }, [user, refreshProfile, language, hasAttemptedProfileLoad]);
+  }, [user, refreshProfile, language, hasAttemptedProfileLoad, profileLoadComplete, profile]);
 
   useEffect(() => {
     // Verificăm limitele de generare doar după ce profilul a fost încărcat
     // și doar pentru utilizatorii neadmin
-    if (user && profile && !isAdminUser && !isLoading && hasAttemptedProfileLoad) {
+    if (user && profile && !isAdminUser && !isLoading && profileLoadComplete) {
       console.log("Checking generation limits for non-admin user");
       console.log("Current generations left:", profile.generationsLeft);
       console.log("Subscription tier:", profile.subscription?.tier);
@@ -80,9 +83,9 @@ const GeneratePage = () => {
         navigate('/packages');
       }
     }
-  }, [user, profile, navigate, toast, language, isAdminUser, isLoading, hasAttemptedProfileLoad]);
+  }, [user, profile, navigate, toast, language, isAdminUser, isLoading, profileLoadComplete]);
 
-  if (isLoading && !hasAttemptedProfileLoad) {
+  if (isLoading && !profileLoadComplete) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">

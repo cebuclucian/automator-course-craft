@@ -1,18 +1,19 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { CourseFormData, GenerationType } from '@/types';
-import { generateCourse } from '@/services/courseGeneration';
+import { generateCourse, checkCourseGenerationStatus } from '@/services/courseGeneration';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import CourseGeneratorForm from './course-generator/CourseGeneratorForm';
 import CourseGeneratorAuth from './course-generator/CourseGeneratorAuth';
 import ToneExplanations from './ToneExplanations';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 const CourseGenerator = () => {
   const { user } = useAuth();
@@ -25,7 +26,11 @@ const CourseGenerator = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [showLongGenerationWarning, setShowLongGenerationWarning] = useState(false);
-  
+  const [generationJobId, setGenerationJobId] = useState<string | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationTimeout, setGenerationTimeout] = useState<number | null>(null);
+
   // Inițializăm formData o singură dată la încărcarea componentei, nu în fiecare render
   const [formData, setFormData] = useState<CourseFormData>(() => ({
     language: language === 'ro' ? 'română' : 'english',
@@ -56,14 +61,94 @@ const CourseGenerator = () => {
     }
   }, [language]);
 
-  if (!user) {
-    return (
-      <CourseGeneratorAuth 
-        isAuthModalOpen={isAuthModalOpen}
-        setIsAuthModalOpen={setIsAuthModalOpen}
-      />
-    );
-  }
+  // Cleanup function for polling and timeout
+  const cleanupTimers = useCallback(() => {
+    console.log('Cleaning up timers');
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    
+    if (generationTimeout) {
+      clearTimeout(generationTimeout);
+      setGenerationTimeout(null);
+    }
+  }, [pollingInterval, generationTimeout]);
+
+  // Effect for polling job status
+  useEffect(() => {
+    if (!generationJobId || pollingInterval) return;
+    
+    console.log('Setting up polling for job:', generationJobId);
+    
+    // Set a timeout to stop the generation after 90 seconds
+    const timeout = window.setTimeout(() => {
+      console.log('Generation timed out after 90 seconds');
+      cleanupTimers();
+      setLoading(false);
+      setError(language === 'ro' 
+        ? 'Timpul de generare a expirat. Vă rugăm să încercați din nou sau contactați suportul.' 
+        : 'Generation time expired. Please try again or contact support.');
+    }, 90000); // 90 seconds
+    
+    setGenerationTimeout(timeout);
+    
+    // Start polling for status
+    const interval = window.setInterval(async () => {
+      try {
+        console.log('Polling job status for:', generationJobId);
+        const statusResponse = await checkCourseGenerationStatus(generationJobId);
+        console.log('Job status response:', statusResponse);
+        
+        if (statusResponse.status === 'completed') {
+          console.log('Job completed successfully!');
+          cleanupTimers();
+          setLoading(false);
+          setGenerationProgress(100);
+          setSuccess(
+            language === 'ro'
+              ? 'Material generat cu succes!'
+              : 'Material successfully generated!'
+          );
+          
+          toast({
+            title: language === 'ro' ? 'Material generat cu succes!' : 'Material successfully generated!',
+            description: language === 'ro' 
+              ? 'Poți accesa materialul din contul tău.'
+              : 'You can access the material from your account.',
+            variant: 'default',
+          });
+          
+          setTimeout(() => {
+            navigate('/account');
+          }, 2000);
+        } else if (statusResponse.status === 'error') {
+          console.error('Job failed:', statusResponse.error);
+          cleanupTimers();
+          setLoading(false);
+          setError(statusResponse.error || (language === 'ro' ? 'A apărut o eroare în timpul generării' : 'An error occurred during generation'));
+        } else if (statusResponse.status === 'processing') {
+          // Update progress indicator (simulate progress if not provided)
+          const elapsed = (Date.now() - new Date(statusResponse.startedAt).getTime()) / 1000;
+          const estimatedProgress = Math.min(Math.round(elapsed / 90 * 100), 95);
+          setGenerationProgress(estimatedProgress);
+          console.log(`Job still processing. Estimated progress: ${estimatedProgress}%`);
+        }
+      } catch (error) {
+        console.error('Error checking job status:', error);
+      }
+    }, 3000); // Poll every 3 seconds
+    
+    setPollingInterval(interval);
+    
+    // Cleanup on unmount
+    return () => cleanupTimers();
+  }, [generationJobId, language, navigate, toast, cleanupTimers]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => cleanupTimers();
+  }, [cleanupTimers]);
 
   const handleFormDataChange = (field: keyof CourseFormData, value: string) => {
     console.log(`Actualizare câmp formular: ${field} = ${value}`);
@@ -82,6 +167,11 @@ const CourseGenerator = () => {
     // Reset any previous errors or success messages
     setError(null);
     setSuccess(null);
+    setGenerationProgress(0);
+    setGenerationJobId(null);
+    
+    // Cleanup any existing timers
+    cleanupTimers();
     
     // Contul admin nu are restricții
     if (!isAdminUser && (!profile || profile.generationsLeft <= 0)) {
@@ -113,10 +203,16 @@ const CourseGenerator = () => {
       const fullFormData = { ...formData, generationType };
       const generatedCourse = await generateCourse(fullFormData);
       
-      console.log("Course generation completed successfully:", generatedCourse);
+      console.log("Course generation response received:", generatedCourse);
       
       if (generatedCourse) {
         const isProcessing = generatedCourse.status === 'processing';
+        
+        // Store the job ID for polling if available
+        if (generatedCourse.jobId) {
+          console.log("Setting job ID for polling:", generatedCourse.jobId);
+          setGenerationJobId(generatedCourse.jobId);
+        }
         
         // Decrementăm doar dacă nu este admin
         if (!isAdminUser) {
@@ -133,53 +229,55 @@ const CourseGenerator = () => {
           console.log("Admin user - skipping generation count decrement");
         }
         
-        // Afișăm un mesaj de succes în interfață
-        setSuccess(
-          language === 'ro' 
-            ? isProcessing 
-              ? 'Generarea a început și poate dura până la câteva minute. Veți fi redirecționat când se finalizează.'
-              : 'Material generat cu succes!'
-            : isProcessing
-              ? 'Generation has started and might take a few minutes. You will be redirected when it completes.'
-              : 'Material successfully generated!'
-        );
-        
-        toast({
-          title: language === 'ro' 
-            ? isProcessing ? 'Generare în curs...' : 'Material generat cu succes!' 
-            : isProcessing ? 'Generation in progress...' : 'Material successfully generated!',
-          description: language === 'ro' 
-            ? isProcessing 
-              ? 'Generarea materialelor de curs poate dura până la câteva minute pentru cursurile complexe. Vei fi notificat când procesul este finalizat.' 
-              : 'Poți accesa materialul din contul tău.'
-            : isProcessing
-              ? 'Course material generation may take up to several minutes for complex courses. You will be notified when the process is complete.'
-              : 'You can access the material from your account.',
-        });
-
-        // Redirecționăm doar dacă generarea este completă și nu în procesare
+        // If job is not processing, handle immediate success
         if (!isProcessing) {
+          setLoading(false);
+          setSuccess(
+            language === 'ro' 
+              ? 'Material generat cu succes!'
+              : 'Material successfully generated!'
+          );
+          
+          toast({
+            title: language === 'ro' ? 'Material generat cu succes!' : 'Material successfully generated!',
+            description: language === 'ro' 
+              ? 'Poți accesa materialul din contul tău.'
+              : 'You can access the material from your account.',
+          });
+
           setTimeout(() => {
             navigate('/account');
-          }, 2000); // Delay redirect by 2 seconds to show success message
+          }, 2000);
         } else {
-          // Pentru procesări în curs, vom adăuga logică pentru verificare periodică
-          console.log("Long-running job detected, will check status periodically");
-          // Status checking logic would be implemented here or in a useEffect
+          // For processing jobs, we show a notification and will poll for status
+          toast({
+            title: language === 'ro' ? 'Generare în curs...' : 'Generation in progress...',
+            description: language === 'ro' 
+              ? 'Generarea materialelor de curs poate dura până la câteva minute pentru cursurile complexe. Vei fi notificat când procesul este finalizat.' 
+              : 'Course material generation may take up to several minutes for complex courses. You will be notified when the process is complete.',
+          });
         }
       }
     } catch (error: any) {
       console.error("Error in course generation:", error);
+      setLoading(false);
       setError(error.message || "A apărut o eroare neașteptată în timpul generării materialelor");
       toast({
         title: language === 'ro' ? 'Eroare la generare' : 'Generation error',
         description: error.message || "A apărut o eroare neașteptată",
         variant: 'destructive'
       });
-    } finally {
-      setLoading(false);
     }
   };
+
+  if (!user) {
+    return (
+      <CourseGeneratorAuth 
+        isAuthModalOpen={isAuthModalOpen}
+        setIsAuthModalOpen={setIsAuthModalOpen}
+      />
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -225,6 +323,20 @@ const CourseGenerator = () => {
           )}
         </CardHeader>
         <CardContent>
+          {loading && generationJobId && (
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-2 text-center">
+                {language === 'ro' ? 'Progres generare' : 'Generation progress'}
+              </p>
+              <Progress value={generationProgress} className="h-2" />
+              <p className="text-xs text-gray-500 mt-1 text-center">
+                {language === 'ro' 
+                  ? `Se generează materialul (${generationProgress}%)`
+                  : `Generating material (${generationProgress}%)`}
+              </p>
+            </div>
+          )}
+          
           <CourseGeneratorForm 
             formData={formData}
             onFormDataChange={handleFormDataChange}
