@@ -24,18 +24,34 @@ const Header = () => {
     setIsAuthModalOpen(true);
   };
 
+  // Folosim logourile în funcție de tema actuală
+  const logoUrl = theme === 'dark' 
+    ? '/lovable-uploads/86518970-c3fe-4d41-82e5-507cb74bdb9e.png'  // logo alb pentru tema întunecată
+    : '/lovable-uploads/76fe2cce-52bf-4765-be5c-d70fea47e101.png';  // logo negru pentru tema luminoasă
+
+  // Adăugăm un console.log pentru debugging
+  console.log('Tema curentă:', theme);
+  console.log('URL logo:', logoUrl);
+
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center">
-          <img 
-            src={theme === 'dark' 
-              ? '/lovable-uploads/86518970-c3fe-4d41-82e5-507cb74bdb9e.png'  // white logo
-              : '/lovable-uploads/76fe2cce-52bf-4765-be5c-d70fea47e101.png'  // black logo
-            }
-            alt="Automator.ro Logo"
-            className="h-12 w-auto"
-          />
+          {/* Adăugăm fallback la text în caz că imaginea nu se încarcă */}
+          <div className="flex items-center">
+            <img 
+              src={logoUrl}
+              alt="Automator.ro Logo"
+              className="h-10 w-auto"
+              onError={(e) => {
+                console.error('Eroare la încărcarea logo-ului:', logoUrl);
+                // Schimbăm la text dacă imaginea nu se încarcă
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <span className="text-xl font-bold text-black dark:text-white hidden">Automator.ro</span>
+          </div>
         </Link>
         <DesktopNav />
         <div className="flex items-center space-x-4">
