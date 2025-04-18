@@ -5,6 +5,7 @@ import {
   Route,
 } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { useEffect } from "react"
 
 import { Toaster } from "@/components/ui/toaster"
 import { useTheme } from "@/hooks/use-theme"
@@ -25,7 +26,7 @@ import MaterialDetailPage from "@/pages/MaterialDetailPage"
 import MaterialsPage from "@/pages/MaterialsPage"
 
 import Layout from "@/components/Layout"
-import { AuthProvider } from "@/contexts/AuthContext"
+import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { LanguageProvider } from "@/contexts/LanguageContext"
 import { UserProfileProvider } from "@/contexts/UserProfileContext"
 import { ThemeProvider } from "@/contexts/ThemeContext"
@@ -34,6 +35,12 @@ const queryClient = new QueryClient()
 
 function AppContent() {
   const { theme } = useTheme()
+  const { user, isLoading } = useAuth();
+  
+  // Add logging to track authentication state
+  useEffect(() => {
+    console.log("App.tsx - Authentication state:", { user, isLoading });
+  }, [user, isLoading]);
   
   return (
     <div className={theme === 'dark' ? 'dark' : 'light'}>

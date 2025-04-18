@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -21,6 +22,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = "login",
 }) => {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [email, setEmail] = useState("");
   const { login, register, loginWithGoogle, loginWithGithub, loginWithFacebook, error } = useAuth();
@@ -40,7 +42,11 @@ const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmitting(true);
     try {
       const success = await login(email, password);
-      if (success) onClose();
+      if (success) {
+        onClose();
+        console.log("Login successful, navigating to account page");
+        navigate('/account');
+      }
     } finally {
       setIsSubmitting(false);
     }

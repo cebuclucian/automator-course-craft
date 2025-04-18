@@ -23,6 +23,28 @@ export const useAuthMethods = ({ setUser, setIsLoading, setError }: AuthMethodsP
 
       if (error) throw error;
 
+      console.log("Login successful, user data:", data.user);
+      
+      // After successful login, update local storage and user state
+      const userData = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
+        subscription: {
+          tier: 'Free',
+          expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+          active: true
+        },
+        generationsLeft: 0,
+        generatedCourses: []
+      };
+      
+      // Update localStorage with user data
+      localStorage.setItem('automatorUser', JSON.stringify(userData));
+      
+      // Update user state in context
+      setUser(userData);
+
       toast({
         title: "Autentificare reușită",
         description: `Bine ai revenit, ${data.user.email}!`,
@@ -155,8 +177,9 @@ export const useAuthMethods = ({ setUser, setIsLoading, setError }: AuthMethodsP
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
-      // Clear user from state
+      // Clear user from state and localStorage
       setUser(null);
+      localStorage.removeItem('automatorUser');
       
       toast({
         title: "Deconectare reușită",
