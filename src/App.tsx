@@ -32,43 +32,49 @@ import { ThemeProvider } from "@/contexts/ThemeContext"
 
 const queryClient = new QueryClient()
 
-function App() {
+function AppContent() {
   const { theme } = useTheme()
-
+  
   return (
     <div className={theme === 'dark' ? 'dark' : 'light'}>
       <div className="min-h-screen bg-background text-foreground dark:bg-background dark:text-foreground">
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider>
-            <AuthProvider>
-              <LanguageProvider>
-                <UserProfileProvider>
-                  <ScrollRestoration />
-                  <Toaster />
-                  <Router>
-                    <Layout>
-                      <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/about" element={<AboutPage />} />
-                        <Route path="/how-it-works" element={<HowItWorksPage />} />
-                        <Route path="/packages" element={<PackagesPage />} />
-                        <Route path="/contact" element={<ContactPage />} />
-                        <Route path="/terms" element={<TermsPage />} />
-                        <Route path="/privacy" element={<PrivacyPage />} />
-                        <Route path="/account" element={<AccountPage />} />
-                        <Route path="/account/materials/:id" element={<MaterialDetailPage />} />
-                        <Route path="/generate" element={<GeneratePage />} />
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </Layout>
-                  </Router>
-                </UserProfileProvider>
-              </LanguageProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </QueryClientProvider>
+        <ScrollRestoration />
+        <Toaster />
+        <Router>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
+              <Route path="/packages" element={<PackagesPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/account" element={<AccountPage />} />
+              <Route path="/account/materials/:id" element={<MaterialDetailPage />} />
+              <Route path="/generate" element={<GeneratePage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Layout>
+        </Router>
       </div>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <LanguageProvider>
+            <UserProfileProvider>
+              <AppContent />
+            </UserProfileProvider>
+          </LanguageProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
 
