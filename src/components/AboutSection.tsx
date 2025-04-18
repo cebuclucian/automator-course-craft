@@ -42,7 +42,7 @@ const AboutSection = () => {
     }
   };
   const currentContent = language === 'ro' ? content.ro : content.en;
-  return <section id="about" className="py-16 bg-white dark:bg-gray-900">
+  return <section id="about" className="py-16 bg-gray-700">
       <div className="container mx-auto px-4 bg-slate-700">
         <h2 className="text-3xl font-bold text-center mb-12">{currentContent.title}</h2>
         <p className="text-lg text-center mb-12 max-w-3xl mx-auto">
