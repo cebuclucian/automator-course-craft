@@ -3,7 +3,7 @@ import { useState } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
-import { decrementGenerations } from "@/services/generationsService";
+import { decrementGenerations, isAdminUser } from "@/services/generationsService";
 
 export const useProfileState = () => {
   const [profile, setProfile] = useState<User | null>(null);
@@ -64,6 +64,14 @@ export const useProfileState = () => {
   };
 
   const decrementGenerationsLeft = async (userId: string): Promise<boolean> => {
+    // Verifică dacă utilizatorul este admin
+    const isAdmin = await isAdminUser(userId);
+    
+    // Pentru admin, returnăm direct true fără a decrementa
+    if (isAdmin) {
+      return true;
+    }
+    
     const success = await decrementGenerations(userId);
     
     if (success && profile && profile.id === userId) {
@@ -112,16 +120,26 @@ export const useProfileState = () => {
         subscriberData = newSubscriber;
       }
 
-      const generationsLeft = subscriberData.generations_left ?? 0;
+      // Verifică dacă utilizatorul este admin@automator.ro
+      const isAdmin = subscriberData.email === 'admin@automator.ro';
+      
+      // Numărul de generări disponibile - nelimitat pentru admin
+      const generationsLeft = isAdmin ? 999999 : (subscriberData.generations_left ?? 0);
+      
+      // Subscription tier pentru admin - întotdeauna Enterprise
+      const subscriptionTier = isAdmin ? 'Enterprise' : (subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise');
+      
+      // Status abonament pentru admin - întotdeauna activ
+      const isSubscribed = isAdmin ? true : !!subscriberData.subscribed;
 
       const mappedProfile: User = {
         id: subscriberData.user_id,
         email: subscriberData.email,
         name: session.session.user.user_metadata?.name || subscriberData.email?.split('@')[0] || '',
         subscription: {
-          tier: subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise',
-          expiresAt: subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : new Date(),
-          active: !!subscriberData.subscribed
+          tier: subscriptionTier,
+          expiresAt: subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : new Date(2099, 11, 31), // Dată foarte îndepărtată pentru admin
+          active: isSubscribed
         },
         generationsLeft: generationsLeft,
         generatedCourses: []

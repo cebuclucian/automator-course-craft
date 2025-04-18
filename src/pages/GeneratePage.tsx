@@ -15,6 +15,9 @@ const GeneratePage = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
 
+  // Verifică dacă utilizatorul este admin
+  const isAdminUser = user && profile?.email === 'admin@automator.ro';
+
   useEffect(() => {
     // Always try to refresh the profile when accessing the generate page
     // to ensure we have the most up-to-date generation credits
@@ -25,7 +28,8 @@ const GeneratePage = () => {
 
   useEffect(() => {
     // Check if user has reached the course generation limit based on subscription tier
-    if (user && profile) {
+    // Ignoră verificarea pentru contul admin
+    if (user && profile && !isAdminUser) {
       const tier = profile.subscription?.tier || 'Free';
       const generationsLeft = profile.generationsLeft || 0;
       
@@ -41,7 +45,7 @@ const GeneratePage = () => {
         navigate('/packages');
       }
     }
-  }, [user, profile, navigate, toast, language]);
+  }, [user, profile, navigate, toast, language, isAdminUser]);
 
   return (
     <div className="container mx-auto px-4 py-8">

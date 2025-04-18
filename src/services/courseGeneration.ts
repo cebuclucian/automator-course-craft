@@ -3,14 +3,23 @@ import { CourseFormData } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { getMockData } from "./mockDataService";
+import { isAdminUser } from "./generationsService";
 
 export const generateCourse = async (formData: CourseFormData): Promise<any> => {
   try {
     console.log("Generating course with data:", formData);
     
-    // Check user subscription limits
+    // Check user authentication
     const { data: userData } = await supabase.auth.getUser();
-    if (userData?.user) {
+    if (!userData?.user) {
+      throw new Error("Utilizator neautentificat");
+    }
+    
+    // Verifică dacă utilizatorul este admin
+    const isAdmin = await isAdminUser(userData.user.id);
+    
+    // Verifică doar limitele de abonament pentru utilizatorii non-admin
+    if (!isAdmin) {
       const { data: subscriberData, error: subscriberError } = await supabase
         .from('subscribers')
         .select('*')
@@ -18,6 +27,8 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
         .single();
         
       if (subscriberError) throw new Error("Nu am putut verifica detaliile abonamentului.");
+    } else {
+      console.log("Admin user detected - bypassing subscription checks");
     }
     
     console.log("Calling Supabase Edge Function: generate-course");

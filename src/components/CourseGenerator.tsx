@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +31,9 @@ const CourseGenerator = () => {
     tone: 'Profesional',
   });
 
+  // Verifică dacă utilizatorul este admin
+  const isAdminUser = user && profile?.email === 'admin@automator.ro';
+
   if (!user) {
     return (
       <CourseGeneratorAuth 
@@ -53,7 +56,8 @@ const CourseGenerator = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!profile || profile.generationsLeft <= 0) {
+    // Contul admin nu are restricții
+    if (!isAdminUser && (!profile || profile.generationsLeft <= 0)) {
       toast({
         title: language === 'ro' ? 'Limită atinsă' : 'Limit reached',
         description: language === 'ro' 
@@ -66,7 +70,8 @@ const CourseGenerator = () => {
       return;
     }
     
-    let generationType: GenerationType = 'Preview';
+    // Pentru admin, generăm întotdeauna versiunea completă
+    let generationType: GenerationType = isAdminUser ? 'Complet' : 'Preview';
     if (user.subscription && user.subscription.tier !== 'Free') {
       generationType = 'Complet';
     }
@@ -121,6 +126,13 @@ const CourseGenerator = () => {
               ? 'Completează formularul pentru a genera materiale de curs personalizate.'
               : 'Fill out the form to generate customized course materials.'}
           </CardDescription>
+          {isAdminUser && (
+            <div className="mt-2 bg-blue-50 dark:bg-blue-950 p-2 rounded text-blue-700 dark:text-blue-300 text-sm">
+              {language === 'ro' 
+                ? 'Cont administrator detectat - Generări nelimitate, versiune completă'
+                : 'Admin account detected - Unlimited generations, full version'}
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <CourseGeneratorForm 
@@ -129,8 +141,8 @@ const CourseGenerator = () => {
             onSubmit={handleSubmit}
             loading={loading}
             showLongGenerationWarning={showLongGenerationWarning}
-            generationsLeft={profile?.generationsLeft}
-            isSubscriptionTierFree={user.subscription?.tier === 'Free'}
+            generationsLeft={isAdminUser ? Infinity : profile?.generationsLeft}
+            isSubscriptionTierFree={!isAdminUser && user.subscription?.tier === 'Free'}
           />
         </CardContent>
       </Card>

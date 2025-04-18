@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Infinity as InfinityIcon } from 'lucide-react';
 import { CourseFormData } from '@/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -34,6 +33,9 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
     const longDurations = ['2 zile', '3 zile', '4 zile', '5 zile'];
     onFormDataChange('duration', value);
   };
+
+  // Verifică dacă utilizatorul are generări nelimitate (administrator)
+  const hasUnlimitedGenerations = generationsLeft === Infinity;
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -226,7 +228,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
         <Button 
           type="submit" 
           className="w-full" 
-          disabled={loading || !generationsLeft}
+          disabled={loading || (!hasUnlimitedGenerations && !generationsLeft)}
         >
           {loading ? (
             <>
@@ -240,14 +242,18 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
         
         <div className="text-sm text-gray-500 dark:text-gray-400 mt-2">
           {typeof generationsLeft === 'number' && (
-            <p>
+            <p className="flex items-center">
               {language === 'ro' 
-                ? `Generări disponibile: ${generationsLeft}` 
-                : `Available generations: ${generationsLeft}`}
+                ? `Generări disponibile: ${hasUnlimitedGenerations ? '' : generationsLeft}` 
+                : `Available generations: ${hasUnlimitedGenerations ? '' : generationsLeft}`}
+              
+              {hasUnlimitedGenerations && (
+                <InfinityIcon className="inline-block ml-1 h-4 w-4" />
+              )}
             </p>
           )}
           
-          {isSubscriptionTierFree && (
+          {isSubscriptionTierFree && !hasUnlimitedGenerations && (
             <p className="mt-1">
               {language === 'ro' 
                 ? 'Cont gratuit - se va genera versiunea Preview cu primele 2 pagini din fiecare tip de material.' 

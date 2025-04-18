@@ -1,6 +1,28 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
+// Funcție pentru a verifica dacă un utilizator este admin
+export const isAdminUser = async (userId: string): Promise<boolean> => {
+  try {
+    const { data: userData, error } = await supabase
+      .from('subscribers')
+      .select('email')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error) {
+      console.error("Eroare la verificarea utilizatorului admin:", error);
+      return false;
+    }
+    
+    // Verifică dacă e-mailul este cel admin
+    return userData?.email === 'admin@automator.ro';
+  } catch (err) {
+    console.error("Eroare la verificarea utilizatorului admin:", err);
+    return false;
+  }
+};
+
 export const calculateInitialGenerations = (tier: string): number => {
   switch (tier) {
     case 'Basic':
@@ -17,6 +39,13 @@ export const calculateInitialGenerations = (tier: string): number => {
 export const decrementGenerations = async (userId: string): Promise<boolean> => {
   try {
     console.log("Decrementarea generărilor disponibile pentru utilizatorul:", userId);
+    
+    // Verifică dacă utilizatorul este admin
+    const isAdmin = await isAdminUser(userId);
+    if (isAdmin) {
+      console.log("Utilizator admin detectat - nu se decrementează generări");
+      return true; // Bypass pentru admin - întotdeauna returnează succes
+    }
     
     const { data: subscriberData, error: getError } = await supabase
       .from('subscribers')
