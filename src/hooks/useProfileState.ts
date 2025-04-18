@@ -113,11 +113,15 @@ export const useProfileState = () => {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session?.user) return null;
 
-      const { data: subscriberData, error: profileError } = await supabase
+      // Changed to let instead of const since we might need to reassign it
+      let subscriberData;
+      const { data, error: profileError } = await supabase
         .from('subscribers')
         .select('*')
         .eq('user_id', session.session.user.id)
         .single();
+      
+      subscriberData = data;
 
       if (profileError) {
         console.log("Creating new subscriber profile for user:", session.session.user.id);
