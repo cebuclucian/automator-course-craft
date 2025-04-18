@@ -119,7 +119,25 @@ export const useProfileState = () => {
         .eq('user_id', session.session.user.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.log("Creating new subscriber profile for user:", session.session.user.id);
+        // If profile doesn't exist yet (new user), create one with default values
+        const { data: newSubscriber, error: insertError } = await supabase
+          .from('subscribers')
+          .insert({
+            user_id: session.session.user.id,
+            email: session.session.user.email,
+            subscription_tier: 'Free',
+            subscribed: false
+          })
+          .select()
+          .single();
+          
+        if (insertError) throw insertError;
+        
+        // Use the newly created subscriber data
+        subscriberData = newSubscriber;
+      }
 
       // Determină numărul de generări disponibile bazat pe tier
       let generationsLeft = 0;
@@ -147,7 +165,7 @@ export const useProfileState = () => {
       const mappedProfile: User = {
         id: subscriberData.user_id,
         email: subscriberData.email,
-        name: subscriberData.email?.split('@')[0] || '',
+        name: session.session.user.user_metadata?.name || subscriberData.email?.split('@')[0] || '',
         subscription: {
           tier: subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise',
           expiresAt: subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : new Date(),

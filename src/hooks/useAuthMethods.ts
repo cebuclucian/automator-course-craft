@@ -45,6 +45,26 @@ export const useAuthMethods = () => {
 
       if (error) throw error;
 
+      // Create a subscriber entry for the new user to ensure they get their free credit
+      if (data.user) {
+        try {
+          const { error: insertError } = await supabase
+            .from('subscribers')
+            .insert({
+              user_id: data.user.id,
+              email: data.user.email,
+              subscription_tier: 'Free',
+              subscribed: false
+            });
+            
+          if (insertError) {
+            console.error('Error creating subscriber record:', insertError);
+          }
+        } catch (err) {
+          console.error('Error during subscriber creation:', err);
+        }
+      }
+
       toast({
         title: "Înregistrare reușită",
         description: "Contul tău a fost creat cu succes!",
