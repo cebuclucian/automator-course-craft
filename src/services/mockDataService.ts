@@ -1,111 +1,7 @@
+
 import { CourseFormData } from "@/types";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { toast } from "@/hooks/use-toast";
 
-export const generateCourse = async (formData: CourseFormData): Promise<any> => {
-  try {
-    console.log("Generating course with data:", formData);
-    
-    // Check user subscription limits
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData?.user) {
-      const { data: subscriberData, error: subscriberError } = await supabase
-        .from('subscribers')
-        .select('*')
-        .eq('user_id', userData.user.id)
-        .single();
-        
-      if (subscriberError) throw new Error("Nu am putut verifica detaliile abonamentului.");
-      
-      if (subscriberData) {
-        if (subscriberData.generations_left <= 0) {
-          throw new Error(`Ai atins limita de generări pentru pachetul ${subscriberData.subscription_tier}.`);
-        }
-      }
-    }
-    
-    console.log("Calling Supabase Edge Function: generate-course");
-    
-    // Now we're using a different approach for lengthy generations
-    // Initial call just starts the process and returns a job ID
-    const result = await supabase.functions.invoke('generate-course', {
-      body: { 
-        formData,
-        action: 'start' 
-      },
-    });
-    
-    // Check for errors in the response
-    if (result && typeof result === 'object' && 'error' in result && result.error) {
-      console.error("Error from generate-course function:", result.error);
-      const errorMessage = typeof result.error === 'object' && result.error !== null && 'message' in result.error 
-        ? String(result.error.message) 
-        : "Nu am putut genera cursul";
-      throw new Error(errorMessage);
-    }
-    
-    // TypeScript will now recognize result as having a data property
-    const responseData = result as { data?: { success?: boolean, error?: string, data?: any, jobId?: string } };
-    
-    if (!responseData.data || !responseData.data.success) {
-      console.error("API returned an error:", responseData.data?.error);
-      throw new Error(responseData.data?.error || "Nu am putut genera cursul");
-    }
-    
-    console.log("Course generation job started successfully:", responseData.data);
-    
-    // Return mock data for immediate display while the actual generation happens in background
-    // Include the jobId for checking status later
-    const mockData = getMockData(formData);
-    mockData.jobId = responseData.data.jobId;
-    mockData.status = 'processing';
-    
-    return mockData;
-  } catch (error: any) {
-    console.error("Error in generateCourse:", error);
-    // Display toast error for feedback
-    toast({
-      title: "Eroare la generarea materialelor",
-      description: error.message || "A apărut o eroare neașteptată",
-      variant: "destructive"
-    });
-    throw error;
-  }
-};
-
-export const checkCourseGenerationStatus = async (jobId: string): Promise<any> => {
-  try {
-    console.log("Checking status for job:", jobId);
-    
-    const result = await supabase.functions.invoke('generate-course', {
-      body: { 
-        action: 'status',
-        jobId 
-      },
-    });
-    
-    if (result && typeof result === 'object' && 'error' in result && result.error) {
-      console.error("Error checking job status:", result.error);
-      throw new Error("Nu am putut verifica statusul generării");
-    }
-    
-    const responseData = result as { data?: { success?: boolean, status?: string, data?: any, error?: string } };
-    
-    if (!responseData.data || !responseData.data.success) {
-      console.error("API returned an error:", responseData.data?.error);
-      throw new Error(responseData.data?.error || "Nu am putut verifica statusul generării");
-    }
-    
-    return responseData.data;
-  } catch (error: any) {
-    console.error("Error checking course generation status:", error);
-    throw error;
-  }
-};
-
-const getMockData = (formData: CourseFormData) => {
-  // This mock data structure mimics what would come from the Claude API
+export const getMockData = (formData: CourseFormData) => {
   const isPreview = formData.generationType !== 'Complet';
   
   return {
@@ -171,9 +67,9 @@ const getMockData = (formData: CourseFormData) => {
       audience: formData.audience,
       duration: formData.duration,
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString() // 72 hours
+      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
     },
-    jobId: null, // Add default jobId property
-    status: 'completed' // Add default status property
+    jobId: null,
+    status: 'completed'
   };
 };

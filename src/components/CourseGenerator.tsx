@@ -13,7 +13,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { CourseFormData, GenerationType } from '@/types';
 import { Loader2 } from 'lucide-react';
 import AuthModal from './AuthModal';
-import { generateCourse } from '@/services/claude';
+import { generateCourse } from '@/services/courseGeneration';
 import { supabase } from "@/integrations/supabase/client";
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
