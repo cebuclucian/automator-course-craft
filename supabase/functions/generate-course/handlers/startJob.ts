@@ -1,4 +1,3 @@
-
 import { jobStore } from "../index.ts";
 import { corsHeaders } from "../cors.ts";
 import { buildPrompt } from "../helpers/promptBuilder.ts";
@@ -33,10 +32,10 @@ export async function handleStartJob(requestData, corsHeaders) {
     // Generate a unique job ID
     const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
-    // Construct the prompt
+    // Construct the prompt - this is where language is used
     const prompt = buildPrompt(formData);
     
-    console.log(`Starting job ${jobId} for subject: ${formData.subject}, duration: ${formData.duration}`);
+    console.log(`Starting job ${jobId} for subject: ${formData.subject}, duration: ${formData.duration}, language: ${formData.language}`);
     console.log(`Job ${jobId} prompt length: ${prompt.length} characters`);
     
     // Store the job with initial state
