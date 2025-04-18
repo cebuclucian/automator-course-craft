@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -15,7 +16,7 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 const CourseGenerator = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { profile, decrementGenerationsLeft, refreshProfile } = useUserProfile();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -177,7 +178,7 @@ const CourseGenerator = () => {
     }
     
     let generationType: GenerationType = isAdminUser ? 'Complet' : 'Preview';
-    if (user.subscription && user.subscription.tier !== 'Free') {
+    if (user?.subscription && user.subscription.tier !== 'Free') {
       generationType = 'Complet';
     }
     
@@ -229,7 +230,9 @@ const CourseGenerator = () => {
               : 'You can access the material from your account.',
           });
 
-          await refreshUser();
+          if (refreshUser) {
+            await refreshUser();
+          }
 
           setTimeout(() => {
             navigate('/account');

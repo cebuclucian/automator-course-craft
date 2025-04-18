@@ -1,11 +1,35 @@
-
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { User } from "@/types";
 
 export const useAuthMethods = () => {
   const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadUserFromStorage = () => {
+      setIsLoading(true);
+      try {
+        const storedUser = localStorage.getItem('automatorUser');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (err) {
+        console.error("Error loading user from localStorage:", err);
+        setError("Eroare la încărcarea datelor utilizatorului");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserFromStorage();
+  }, []);
 
   const login = async (email: string, password: string) => {
+    setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -22,12 +46,15 @@ export const useAuthMethods = () => {
       return true;
     } catch (error: any) {
       console.error('Login error:', error);
+      setError(error.message);
       toast({
         title: "Eroare la autentificare",
         description: error.message,
         variant: "destructive"
       });
       return false;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -45,7 +72,6 @@ export const useAuthMethods = () => {
 
       if (error) throw error;
 
-      // Create a subscriber entry for the new user to ensure they get their free credit
       if (data.user) {
         try {
           const { error: insertError } = await supabase
@@ -161,5 +187,15 @@ export const useAuthMethods = () => {
     }
   };
 
-  return { login, register, loginWithGoogle, loginWithGithub, loginWithFacebook, logout };
+  return { 
+    user,
+    login, 
+    register, 
+    loginWithGoogle, 
+    loginWithGithub, 
+    loginWithFacebook, 
+    logout,
+    isLoading,
+    error
+  };
 };

@@ -18,12 +18,14 @@ const MaterialsPage = () => {
     
     const loadData = async () => {
       console.log("MaterialsPage - Refreshing user data...");
-      await refreshUser();
-      console.log("MaterialsPage - User data after refresh:", user);
+      if (refreshUser) {
+        await refreshUser();
+        console.log("MaterialsPage - User data after refresh:", user);
+      }
     };
     
     loadData();
-  }, []);
+  }, [refreshUser, user]);
   
   return (
     <div className="container mx-auto px-4 py-8">

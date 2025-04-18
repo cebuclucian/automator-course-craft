@@ -28,19 +28,13 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const {
-    user,
-    login,
-    register,
-    loginWithGoogle,
-    loginWithGithub,
-    loginWithFacebook, 
-    logout,
-    isLoading,
-    error
-  } = useAuthMethods();
-  
+  const authMethods = useAuthMethods();
   const { refreshUser } = useUserRefresh();
+  
+  // Initialize user state and loading state
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Add debugging to track user state changes
   useEffect(() => {
@@ -53,12 +47,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     <AuthContext.Provider
       value={{
         user,
-        login,
-        register,
-        loginWithGoogle,
-        loginWithGithub,
-        loginWithFacebook,
-        logout,
+        login: authMethods.login,
+        register: authMethods.register,
+        loginWithGoogle: authMethods.loginWithGoogle,
+        loginWithGithub: authMethods.loginWithGithub,
+        loginWithFacebook: authMethods.loginWithFacebook,
+        logout: authMethods.logout,
         isLoading,
         error,
         refreshUser
@@ -69,4 +63,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// Remove the redundant export of AuthContext and useAuth at the end of the file
+// Only export the components once at the top level
