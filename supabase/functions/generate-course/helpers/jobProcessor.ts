@@ -43,6 +43,28 @@ export async function processJob(jobId, prompt, formData) {
     // For now, we'll just update the job with mock data
     const mockResult = mockCourseData(formData);
     
+    // Asigurăm-ne că mockResult are secțiunile necesare
+    if (!mockResult.sections || mockResult.sections.length === 0) {
+      mockResult.sections = [
+        { 
+          type: 'lesson-plan', 
+          content: `# Plan de lecție: ${formData.subject}\n\n## Obiective\n- Înțelegerea conceptelor de bază\n- Dezvoltarea abilităților practice\n- Aplicarea cunoștințelor în scenarii reale`
+        },
+        { 
+          type: 'slides', 
+          content: `# Prezentare: ${formData.subject}\n\n## Slide 1: Introducere\n- Despre acest curs\n- Importanța subiectului\n- Ce vom învăța`
+        },
+        { 
+          type: 'trainer-notes', 
+          content: `# Note pentru trainer: ${formData.subject}\n\n## Pregătire\n- Asigurați-vă că toate materialele sunt disponibile\n- Verificați echipamentele\n\n## Sfaturi de livrare\n- Începeți cu o activitate de spargere a gheții\n- Folosiți exemple relevante pentru audiență`
+        },
+        { 
+          type: 'exercises', 
+          content: `# Exerciții: ${formData.subject}\n\n## Exercițiul 1: Aplicare practică\n**Timp**: 15 minute\n**Materiale**: Fișe de lucru\n\n**Instrucțiuni**:\n1. Împărțiți participanții în grupuri de 3-4 persoane\n2. Distribuiți fișele de lucru\n3. Acordați 10 minute pentru rezolvare\n4. Facilitați o discuție de 5 minute despre soluții`
+        }
+      ];
+    }
+    
     // Double-check the job still exists in the store before updating
     if (!jobStore.has(jobId)) {
       console.log(`[${jobId}] Warning: Job no longer exists in store after processing, recreating it`);

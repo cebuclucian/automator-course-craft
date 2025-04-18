@@ -1,60 +1,71 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import React from 'react';
-import NotFound from "./pages/NotFound";
-import { AuthProvider } from "./contexts/AuthContext";
-import { UserProfileProvider } from "./contexts/UserProfileContext";
-import { LanguageProvider } from "./contexts/LanguageContext";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Layout from "./components/Layout";
-import HomePage from "./pages/HomePage";
-import AboutPage from "./pages/AboutPage";
-import HowItWorksPage from "./pages/HowItWorksPage";
-import GeneratePage from "./pages/GeneratePage";
-import PackagesPage from "./pages/PackagesPage";
-import ContactPage from "./pages/ContactPage";
-import AccountPage from "./pages/AccountPage";
-import TermsPage from "./pages/TermsPage";
-import PrivacyPage from "./pages/PrivacyPage";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  ScrollRestoration,
+} from "react-router-dom"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-const App = () => {
-  const queryClient = new QueryClient();
-  
+import { Toaster } from "@/components/ui/toaster"
+import { useTheme } from "@/hooks/use-theme"
+
+import {
+  Home,
+  AboutPage,
+  HowItWorksPage,
+  PackagesPage,
+  ContactPage,
+  TermsPage,
+  PrivacyPage,
+  NotFound,
+} from "@/pages"
+import AccountPage from "@/pages/AccountPage"
+import GeneratePage from "@/pages/GeneratePage"
+import MaterialDetailPage from "@/pages/MaterialDetailPage"
+
+import { Layout } from "@/components/Layout"
+import { AuthProvider } from "@/contexts/AuthContext"
+import { LanguageProvider } from "@/contexts/LanguageContext"
+import { UserProfileProvider } from "@/contexts/UserProfileContext"
+
+const queryClient = new QueryClient()
+
+function App() {
+  const { theme } = useTheme()
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <LanguageProvider>
-          <ThemeProvider>
-            <AuthProvider>
+    <div className={theme === 'dark' ? 'dark' : 'light'}>
+      <div className="min-h-screen bg-background text-foreground dark:bg-background dark:text-foreground">
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <LanguageProvider>
               <UserProfileProvider>
-                <BrowserRouter>
+                <ScrollRestoration />
+                <Toaster />
+                <Router>
                   <Layout>
                     <Routes>
-                      <Route path="/" element={<HomePage />} />
+                      <Route path="/" element={<Home />} />
                       <Route path="/about" element={<AboutPage />} />
                       <Route path="/how-it-works" element={<HowItWorksPage />} />
-                      <Route path="/generate" element={<GeneratePage />} />
                       <Route path="/packages" element={<PackagesPage />} />
                       <Route path="/contact" element={<ContactPage />} />
-                      <Route path="/account" element={<AccountPage />} />
                       <Route path="/terms" element={<TermsPage />} />
                       <Route path="/privacy" element={<PrivacyPage />} />
+                      <Route path="/account" element={<AccountPage />} />
+                      <Route path="/account/materials/:id" element={<MaterialDetailPage />} />
+                      <Route path="/generate" element={<GeneratePage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Layout>
-                </BrowserRouter>
+                </Router>
               </UserProfileProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </LanguageProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-};
+            </LanguageProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </div>
+    </div>
+  )
+}
 
-export default App;
+export default App

@@ -38,19 +38,45 @@ export async function handleCheckStatus(requestData, corsHeaders) {
       // For demo purposes, create a mock response with more detailed information
       // In a real system, this would check a database
       console.log(`Generating fallback response for missing job ${jobId}`);
+      
+      // Create mock data with proper sections
+      const mockData = mockCourseData({
+        subject: "Subiect necunoscut",
+        level: "Intermediar",
+        audience: "General",
+        duration: "1 zi", 
+        language: "română"
+      });
+      
+      // Asigurăm-ne că mockData are secțiunile necesare
+      if (!mockData.sections || mockData.sections.length === 0) {
+        mockData.sections = [
+          { 
+            type: 'lesson-plan', 
+            content: "# Plan de lecție\n\n## Obiective\n- Înțelegerea conceptelor de bază\n- Dezvoltarea abilităților practice\n- Aplicarea cunoștințelor în scenarii reale"
+          },
+          { 
+            type: 'slides', 
+            content: "# Prezentare\n\n## Slide 1: Introducere\n- Despre acest curs\n- Importanța subiectului\n- Ce vom învăța"
+          },
+          { 
+            type: 'trainer-notes', 
+            content: "# Note pentru trainer\n\n## Pregătire\n- Asigurați-vă că toate materialele sunt disponibile\n- Verificați echipamentele\n\n## Sfaturi de livrare\n- Începeți cu o activitate de spargere a gheții\n- Folosiți exemple relevante pentru audiență"
+          },
+          { 
+            type: 'exercises', 
+            content: "# Exerciții\n\n## Exercițiul 1: Aplicare practică\n**Timp**: 15 minute\n**Materiale**: Fișe de lucru\n\n**Instrucțiuni**:\n1. Împărțiți participanții în grupuri de 3-4 persoane\n2. Distribuiți fișele de lucru\n3. Acordați 10 minute pentru rezolvare\n4. Facilitați o discuție de 5 minute despre soluții"
+          }
+        ];
+      }
+      
       return new Response(
         JSON.stringify({
           success: true,
           status: "completed",
           message: "Job completed (fallback response)",
           note: "Job data was not found in memory. This could be due to a function restart or timeout.",
-          data: mockCourseData({
-            subject: "Subiect necunoscut",
-            level: "Intermediar",
-            audience: "General",
-            duration: "1 zi", 
-            language: "română"
-          }),
+          data: mockData,
         }),
         {
           headers: {
@@ -93,6 +119,29 @@ export async function handleCheckStatus(requestData, corsHeaders) {
         console.error(`Job ${jobId} marked as completed but has invalid or missing data`);
         // Regenerate data as a fallback
         const regeneratedData = mockCourseData(job.formData || {});
+        
+        // Asigurăm-ne că regeneratedData are secțiunile necesare
+        if (!regeneratedData.sections || regeneratedData.sections.length === 0) {
+          regeneratedData.sections = [
+            { 
+              type: 'lesson-plan', 
+              content: `# Plan de lecție regenerat: ${job.formData?.subject || 'Subiect necunoscut'}\n\n## Obiective\n- Înțelegerea conceptelor de bază\n- Dezvoltarea abilităților practice\n- Aplicarea cunoștințelor în scenarii reale`
+            },
+            { 
+              type: 'slides', 
+              content: `# Prezentare regenerată: ${job.formData?.subject || 'Subiect necunoscut'}\n\n## Slide 1: Introducere\n- Despre acest curs\n- Importanța subiectului\n- Ce vom învăța`
+            },
+            { 
+              type: 'trainer-notes', 
+              content: `# Note pentru trainer regenerate: ${job.formData?.subject || 'Subiect necunoscut'}\n\n## Pregătire\n- Asigurați-vă că toate materialele sunt disponibile\n- Verificați echipamentele\n\n## Sfaturi de livrare\n- Începeți cu o activitate de spargere a gheții\n- Folosiți exemple relevante pentru audiență`
+            },
+            { 
+              type: 'exercises', 
+              content: `# Exerciții regenerate: ${job.formData?.subject || 'Subiect necunoscut'}\n\n## Exercițiul 1: Aplicare practică\n**Timp**: 15 minute\n**Materiale**: Fișe de lucru\n\n**Instrucțiuni**:\n1. Împărțiți participanții în grupuri de 3-4 persoane\n2. Distribuiți fișele de lucru\n3. Acordați 10 minute pentru rezolvare\n4. Facilitați o discuție de 5 minute despre soluții`
+            }
+          ];
+        }
+        
         return new Response(
           JSON.stringify({
             success: true,

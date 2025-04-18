@@ -128,7 +128,16 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
     if (responseData.data.status === 'completed' && 
         responseData.data.data && 
         (!responseData.data.data.sections || responseData.data.data.sections.length === 0)) {
-      console.error("Job returned empty or invalid data structure:", responseData.data.data);
+      console.warn("Job returned empty or invalid data structure:", responseData.data.data);
+      // Asigurăm-ne că există cel puțin secțiunile de bază, chiar dacă sunt goale
+      if (responseData.data.data) {
+        responseData.data.data.sections = responseData.data.data.sections || [
+          { type: 'lesson-plan', content: 'Conținut indisponibil' },
+          { type: 'slides', content: 'Conținut indisponibil' },
+          { type: 'trainer-notes', content: 'Conținut indisponibil' },
+          { type: 'exercises', content: 'Conținut indisponibil' }
+        ];
+      }
     }
     
     return {

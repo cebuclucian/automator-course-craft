@@ -78,10 +78,41 @@ export async function handleStartJob(requestData, corsHeaders) {
       // For simpler jobs, process immediately (but still return mock data quickly)
       EdgeRuntime.waitUntil(processJob(jobId, prompt, formData));
       
-      // Return mock data immediately
+      // Generate enhanced mock data immediately with proper sections
       const mockData = mockCourseData(formData);
       
+      // Asigurăm-ne că mockData are secțiunile necesare
+      if (!mockData.sections || mockData.sections.length === 0) {
+        mockData.sections = [
+          { 
+            type: 'lesson-plan', 
+            content: `# Plan de lecție: ${formData.subject}\n\n## Obiective\n- Înțelegerea conceptelor de bază\n- Dezvoltarea abilităților practice\n- Aplicarea cunoștințelor în scenarii reale`
+          },
+          { 
+            type: 'slides', 
+            content: `# Prezentare: ${formData.subject}\n\n## Slide 1: Introducere\n- Despre acest curs\n- Importanța subiectului\n- Ce vom învăța`
+          },
+          { 
+            type: 'trainer-notes', 
+            content: `# Note pentru trainer: ${formData.subject}\n\n## Pregătire\n- Asigurați-vă că toate materialele sunt disponibile\n- Verificați echipamentele\n\n## Sfaturi de livrare\n- Începeți cu o activitate de spargere a gheții\n- Folosiți exemple relevante pentru audiență`
+          },
+          { 
+            type: 'exercises', 
+            content: `# Exerciții: ${formData.subject}\n\n## Exercițiul 1: Aplicare practică\n**Timp**: 15 minute\n**Materiale**: Fișe de lucru\n\n**Instrucțiuni**:\n1. Împărțiți participanții în grupuri de 3-4 persoane\n2. Distribuiți fișele de lucru\n3. Acordați 10 minute pentru rezolvare\n4. Facilitați o discuție de 5 minute despre soluții`
+          }
+        ];
+      }
+      
       console.log(`Job ${jobId} returning immediate mock data with ${mockData.sections.length} sections`);
+      
+      // Înregistrăm și jobul cu datele mock inițiale
+      const tempJob = jobStore.get(jobId);
+      jobStore.set(jobId, {
+        ...tempJob,
+        data: mockData,
+        initialDataReturned: true
+      });
+      
       return new Response(
         JSON.stringify({
           success: true,
