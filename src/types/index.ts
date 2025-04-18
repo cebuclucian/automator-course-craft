@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   email: string;
@@ -18,7 +17,7 @@ export interface Subscription {
 export type GenerationType = 'Preview' | 'Complet';
 
 export interface CourseFormData {
-  language: string;
+  language: SupportedCourseLanguage;
   context: 'Corporativ' | 'Academic';
   subject: string;
   level: 'Începător' | 'Intermediar' | 'Avansat';

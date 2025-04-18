@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, Infinity as InfinityIcon } from 'lucide-react';
 import { CourseFormData } from '@/types';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { supportedCourseLanguages } from '@/config/supportedCourseLanguages';
 
 interface CourseGeneratorFormProps {
   formData: CourseFormData;
@@ -34,7 +35,6 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
     onFormDataChange('duration', value);
   };
 
-  // Verifică dacă utilizatorul are generări nelimitate (administrator)
   const hasUnlimitedGenerations = generationsLeft === Infinity;
 
   return (
@@ -49,11 +49,11 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
             <SelectValue placeholder={language === 'ro' ? 'Selectează limba' : 'Select language'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="română">Română</SelectItem>
-            <SelectItem value="english">English</SelectItem>
-            <SelectItem value="français">Français</SelectItem>
-            <SelectItem value="español">Español</SelectItem>
-            <SelectItem value="deutsch">Deutsch</SelectItem>
+            {supportedCourseLanguages.map((lang) => (
+              <SelectItem key={lang.code} value={lang.value}>
+                {lang.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
