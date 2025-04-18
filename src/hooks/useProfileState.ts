@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,7 +103,16 @@ export const useProfileState = () => {
       
       const newGenerations = Math.max(0, currentGenerations - 1);
       
-      // Since we can't store generations_left in the database, we'll handle it in the local state
+      const { error: updateError } = await supabase
+        .from('subscribers')
+        .update({ generations_left: newGenerations })
+        .eq('user_id', userId);
+        
+      if (updateError) {
+        console.error("Eroare la actualizarea generărilor disponibile:", updateError);
+        return false;
+      }
+      
       if (profile && profile.id === userId) {
         console.log("Decrementare cu succes, generări înainte:", profile.generationsLeft);
         setProfile({
@@ -146,7 +154,8 @@ export const useProfileState = () => {
             user_id: session.session.user.id,
             email: session.session.user.email,
             subscription_tier: 'Free',
-            subscribed: false
+            subscribed: false,
+            generations_left: 1
           })
           .select()
           .single();
@@ -156,25 +165,7 @@ export const useProfileState = () => {
         subscriberData = newSubscriber;
       }
 
-      let generationsLeft = 0;
-      const tier = subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise';
-      
-      switch (tier) {
-        case 'Free':
-          generationsLeft = 1;
-          break;
-        case 'Basic':
-          generationsLeft = 3;
-          break;
-        case 'Pro':
-          generationsLeft = 10;
-          break;
-        case 'Enterprise':
-          generationsLeft = 30;
-          break;
-        default:
-          generationsLeft = 1;
-      }
+      const generationsLeft = subscriberData.generations_left ?? 0;
 
       const mappedProfile: User = {
         id: subscriberData.user_id,

@@ -1,10 +1,8 @@
-
 import { CourseFormData } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "@/hooks/use-toast";
 
-// Function to generate course materials using Claude API via Supabase Edge Function
 export const generateCourse = async (formData: CourseFormData): Promise<any> => {
   try {
     console.log("Generating course with data:", formData);
@@ -12,8 +10,6 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     // Check user subscription limits
     const { data: userData } = await supabase.auth.getUser();
     if (userData?.user) {
-      // We need to check the user's subscription details from our auth system
-      // Verificăm abonamentul utilizatorului din baza de date
       const { data: subscriberData, error: subscriberError } = await supabase
         .from('subscribers')
         .select('*')
@@ -23,28 +19,8 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
       if (subscriberError) throw new Error("Nu am putut verifica detaliile abonamentului.");
       
       if (subscriberData) {
-        const tier = subscriberData.subscription_tier || 'Free';
-        
-        // For generations, we'll use a calculated value since there's no column in the database
-        let generationsLeft;
-        
-        // Calculate based on tier if no value exists
-        switch (tier) {
-          case 'Basic':
-            generationsLeft = 3;
-            break;
-          case 'Pro':
-            generationsLeft = 10;
-            break;
-          case 'Enterprise':
-            generationsLeft = 30;
-            break;
-          default: // Free tier
-            generationsLeft = 1;
-        }
-        
-        if (generationsLeft <= 0) {
-          throw new Error(`Ai atins limita de generări pentru pachetul ${tier}.`);
+        if (subscriberData.generations_left <= 0) {
+          throw new Error(`Ai atins limita de generări pentru pachetul ${subscriberData.subscription_tier}.`);
         }
       }
     }
@@ -98,7 +74,6 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
   }
 };
 
-// Function to check the status of a course generation job
 export const checkCourseGenerationStatus = async (jobId: string): Promise<any> => {
   try {
     console.log("Checking status for job:", jobId);
@@ -129,7 +104,6 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
   }
 };
 
-// Helper function to get mock data for immediate display
 const getMockData = (formData: CourseFormData) => {
   // This mock data structure mimics what would come from the Claude API
   const isPreview = formData.generationType !== 'Complet';
