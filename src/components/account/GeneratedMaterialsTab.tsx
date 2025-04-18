@@ -20,6 +20,12 @@ const GeneratedMaterialsTab = () => {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState<boolean>(false);
   
+  // Add more debug logging
+  useEffect(() => {
+    console.log("GeneratedMaterialsTab - Current user object:", user);
+    console.log("GeneratedMaterialsTab - Generated courses:", user?.generatedCourses);
+  }, [user]);
+  
   useEffect(() => {
     if (!user?.generatedCourses?.length) return;
     
@@ -108,6 +114,7 @@ const GeneratedMaterialsTab = () => {
   }, [user?.generatedCourses, refreshUser, toast, language]);
 
   if (!user) {
+    console.log("GeneratedMaterialsTab - No user found");
     return <div>Loading...</div>;
   }
 
@@ -116,8 +123,18 @@ const GeneratedMaterialsTab = () => {
     setTimeout(() => setLoading(false), 1000);
   };
 
-  // Debug information
-  console.log("User generated courses:", user.generatedCourses);
+  // Additional detailed debug information about user object
+  if (user) {
+    console.log("User details for debugging:");
+    console.log("- User ID:", user.id);
+    console.log("- Email:", user.email);
+    console.log("- Subscription tier:", user.subscription?.tier);
+    console.log("- Generations left:", user.generationsLeft);
+    console.log("- Generated courses count:", user.generatedCourses?.length || 0);
+    if (user.generatedCourses && user.generatedCourses.length > 0) {
+      console.log("- First course subject:", user.generatedCourses[0].formData?.subject);
+    }
+  }
 
   return (
     <Card className="w-full">

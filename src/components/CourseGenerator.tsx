@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -31,7 +30,6 @@ const CourseGenerator = () => {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationTimeout, setGenerationTimeout] = useState<number | null>(null);
 
-  // Inițializăm formData o singură dată la încărcarea componentei, nu în fiecare render
   const [formData, setFormData] = useState<CourseFormData>(() => ({
     language: language === 'ro' ? 'română' : 'english',
     context: 'Corporativ',
@@ -42,10 +40,8 @@ const CourseGenerator = () => {
     tone: 'Profesional',
   }));
 
-  // Verifică dacă utilizatorul este admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
 
-  // Actualizează doar limba formularului când se schimbă limba UI, dar doar dacă formData.language nu a fost deja personalizat
   useEffect(() => {
     const currentFormLang = formData.language;
     const shouldUpdateLang = 
@@ -61,7 +57,6 @@ const CourseGenerator = () => {
     }
   }, [language]);
 
-  // Cleanup function for polling and timeout
   const cleanupTimers = useCallback(() => {
     console.log('Cleaning up timers');
     if (pollingInterval) {
@@ -75,13 +70,11 @@ const CourseGenerator = () => {
     }
   }, [pollingInterval, generationTimeout]);
 
-  // Effect for polling job status
   useEffect(() => {
     if (!generationJobId || pollingInterval) return;
     
     console.log('Setting up polling for job:', generationJobId);
     
-    // Set a timeout to stop the generation after 90 seconds
     const timeout = window.setTimeout(() => {
       console.log('Generation timed out after 90 seconds');
       cleanupTimers();
@@ -93,7 +86,6 @@ const CourseGenerator = () => {
     
     setGenerationTimeout(timeout);
     
-    // Start polling for status
     const interval = window.setInterval(async () => {
       try {
         console.log('Polling job status for:', generationJobId);
@@ -119,6 +111,8 @@ const CourseGenerator = () => {
             variant: 'default',
           });
           
+          await refreshUser();
+          
           setTimeout(() => {
             navigate('/account');
           }, 2000);
@@ -128,7 +122,6 @@ const CourseGenerator = () => {
           setLoading(false);
           setError(statusResponse.error || (language === 'ro' ? 'A apărut o eroare în timpul generării' : 'An error occurred during generation'));
         } else if (statusResponse.status === 'processing') {
-          // Update progress indicator (simulate progress if not provided)
           const elapsed = (Date.now() - new Date(statusResponse.startedAt).getTime()) / 1000;
           const estimatedProgress = Math.min(Math.round(elapsed / 90 * 100), 95);
           setGenerationProgress(estimatedProgress);
@@ -141,11 +134,9 @@ const CourseGenerator = () => {
     
     setPollingInterval(interval);
     
-    // Cleanup on unmount
     return () => cleanupTimers();
-  }, [generationJobId, language, navigate, toast, cleanupTimers]);
+  }, [generationJobId, language, navigate, toast, cleanupTimers, refreshUser]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => cleanupTimers();
   }, [cleanupTimers]);
@@ -164,16 +155,13 @@ const CourseGenerator = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Reset any previous errors or success messages
     setError(null);
     setSuccess(null);
     setGenerationProgress(0);
     setGenerationJobId(null);
     
-    // Cleanup any existing timers
     cleanupTimers();
     
-    // Contul admin nu are restricții
     if (!isAdminUser && (!profile || profile.generationsLeft <= 0)) {
       console.log("User has no generations left:", profile?.generationsLeft);
       toast({
@@ -188,7 +176,6 @@ const CourseGenerator = () => {
       return;
     }
     
-    // Pentru admin, generăm întotdeauna versiunea completă
     let generationType: GenerationType = isAdminUser ? 'Complet' : 'Preview';
     if (user.subscription && user.subscription.tier !== 'Free') {
       generationType = 'Complet';
@@ -208,13 +195,11 @@ const CourseGenerator = () => {
       if (generatedCourse) {
         const isProcessing = generatedCourse.status === 'processing';
         
-        // Store the job ID for polling if available
         if (generatedCourse.jobId) {
           console.log("Setting job ID for polling:", generatedCourse.jobId);
           setGenerationJobId(generatedCourse.jobId);
         }
         
-        // Decrementăm doar dacă nu este admin
         if (!isAdminUser) {
           console.log("Decrementing generations left for non-admin user");
           const decrementSuccess = await decrementGenerationsLeft(user.id);
@@ -229,7 +214,6 @@ const CourseGenerator = () => {
           console.log("Admin user - skipping generation count decrement");
         }
         
-        // If job is not processing, handle immediate success
         if (!isProcessing) {
           setLoading(false);
           setSuccess(
@@ -245,11 +229,12 @@ const CourseGenerator = () => {
               : 'You can access the material from your account.',
           });
 
+          await refreshUser();
+
           setTimeout(() => {
             navigate('/account');
           }, 2000);
         } else {
-          // For processing jobs, we show a notification and will poll for status
           toast({
             title: language === 'ro' ? 'Generare în curs...' : 'Generation in progress...',
             description: language === 'ro' 

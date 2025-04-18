@@ -21,8 +21,19 @@ const AccountPage = () => {
       setLocalLoading(true);
       try {
         // Fetch fresh user data when the account page loads
-        await refreshUser();
-        console.log("User data refreshed on account page load");
+        const success = await refreshUser();
+        console.log("User data refreshed on account page load, success:", success);
+        console.log("Current user data after refresh:", user);
+        
+        // Debug the user's generated courses
+        if (user && user.generatedCourses) {
+          console.log("User has", user.generatedCourses.length, "generated courses");
+          if (user.generatedCourses.length > 0) {
+            console.log("First course subject:", user.generatedCourses[0].formData.subject);
+          }
+        } else {
+          console.log("User has no generated courses or generatedCourses array is undefined");
+        }
       } catch (error) {
         console.error("Error refreshing user data:", error);
         toast({

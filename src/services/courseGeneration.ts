@@ -75,11 +75,46 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
       throw new Error("Eroare sistem: Nu s-a putut obține un ID pentru job");
     }
     
+    // Use the mock data for initial display/storage in localStorage
+    // This approach allows us to see something immediately while the real data is being generated
+    const resultData = responseData.data.data || getMockData(formData);
+    
+    // Debug the response data
+    console.log("Generation response data that will be stored:", resultData);
+    
+    // Store the generated course in localStorage
+    const automatorUser = localStorage.getItem('automatorUser');
+    if (automatorUser) {
+      try {
+        const user = JSON.parse(automatorUser);
+        const generatedCourses = user.generatedCourses || [];
+        
+        // Create a new course object
+        const newCourse = {
+          id: jobId,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+          formData,
+          sections: resultData.sections || [],
+          previewMode: formData.generationType === 'Preview',
+          status: responseData.data.status || 'processing',
+          jobId
+        };
+        
+        // Add the new course to the user's courses
+        user.generatedCourses = [newCourse, ...generatedCourses];
+        
+        // Save updated user data to localStorage
+        localStorage.setItem('automatorUser', JSON.stringify(user));
+        
+        console.log("Updated user data stored in localStorage with new course:", newCourse);
+      } catch (error) {
+        console.error("Error updating localStorage with new course:", error);
+      }
+    }
+    
     // Return job information including status and job ID
     const status = responseData.data.status || 'processing';
-    
-    // If data is already available, use it, otherwise use mock data temporarily
-    const resultData = responseData.data.data || getMockData(formData);
     
     return {
       ...resultData,
@@ -132,10 +167,10 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
       // Asigurăm-ne că există cel puțin secțiunile de bază, chiar dacă sunt goale
       if (responseData.data.data) {
         responseData.data.data.sections = responseData.data.data.sections || [
-          { type: 'lesson-plan', content: 'Conținut indisponibil' },
-          { type: 'slides', content: 'Conținut indisponibil' },
-          { type: 'trainer-notes', content: 'Conținut indisponibil' },
-          { type: 'exercises', content: 'Conținut indisponibil' }
+          { title: 'Plan de lecție', content: 'Conținut indisponibil', categories: [], type: 'lesson-plan' },
+          { title: 'Slide-uri prezentare', content: 'Conținut indisponibil', categories: [], type: 'slides' },
+          { title: 'Note trainer', content: 'Conținut indisponibil', categories: [], type: 'trainer-notes' },
+          { title: 'Exerciții', content: 'Conținut indisponibil', categories: [], type: 'exercises' }
         ];
       }
     }

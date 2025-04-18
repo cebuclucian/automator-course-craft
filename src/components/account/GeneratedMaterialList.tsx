@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -15,6 +15,12 @@ const GeneratedMaterialList = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const { toast } = useToast();
+
+  // Debug logging
+  useEffect(() => {
+    console.log("GeneratedMaterialList - Current user:", user);
+    console.log("GeneratedMaterialList - Generated courses:", user?.generatedCourses);
+  }, [user]);
 
   // Functions for actions on materials
   const handleDownload = (course: GeneratedCourse) => {
@@ -38,7 +44,17 @@ const GeneratedMaterialList = () => {
   };
 
   if (!user) {
+    console.log("GeneratedMaterialList - No user found");
     return <div>Loading...</div>;
+  }
+
+  // More detailed logging
+  if (!user.generatedCourses) {
+    console.log("GeneratedMaterialList - No generatedCourses array in user object");
+  } else if (user.generatedCourses.length === 0) {
+    console.log("GeneratedMaterialList - generatedCourses array is empty");
+  } else {
+    console.log(`GeneratedMaterialList - Found ${user.generatedCourses.length} courses`);
   }
 
   return (
@@ -92,7 +108,7 @@ const GeneratedMaterialList = () => {
                   <div className="flex flex-wrap gap-2">
                     {course.sections.map((section) => (
                       <Badge 
-                        key={section.type} 
+                        key={section.title || section.type} 
                         variant="secondary" 
                         className="cursor-pointer hover:bg-secondary/80"
                       >
@@ -105,7 +121,7 @@ const GeneratedMaterialList = () => {
                           (language === 'ro' ? 'Note trainer' : 'Trainer notes') :
                          section.type === 'exercises' ?
                           (language === 'ro' ? 'Exerciții' : 'Exercises') :
-                          section.type}
+                          section.title || section.type || "Material"}
                       </Badge>
                     ))}
                   </div>

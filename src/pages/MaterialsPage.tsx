@@ -1,14 +1,29 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import GeneratedMaterialList from '@/components/account/GeneratedMaterialList';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MaterialsPage = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
+  const { user, refreshUser } = useAuth();
+  
+  // Refresh user data when the page loads
+  useEffect(() => {
+    console.log("MaterialsPage - Initial user data:", user);
+    
+    const loadData = async () => {
+      console.log("MaterialsPage - Refreshing user data...");
+      await refreshUser();
+      console.log("MaterialsPage - User data after refresh:", user);
+    };
+    
+    loadData();
+  }, []);
   
   return (
     <div className="container mx-auto px-4 py-8">
