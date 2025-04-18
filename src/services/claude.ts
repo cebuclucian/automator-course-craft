@@ -26,20 +26,29 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
         const tier = subscriberData.subscription_tier || 'Free';
         
         // Verificăm dacă utilizatorul are generări disponibile
-        let generationsLeft = 0;
+        let generationsLeft = subscriberData.generations_left;
         
-        switch (tier) {
-          case 'Basic':
-            generationsLeft = 3;
-            break;
-          case 'Pro':
-            generationsLeft = 10;
-            break;
-          case 'Enterprise':
-            generationsLeft = 30;
-            break;
-          default: // Free tier
-            generationsLeft = 1;
+        // Dacă nu există valoare în baza de date pentru generări, setăm valoarea default
+        if (generationsLeft === undefined || generationsLeft === null) {
+          switch (tier) {
+            case 'Basic':
+              generationsLeft = 3;
+              break;
+            case 'Pro':
+              generationsLeft = 10;
+              break;
+            case 'Enterprise':
+              generationsLeft = 30;
+              break;
+            default: // Free tier
+              generationsLeft = 1;
+          }
+          
+          // Actualizăm în baza de date
+          await supabase
+            .from('subscribers')
+            .update({ generations_left: generationsLeft })
+            .eq('user_id', userData.user.id);
         }
         
         if (generationsLeft <= 0) {

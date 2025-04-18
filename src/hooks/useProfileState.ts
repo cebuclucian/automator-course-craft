@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +28,6 @@ export const useProfileState = () => {
 
       if (updateError) throw updateError;
 
-      // Map the database fields to User interface
       const mappedProfile: User = {
         id: updatedProfile.user_id,
         email: updatedProfile.email,
@@ -63,16 +61,13 @@ export const useProfileState = () => {
     }
   };
 
-  // Funcție pentru a decrementa numărul de generări disponibile
-  // Returnează success=true dacă operația a reușit
   const decrementGenerationsLeft = async (userId: string): Promise<boolean> => {
     try {
       console.log("Decrementarea generărilor disponibile pentru utilizatorul:", userId);
       
-      // Obținem mai întâi datele curente ale abonamentului pentru a afla tier-ul
       const { data: subscriberData, error: getError } = await supabase
         .from('subscribers')
-        .select('subscription_tier')
+        .select('*')
         .eq('user_id', userId)
         .single();
       
@@ -81,24 +76,55 @@ export const useProfileState = () => {
         return false;
       }
       
-      // Actualizăm profilul dacă există
-      if (profile) {
-        // Verificăm dacă utilizatorul mai are generări disponibile
-        if (profile.generationsLeft <= 0) {
-          console.warn("Utilizatorul nu mai are generări disponibile");
-          return false;
-        }
+      let currentGenerations = subscriberData.generations_left;
+      
+      if (currentGenerations === undefined || currentGenerations === null) {
+        const tier = subscriberData.subscription_tier || 'Free';
         
+        switch (tier) {
+          case 'Basic':
+            currentGenerations = 3;
+            break;
+          case 'Pro':
+            currentGenerations = 10;
+            break;
+          case 'Enterprise':
+            currentGenerations = 30;
+            break;
+          default: // Free tier
+            currentGenerations = 1;
+        }
+      }
+      
+      if (currentGenerations <= 0) {
+        console.warn("Utilizatorul nu mai are generări disponibile");
+        return false;
+      }
+      
+      const newGenerations = Math.max(0, currentGenerations - 1);
+      
+      const { error: updateError } = await supabase
+        .from('subscribers')
+        .update({ 
+          generations_left: newGenerations 
+        })
+        .eq('user_id', userId);
+      
+      if (updateError) {
+        console.error("Eroare la actualizarea generărilor disponibile:", updateError);
+        return false;
+      }
+      
+      if (profile && profile.id === userId) {
         console.log("Decrementare cu succes, generări înainte:", profile.generationsLeft);
         setProfile({
           ...profile,
-          generationsLeft: Math.max(0, (profile.generationsLeft || 0) - 1)
+          generationsLeft: newGenerations
         });
-        console.log("Generări după decrementare:", Math.max(0, (profile.generationsLeft || 0) - 1));
-        return true;
+        console.log("Generări după decrementare:", newGenerations);
       }
       
-      return false;
+      return true;
     } catch (err) {
       console.error("Eroare la decrementarea generărilor disponibile:", err);
       return false;
@@ -113,7 +139,6 @@ export const useProfileState = () => {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session?.user) return null;
 
-      // Changed to let instead of const since we might need to reassign it
       let subscriberData;
       const { data, error: profileError } = await supabase
         .from('subscribers')
@@ -125,7 +150,6 @@ export const useProfileState = () => {
 
       if (profileError) {
         console.log("Creating new subscriber profile for user:", session.session.user.id);
-        // If profile doesn't exist yet (new user), create one with default values
         const { data: newSubscriber, error: insertError } = await supabase
           .from('subscribers')
           .insert({
@@ -139,18 +163,15 @@ export const useProfileState = () => {
           
         if (insertError) throw insertError;
         
-        // Use the newly created subscriber data
         subscriberData = newSubscriber;
       }
 
-      // Determină numărul de generări disponibile bazat pe tier
       let generationsLeft = 0;
       const tier = subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise';
       
-      // Asigură că fiecare cont are cel puțin o generare disponibilă (pentru Preview)
       switch (tier) {
         case 'Free':
-          generationsLeft = 1; // Conturile Free primesc 1 generare pentru Preview
+          generationsLeft = 1;
           break;
         case 'Basic':
           generationsLeft = 3;
@@ -162,10 +183,9 @@ export const useProfileState = () => {
           generationsLeft = 30;
           break;
         default:
-          generationsLeft = 1; // Valoare implicită pentru siguranță
+          generationsLeft = 1;
       }
 
-      // Map the database fields to User interface
       const mappedProfile: User = {
         id: subscriberData.user_id,
         email: subscriberData.email,
