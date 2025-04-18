@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { checkCourseGenerationStatus } from '@/services/claude';
+import { checkCourseGenerationStatus } from '@/services/courseGeneration';
 import { GeneratedCourse } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -20,25 +19,22 @@ const GeneratedMaterialsTab = () => {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Check status of processing courses
   useEffect(() => {
     if (!user?.generatedCourses?.length) return;
     
     const processingCoursesFound: Record<string, boolean> = {};
     const progressMap: Record<string, number> = {};
     
-    // Identify any courses that are still processing
     user.generatedCourses.forEach(course => {
       if (course.status === 'processing' && course.jobId) {
         processingCoursesFound[course.id] = true;
-        progressMap[course.id] = 10; // Start at 10%
+        progressMap[course.id] = 10;
       }
     });
     
     setProcessingCourses(processingCoursesFound);
     setProgress(progressMap);
     
-    // If we have processing courses, check their status
     if (Object.keys(processingCoursesFound).length > 0) {
       const checkStatuses = async () => {
         for (const courseId in processingCoursesFound) {
@@ -48,11 +44,9 @@ const GeneratedMaterialsTab = () => {
               const statusResult = await checkCourseGenerationStatus(course.jobId);
               
               if (statusResult.status === 'completed') {
-                // Update local state
                 processingCoursesFound[courseId] = false;
                 progressMap[courseId] = 100;
                 
-                // Update the course in user data
                 const updatedCourses = user.generatedCourses?.map(c => {
                   if (c.id === courseId) {
                     return {
@@ -64,7 +58,6 @@ const GeneratedMaterialsTab = () => {
                   return c;
                 });
                 
-                // Update user object and persist to localStorage
                 const updatedUser = {
                   ...user,
                   generatedCourses: updatedCourses
@@ -72,7 +65,6 @@ const GeneratedMaterialsTab = () => {
                 
                 localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
                 
-                // Notify user
                 toast({
                   title: language === 'ro' ? 'Material finalizat!' : 'Material completed!',
                   description: language === 'ro'
@@ -80,10 +72,8 @@ const GeneratedMaterialsTab = () => {
                     : `The material "${course.formData.subject}" has been successfully generated.`,
                 });
                 
-                // Refresh user data
                 await refreshUser();
               } else if (statusResult.status === 'processing') {
-                // Update progress
                 progressMap[courseId] = Math.min(90, progressMap[courseId] + 10);
               } else if (statusResult.status === 'error') {
                 processingCoursesFound[courseId] = false;
@@ -107,13 +97,10 @@ const GeneratedMaterialsTab = () => {
         setProgress({...progressMap});
       };
       
-      // Initial check
       checkStatuses();
       
-      // Set up polling every 10 seconds
       const intervalId = setInterval(checkStatuses, 10000);
       
-      // Clean up interval
       return () => clearInterval(intervalId);
     }
   }, [user?.generatedCourses, refreshUser, toast, language]);
@@ -124,7 +111,6 @@ const GeneratedMaterialsTab = () => {
 
   const handleGenerateClick = () => {
     setLoading(true);
-    // This is just for UI feedback, navigate happens separately
     setTimeout(() => setLoading(false), 1000);
   };
 
