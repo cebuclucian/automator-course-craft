@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { User } from "@/types";
 import { useAuthMethods } from "@/hooks/useAuthMethods";
 import { useUserRefresh } from "@/hooks/useUserRefresh";
@@ -17,7 +17,7 @@ interface AuthContextType {
   refreshUser: () => Promise<void | boolean>;
 }
 
-export const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -105,3 +105,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     </AuthContext.Provider>
   );
 };
+
+// Export AuthContext as well for potential direct use
+export { AuthContext };
