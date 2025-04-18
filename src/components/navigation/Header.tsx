@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Globe, Sun, Moon } from 'lucide-react';
@@ -28,13 +27,19 @@ const Header = () => {
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center">
-          <div className="flex items-center">
+          <div className="flex items-center h-10">
             {theme === 'dark' ? (
-              // Logo alb pentru tema întunecată
-              <span className="text-xl font-bold text-white">Automator.ro</span>
+              <img 
+                src="/logo-alb.png" 
+                alt="Automator.ro Logo (Dark Theme)" 
+                className="h-full object-contain"
+              />
             ) : (
-              // Logo negru pentru tema luminoasă
-              <span className="text-xl font-bold text-black">Automator.ro</span>
+              <img 
+                src="/logo-negru.png" 
+                alt="Automator.ro Logo (Light Theme)" 
+                className="h-full object-contain"
+              />
             )}
           </div>
         </Link>
