@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import AuthModal from '@/components/auth/AuthModal';
+import AuthModal from '@/components/AuthModal';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 interface CourseGeneratorAuthProps {
