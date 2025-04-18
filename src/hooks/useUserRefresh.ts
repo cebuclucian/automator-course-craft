@@ -62,7 +62,7 @@ export const useUserRefresh = () => {
         generationsLeft: subscriberData.generations_left || 0,
         generatedCourses: generatedCourses,
         googleAuth: sessionData.session.user.app_metadata?.provider === 'google',
-        lastGenerationDate: subscriberData.last_generation_date || null
+        lastGenerationDate: null // Set this to null since the field doesn't exist in the database yet
       };
       
       // Update localStorage
