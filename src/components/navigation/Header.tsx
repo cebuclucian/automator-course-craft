@@ -28,7 +28,14 @@ const Header = () => {
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center">
-          <span className="text-xl font-bold text-black dark:text-white">Automator.ro</span>
+          <img 
+            src={theme === 'dark' 
+              ? '/lovable-uploads/86518970-c3fe-4d41-82e5-507cb74bdb9e.png'  // white logo
+              : '/lovable-uploads/76fe2cce-52bf-4765-be5c-d70fea47e101.png'  // black logo
+            }
+            alt="Automator.ro Logo"
+            className="h-12 w-auto"
+          />
         </Link>
         <DesktopNav />
         <div className="flex items-center space-x-4">
