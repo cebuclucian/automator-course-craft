@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { User } from "@/types";
 import { useAuthMethods } from "@/hooks/useAuthMethods";
@@ -8,8 +9,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
-  loginWithGithub: () => Promise<boolean>; // Added GitHub login method
-  loginWithFacebook: () => Promise<boolean>; // Added Facebook login method
+  loginWithGithub: () => Promise<boolean>;
+  loginWithFacebook: () => Promise<boolean>; 
   logout: () => Promise<boolean>;
   isLoading: boolean;
   error: string | null;
@@ -68,4 +69,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-export { AuthContext, useAuth };
+// Remove the redundant export of AuthContext and useAuth at the end of the file
