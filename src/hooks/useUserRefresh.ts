@@ -33,7 +33,7 @@ export const useUserRefresh = () => {
       
       console.log("useUserRefresh: Subscriber data fetched:", subscriberData);
       
-      // Get any generated courses from localStorage (temporary storage mechanism)
+      // Get stored courses from localStorage
       let generatedCourses: GeneratedCourse[] = [];
       const automatorUser = localStorage.getItem('automatorUser');
       
@@ -42,10 +42,15 @@ export const useUserRefresh = () => {
           const parsedUser = JSON.parse(automatorUser);
           if (parsedUser.generatedCourses && Array.isArray(parsedUser.generatedCourses)) {
             console.log("useUserRefresh: Found stored courses in localStorage:", parsedUser.generatedCourses.length);
-            generatedCourses = parsedUser.generatedCourses;
+            generatedCourses = parsedUser.generatedCourses.map((course: GeneratedCourse) => ({
+              ...course,
+              createdAt: new Date(course.createdAt),
+              expiresAt: new Date(course.expiresAt)
+            }));
           }
         } catch (e) {
           console.error("useUserRefresh: Error parsing stored user data:", e);
+          generatedCourses = [];
         }
       }
       
@@ -62,11 +67,19 @@ export const useUserRefresh = () => {
         generationsLeft: subscriberData.generations_left || 0,
         generatedCourses: generatedCourses,
         googleAuth: sessionData.session.user.app_metadata?.provider === 'google',
-        lastGenerationDate: null // Set this to null since the field doesn't exist in the database yet
+        lastGenerationDate: subscriberData.last_generation_date ? new Date(subscriberData.last_generation_date) : null
       };
       
-      // Update localStorage
-      localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
+      // Update localStorage with proper date objects
+      localStorage.setItem('automatorUser', JSON.stringify({
+        ...updatedUser,
+        generatedCourses: generatedCourses.map(course => ({
+          ...course,
+          createdAt: course.createdAt.toISOString(),
+          expiresAt: course.expiresAt.toISOString()
+        }))
+      }));
+      
       console.log("useUserRefresh: User data updated and stored:", updatedUser);
       
       return true;

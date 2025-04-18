@@ -14,6 +14,7 @@ export type Database = {
           created_at: string | null
           email: string
           generations_left: number | null
+          last_generation_date: string | null
           stripe_customer_id: string | null
           subscribed: boolean | null
           subscription_end: string | null
@@ -25,6 +26,7 @@ export type Database = {
           created_at?: string | null
           email: string
           generations_left?: number | null
+          last_generation_date?: string | null
           stripe_customer_id?: string | null
           subscribed?: boolean | null
           subscription_end?: string | null
@@ -36,6 +38,7 @@ export type Database = {
           created_at?: string | null
           email?: string
           generations_left?: number | null
+          last_generation_date?: string | null
           stripe_customer_id?: string | null
           subscribed?: boolean | null
           subscription_end?: string | null
