@@ -12,10 +12,6 @@ import MobileNav from './MobileNav';
 import UserMenu from './UserMenu';
 import AuthModal from '@/components/AuthModal';
 
-// Import logos for direct use
-import BlackLogo from '@/assets/automator-black-logo.png';
-import WhiteLogo from '@/assets/automator-white-logo.png';
-
 const Header = () => {
   const { user } = useAuth();
   const { language, setLanguage } = useLanguage();
@@ -32,11 +28,7 @@ const Header = () => {
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center">
-          <img 
-            src={theme === 'dark' ? WhiteLogo : BlackLogo} 
-            alt="Automator.ro Logo" 
-            className="h-10 w-auto"
-          />
+          <span className="text-xl font-bold text-black dark:text-white">Automator.ro</span>
         </Link>
         <DesktopNav />
         <div className="flex items-center space-x-4">
