@@ -25,7 +25,9 @@ const CourseGenerator = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [showLongGenerationWarning, setShowLongGenerationWarning] = useState(false);
-  const [formData, setFormData] = useState<CourseFormData>({
+  
+  // Inițializăm formData o singură dată la încărcarea componentei, nu în fiecare render
+  const [formData, setFormData] = useState<CourseFormData>(() => ({
     language: language === 'ro' ? 'română' : 'english',
     context: 'Corporativ',
     subject: '',
@@ -33,10 +35,26 @@ const CourseGenerator = () => {
     audience: 'Profesioniști',
     duration: '1 zi',
     tone: 'Profesional',
-  });
+  }));
 
   // Verifică dacă utilizatorul este admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
+
+  // Actualizează doar limba formularului când se schimbă limba UI, dar doar dacă formData.language nu a fost deja personalizat
+  useEffect(() => {
+    const currentFormLang = formData.language;
+    const shouldUpdateLang = 
+      (language === 'ro' && currentFormLang !== 'română' && currentFormLang === 'english') || 
+      (language !== 'ro' && currentFormLang !== 'english' && currentFormLang === 'română');
+    
+    if (shouldUpdateLang) {
+      console.log('Actualizare limbă formular bazată pe limba UI:', language === 'ro' ? 'română' : 'english');
+      setFormData(prev => ({
+        ...prev,
+        language: language === 'ro' ? 'română' : 'english'
+      }));
+    }
+  }, [language]);
 
   if (!user) {
     return (
@@ -48,6 +66,7 @@ const CourseGenerator = () => {
   }
 
   const handleFormDataChange = (field: keyof CourseFormData, value: string) => {
+    console.log(`Actualizare câmp formular: ${field} = ${value}`);
     const newFormData = { ...formData, [field]: value };
     setFormData(newFormData);
     

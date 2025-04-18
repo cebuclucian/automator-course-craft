@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,7 +20,8 @@ interface CourseGeneratorFormProps {
   isSubscriptionTierFree?: boolean;
 }
 
-const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
+// Folosim memo pentru a preveni rerandări inutile ale formularului
+const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = memo(({
   formData,
   onFormDataChange,
   onSubmit,
@@ -31,9 +33,11 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
   const { t, language } = useLanguage();
   
   const handleDurationChange = (value: string) => {
-    const longDurations = ['2 zile', '3 zile', '4 zile', '5 zile'];
     onFormDataChange('duration', value);
   };
+
+  // Pentru a ajuta la debug-ul rerandărilor
+  console.log("CourseGeneratorForm rendered with form language:", formData.language);
 
   const hasUnlimitedGenerations = generationsLeft === Infinity;
 
@@ -264,6 +268,9 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
       </div>
     </form>
   );
-};
+});
+
+// Asigurați-vă că numele afișat în DevTools/React este corect
+CourseGeneratorForm.displayName = 'CourseGeneratorForm';
 
 export default CourseGeneratorForm;

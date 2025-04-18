@@ -5,7 +5,6 @@ import { useToast } from '@/hooks/use-toast';
 import CourseGenerator from '@/components/CourseGenerator';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import ToneExplanations from '@/components/ToneExplanations';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -18,42 +17,49 @@ const GeneratePage = () => {
   const { language } = useLanguage();
   const [isLoading, setIsLoading] = useState(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [hasAttemptedProfileLoad, setHasAttemptedProfileLoad] = useState(false);
 
   // Verifică dacă utilizatorul este admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
 
   useEffect(() => {
-    console.log("GeneratePage mounted, refreshing profile data");
-    // Always try to refresh the profile when accessing the generate page
-    // to ensure we have the most up-to-date generation credits
-    async function loadProfileData() {
-      setIsLoading(true);
-      try {
-        if (user) {
-          console.log("User is authenticated, refreshing profile");
-          await refreshProfile();
-        } else {
-          console.log("User not authenticated");
-        }
-      } catch (error) {
-        console.error("Error refreshing profile:", error);
-        setLoadingError(
-          language === 'ro' 
-            ? "Nu am putut încărca datele profilului. Vă rugăm să reîncărcați pagina."
-            : "Could not load profile data. Please refresh the page."
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    }
+    console.log("GeneratePage mounted");
     
-    loadProfileData();
-  }, [user, refreshProfile, language]);
+    // Adăugăm un flag pentru a preveni încărcările multiple ale profilului
+    if (!hasAttemptedProfileLoad) {
+      console.log("First profile load attempt");
+      
+      async function loadProfileData() {
+        setIsLoading(true);
+        try {
+          if (user) {
+            console.log("User is authenticated, refreshing profile");
+            await refreshProfile();
+          } else {
+            console.log("User not authenticated");
+          }
+          setHasAttemptedProfileLoad(true);
+        } catch (error) {
+          console.error("Error refreshing profile:", error);
+          setLoadingError(
+            language === 'ro' 
+              ? "Nu am putut încărca datele profilului. Vă rugăm să reîncărcați pagina."
+              : "Could not load profile data. Please refresh the page."
+          );
+          setHasAttemptedProfileLoad(true);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+      
+      loadProfileData();
+    }
+  }, [user, refreshProfile, language, hasAttemptedProfileLoad]);
 
   useEffect(() => {
-    // Check if user has reached the course generation limit based on subscription tier
-    // Ignoră verificarea pentru contul admin
-    if (user && profile && !isAdminUser && !isLoading) {
+    // Verificăm limitele de generare doar după ce profilul a fost încărcat
+    // și doar pentru utilizatorii neadmin
+    if (user && profile && !isAdminUser && !isLoading && hasAttemptedProfileLoad) {
       console.log("Checking generation limits for non-admin user");
       console.log("Current generations left:", profile.generationsLeft);
       console.log("Subscription tier:", profile.subscription?.tier);
@@ -74,9 +80,9 @@ const GeneratePage = () => {
         navigate('/packages');
       }
     }
-  }, [user, profile, navigate, toast, language, isAdminUser, isLoading]);
+  }, [user, profile, navigate, toast, language, isAdminUser, isLoading, hasAttemptedProfileLoad]);
 
-  if (isLoading) {
+  if (isLoading && !hasAttemptedProfileLoad) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
