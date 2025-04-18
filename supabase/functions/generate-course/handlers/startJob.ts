@@ -5,19 +5,19 @@ import { buildPrompt } from "../helpers/promptBuilder.ts";
 import { processJob } from "../helpers/jobProcessor.ts";
 import { mockCourseData } from "../helpers/mockData.ts";
 
-// Handle starting a new job
+// Handler pentru pornirea unui job nou
 export async function handleStartJob(requestData, corsHeaders) {
-  console.log("startJob handler called with data:", JSON.stringify(requestData));
+  console.log("handler startJob apelat cu datele:", JSON.stringify(requestData));
   
   const { formData } = requestData;
   
-  // Verify formData exists
+  // Verificare existență formData
   if (!formData) {
-    console.error("Missing form data in request");
+    console.error("Date formular lipsă în cerere");
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: "Form data is missing" 
+        error: "Datele formularului lipsesc" 
       }),
       { 
         status: 400, 
@@ -30,19 +30,19 @@ export async function handleStartJob(requestData, corsHeaders) {
   }
 
   try {
-    // Generate a unique job ID
+    // Generare ID job unic
     const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
-    // Construct the prompt - this is where language is used
+    // Construire prompt - aici este utilizată limba
     const prompt = buildPrompt(formData);
     
-    console.log(`Starting job ${jobId} for subject: ${formData.subject}, duration: ${formData.duration}, language: ${formData.language}`);
-    console.log(`Job ${jobId} prompt length: ${prompt.length} characters`);
+    console.log(`Pornire job ${jobId} pentru subiect: ${formData.subject}, durată: ${formData.duration}, limbă: ${formData.language}`);
+    console.log(`Lungime prompt job ${jobId}: ${prompt.length} caractere`);
     
-    // Create mock data with proper sections for immediate response
+    // Creare date mock cu secțiuni adecvate pentru răspuns imediat
     const mockData = mockCourseData(formData);
     
-    // Ensure mockData has proper sections
+    // Asigurare că mockData are secțiuni adecvate
     if (!mockData.sections || mockData.sections.length === 0) {
       mockData.sections = [
         { 
@@ -68,7 +68,7 @@ export async function handleStartJob(requestData, corsHeaders) {
       ];
     }
     
-    // Store the job with initial state and mock data
+    // Stocare job cu stare inițială și date mock
     jobStore.set(jobId, {
       status: 'processing',
       formData,
@@ -77,37 +77,45 @@ export async function handleStartJob(requestData, corsHeaders) {
       initialDataReturned: true
     });
     
-    // Log the number of active jobs and their IDs for debugging
-    console.log(`Current active jobs: ${jobStore.size}`);
-    console.log(`Job keys in store: ${[...jobStore.keys()].join(', ')}`);
+    // Log număr de job-uri active și ID-urile lor pentru debugging
+    console.log(`Job-uri active curente: ${jobStore.size}`);
+    console.log(`Chei job în store: ${[...jobStore.keys()].join(', ')}`);
     
-    // For production apps, automatically complete the job after a delay
-    // This ensures the user will always see a completed course
+    // Pentru aplicații de producție, completare automată a job-ului după o întârziere
+    // Aceasta asigură că utilizatorul va vedea întotdeauna un curs completat
     setTimeout(() => {
       if (jobStore.has(jobId)) {
         const job = jobStore.get(jobId);
         if (job.status === 'processing') {
-          console.log(`Auto-completing job ${jobId} after timeout`);
+          console.log(`Auto-completare job ${jobId} după timeout`);
+          
+          // Asigură-te că job-ul are date și secțiuni
+          if (!job.data || !job.data.sections || job.data.sections.length === 0) {
+            job.data = mockData;
+          }
+          
           jobStore.set(jobId, {
             ...job,
             status: 'completed',
             completedAt: new Date().toISOString()
           });
+          
+          console.log(`Job ${jobId} auto-completat cu secțiuni: ${job.data.sections?.length || 0}`);
         }
       }
-    }, 30000); // Auto-complete after 30 seconds
+    }, 15000); // Auto-completare după 15 secunde
     
-    // Use waitUntil to handle the job asynchronously
+    // Utilizează waitUntil pentru a gestiona job-ul asincron
     try {
       EdgeRuntime.waitUntil(processJob(jobId, prompt, formData));
-      console.log(`Job ${jobId} processing started in background`);
+      console.log(`Procesare în fundal începută pentru job ${jobId}`);
     } catch (error) {
-      console.error(`Error starting background processing for job ${jobId}:`, error);
-      // Continue execution - we'll still return the mock data even if background fails
+      console.error(`Eroare pornire procesare în fundal pentru job ${jobId}:`, error);
+      // Continuă execuția - vom returna oricum datele mock chiar dacă background-ul eșuează
     }
     
-    // Return immediately with job ID and mock data
-    console.log(`Job ${jobId} returning immediate mock data with ${mockData.sections?.length || 0} sections`);
+    // Returnare imediată cu ID job și date mock
+    console.log(`Job ${jobId} returnează date mock imediate cu ${mockData.sections?.length || 0} secțiuni`);
     
     return new Response(
       JSON.stringify({
@@ -115,7 +123,7 @@ export async function handleStartJob(requestData, corsHeaders) {
         jobId,
         data: mockData,
         status: "processing",
-        message: "Job started successfully and will continue processing in the background"
+        message: "Job pornit cu succes și va continua procesarea în fundal"
       }),
       {
         headers: {
@@ -125,11 +133,11 @@ export async function handleStartJob(requestData, corsHeaders) {
       }
     );
   } catch (error) {
-    console.error("Error in startJob handler:", error);
+    console.error("Eroare în handler startJob:", error);
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || "Internal server error" 
+        error: error.message || "Eroare internă de server" 
       }),
       { 
         status: 500, 

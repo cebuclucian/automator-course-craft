@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GeneratedCourse } from '@/types';
@@ -9,16 +10,16 @@ export const useUserRefresh = () => {
     try {
       setIsRefreshing(true);
       
-      // Get current session
+      // Obținere sesiune curentă
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session) {
-        console.log("useUserRefresh: No active session found");
+        console.log("useUserRefresh: Nu s-a găsit o sesiune activă");
         return false;
       }
       
-      console.log("useUserRefresh: Session found, refreshing user data");
+      console.log("useUserRefresh: Sesiune găsită, reîmprospătare date utilizator");
       
-      // Get subscriber data from database
+      // Obținere date abonat din baza de date
       const { data: subscriberData, error: subscriberError } = await supabase
         .from('subscribers')
         .select('*')
@@ -26,13 +27,13 @@ export const useUserRefresh = () => {
         .single();
         
       if (subscriberError) {
-        console.error("useUserRefresh: Error fetching subscriber data:", subscriberError);
+        console.error("useUserRefresh: Eroare la obținerea datelor abonatului:", subscriberError);
         return false;
       }
       
-      console.log("useUserRefresh: Subscriber data fetched:", subscriberData);
+      console.log("useUserRefresh: Date abonat obținute:", subscriberData);
       
-      // Get stored courses from localStorage
+      // Obținere cursuri stocate din localStorage
       let generatedCourses: GeneratedCourse[] = [];
       const automatorUser = localStorage.getItem('automatorUser');
       
@@ -40,36 +41,66 @@ export const useUserRefresh = () => {
         try {
           const parsedUser = JSON.parse(automatorUser);
           if (parsedUser.generatedCourses && Array.isArray(parsedUser.generatedCourses)) {
-            console.log("useUserRefresh: Found stored courses in localStorage:", parsedUser.generatedCourses.length);
+            console.log("useUserRefresh: Cursuri stocate găsite în localStorage:", parsedUser.generatedCourses.length);
             
-            // Ensure all courses are properly normalized
+            // Asigură-te că toate cursurile sunt normalizate corespunzător
             generatedCourses = parsedUser.generatedCourses.map((course: any) => {
-              // Make sure dates are properly handled
+              // Verificare și convertire date invalide
+              let createdAt = course.createdAt;
+              let expiresAt = course.expiresAt;
+              
+              // Asigură-te că createdAt este un string ISO valid
+              try {
+                if (!createdAt || new Date(createdAt).toString() === 'Invalid Date') {
+                  createdAt = new Date().toISOString();
+                } else if (typeof createdAt !== 'string') {
+                  createdAt = new Date(createdAt).toISOString();
+                }
+              } catch (e) {
+                console.warn("useUserRefresh: createdAt invalid, resetare:", course.id);
+                createdAt = new Date().toISOString();
+              }
+              
+              // Asigură-te că expiresAt este un string ISO valid
+              try {
+                if (!expiresAt || new Date(expiresAt).toString() === 'Invalid Date') {
+                  expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                } else if (typeof expiresAt !== 'string') {
+                  expiresAt = new Date(expiresAt).toISOString();
+                }
+              } catch (e) {
+                console.warn("useUserRefresh: expiresAt invalid, resetare:", course.id);
+                expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+              }
+              
+              // Cursa normalizat
               const normalizedCourse = {
                 ...course,
-                // If createdAt is already an ISO string, keep it; otherwise convert it
-                createdAt: typeof course.createdAt === 'string' ? course.createdAt : new Date().toISOString(),
-                // If expiresAt is already an ISO string, keep it; otherwise compute a new expiry date
-                expiresAt: typeof course.expiresAt === 'string' ? course.expiresAt : 
-                  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                // Ensure sections are preserved
+                id: course.id || `course-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                createdAt: createdAt,
+                expiresAt: expiresAt,
                 sections: course.sections || [],
-                // Ensure status is set
                 status: course.status || 'completed',
+                jobId: course.jobId || course.id
               };
               
               return normalizedCourse;
             });
             
-            console.log("useUserRefresh: Normalized courses with proper dates:", generatedCourses.length);
+            // Filtrare cursuri corupte
+            generatedCourses = generatedCourses.filter(course => 
+              course && course.formData && course.formData.subject && 
+              course.sections && Array.isArray(course.sections));
+            
+            console.log("useUserRefresh: Cursuri normalizate cu date corecte:", generatedCourses.length);
           }
         } catch (e) {
-          console.error("useUserRefresh: Error parsing stored user data:", e);
+          console.error("useUserRefresh: Eroare parsare date utilizator stocate:", e);
           generatedCourses = [];
         }
       }
       
-      // Build the updated user object with proper date handling
+      // Construire obiect utilizator actualizat cu gestionare adecvată a datelor
       const updatedUser = {
         id: sessionData.session.user.id,
         email: subscriberData.email || sessionData.session.user.email,
@@ -85,23 +116,31 @@ export const useUserRefresh = () => {
         lastGenerationDate: subscriberData.last_generation_date || null
       };
       
-      // Log the courses before storing
-      console.log("useUserRefresh: Generated courses before storing:", 
-        generatedCourses.map(c => ({ id: c.id, subject: c.formData?.subject, status: c.status })));
+      // Log cursurile înainte de stocare
+      console.log("useUserRefresh: Cursuri generate înainte de stocare:", 
+        generatedCourses.map(c => ({ 
+          id: c.id, 
+          subject: c.formData?.subject, 
+          status: c.status,
+          secțiuni: c.sections?.length || 0
+        })));
       
-      // Update localStorage with consistent date format
+      // Actualizare localStorage cu format dată consistent
       localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
       
-      console.log("useUserRefresh: User data updated and stored:", {
+      console.log("useUserRefresh: Date utilizator actualizate și stocate:", {
         id: updatedUser.id,
         email: updatedUser.email,
         coursesCount: updatedUser.generatedCourses.length,
         subscription: updatedUser.subscription
       });
       
+      // Declanșare eveniment pentru informarea tuturor componentelor despre actualizarea datelor
+      window.dispatchEvent(new Event('user-refreshed'));
+      
       return true;
     } catch (error) {
-      console.error("useUserRefresh: Error refreshing user data:", error);
+      console.error("useUserRefresh: Eroare reîmprospătare date utilizator:", error);
       return false;
     } finally {
       setIsRefreshing(false);

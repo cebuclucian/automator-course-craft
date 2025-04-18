@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
@@ -15,49 +15,68 @@ const MaterialsPage = () => {
   const { user, refreshUser } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0); // Pentru forțarea rerendering
   
-  // Refresh user data when the page loads to ensure we have the latest generated materials
-  useEffect(() => {
-    console.log("MaterialsPage - Initial user data:", user);
-    
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-        console.log("MaterialsPage - Refreshing user data...");
+  // Reîmprospătare date utilizator când pagina se încarcă pentru a ne asigura că avem cele mai recente materiale generate
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      console.log("MaterialsPage - Reîmprospătare date utilizator...");
+      
+      if (refreshUser) {
+        const success = await refreshUser();
+        console.log("MaterialsPage - Succes reîmprospătare date utilizator:", success);
         
-        if (refreshUser) {
-          const success = await refreshUser();
-          console.log("MaterialsPage - User data refresh success:", success);
-          
-          if (!success) {
-            toast({
-              title: language === 'ro' ? 'Eroare' : 'Error',
-              description: language === 'ro' 
-                ? 'Nu am putut încărca datele actualizate. Încercați din nou.'
-                : 'Could not load updated data. Please try again.',
-              variant: 'destructive',
-            });
-          } else {
-            console.log("MaterialsPage - User data after refresh:", user);
-            console.log("MaterialsPage - Generated courses count:", user?.generatedCourses?.length || 0);
-          }
+        if (!success) {
+          toast({
+            title: language === 'ro' ? 'Eroare' : 'Error',
+            description: language === 'ro' 
+              ? 'Nu am putut încărca datele actualizate. Încercați din nou.'
+              : 'Could not load updated data. Please try again.',
+            variant: 'destructive',
+          });
+        } else {
+          console.log("MaterialsPage - Date utilizator după reîmprospătare:", user);
+          console.log("MaterialsPage - Număr cursuri generate:", user?.generatedCourses?.length || 0);
         }
-      } catch (error) {
-        console.error("MaterialsPage - Error refreshing data:", error);
-        toast({
-          title: language === 'ro' ? 'Eroare' : 'Error',
-          description: language === 'ro'
-            ? 'A apărut o eroare la încărcarea materialelor.'
-            : 'An error occurred while loading materials.',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
       }
+    } catch (error) {
+      console.error("MaterialsPage - Eroare reîmprospătare date:", error);
+      toast({
+        title: language === 'ro' ? 'Eroare' : 'Error',
+        description: language === 'ro'
+          ? 'A apărut o eroare la încărcarea materialelor.'
+          : 'An error occurred while loading materials.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [refreshUser, toast, language, user?.id]);
+  
+  useEffect(() => {
+    console.log("MaterialsPage - Date inițiale utilizator:", user);
+    loadData();
+    
+    // Ascultare pentru evenimente de reîmprospătare a utilizatorului
+    const handleUserRefreshed = () => {
+      console.log("MaterialsPage - Eveniment reîmprospătare utilizator primit");
+      setRefreshKey(prev => prev + 1); // Forțare rerendering
     };
     
-    loadData();
-  }, [refreshUser, toast, language, user?.id]);
+    window.addEventListener('user-refreshed', handleUserRefreshed);
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'automatorUser') {
+        console.log("MaterialsPage - Eveniment storage detectat pentru automatorUser");
+        setRefreshKey(prev => prev + 1);
+      }
+    });
+    
+    return () => {
+      window.removeEventListener('user-refreshed', handleUserRefreshed);
+      window.removeEventListener('storage', handleUserRefreshed);
+    };
+  }, [loadData]);
   
   const handleRefresh = async () => {
     setIsLoading(true);
@@ -71,6 +90,7 @@ const MaterialsPage = () => {
               ? 'Materialele au fost reîmprospătate cu succes.'
               : 'Materials refreshed successfully.',
           });
+          setRefreshKey(prev => prev + 1); // Forțare rerendering
         } else {
           toast({
             title: language === 'ro' ? 'Eroare' : 'Error',
@@ -82,7 +102,7 @@ const MaterialsPage = () => {
         }
       }
     } catch (error) {
-      console.error("Error during refresh:", error);
+      console.error("Eroare în timpul reîmprospătării:", error);
       toast({
         title: language === 'ro' ? 'Eroare' : 'Error',
         description: language === 'ro' 
@@ -95,23 +115,23 @@ const MaterialsPage = () => {
     }
   };
   
-  // Debug info about courses
+  // Informații debug despre cursuri
   useEffect(() => {
     if (user?.generatedCourses?.length) {
-      console.log("MaterialsPage - Found courses:", user.generatedCourses.length);
+      console.log("MaterialsPage - Cursuri găsite:", user.generatedCourses.length);
       user.generatedCourses.forEach((course, index) => {
-        console.log(`MaterialsPage - Course ${index + 1}:`, {
+        console.log(`MaterialsPage - Curs ${index + 1}:`, {
           id: course.id,
           subject: course.formData?.subject,
           status: course.status,
           createdAt: course.createdAt,
-          sectionsCount: course.sections?.length
+          secțiuniCount: course.sections?.length
         });
       });
     } else {
-      console.log("MaterialsPage - No courses found for user");
+      console.log("MaterialsPage - Niciun curs găsit pentru utilizator");
     }
-  }, [user?.generatedCourses]);
+  }, [user?.generatedCourses, refreshKey]); // refreshKey forțează reexecutarea acestui efect
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -139,7 +159,7 @@ const MaterialsPage = () => {
           <Skeleton className="h-32 w-full" />
         </div>
       ) : (
-        <GeneratedMaterialList />
+        <GeneratedMaterialList key={refreshKey} />
       )}
     </div>
   );
