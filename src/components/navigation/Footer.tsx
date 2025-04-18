@@ -1,13 +1,11 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-
 const Footer = () => {
-  const { language } = useLanguage();
-
-  return (
-    <footer className="bg-gray-100 dark:bg-gray-900 py-8">
+  const {
+    language
+  } = useLanguage();
+  return <footer className="py-8 bg-gray-950">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-4">
@@ -39,8 +37,6 @@ const Footer = () => {
           </div>
         </div>
       </div>
-    </footer>
-  );
+    </footer>;
 };
-
 export default Footer;
