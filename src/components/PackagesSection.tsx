@@ -159,7 +159,7 @@ const PackagesSection = () => {
       setProcessingPackage('');
     }
   };
-  return <section id="packages" className="py-16 bg-gray-700">
+  return <section id="packages" className="py-16 bg-gray-50">
       <div className="container mx-auto px-4">
         <h2 className="text-3xl font-bold text-center mb-12">{language === 'ro' ? 'Alege pachetul potrivit pentru tine' : 'Choose the right package for you'}</h2>
         
