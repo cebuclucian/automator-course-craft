@@ -26,12 +26,12 @@ export const useAuthMethods = ({ setUser, setIsLoading, setError }: AuthMethodsP
       console.log("Login successful, user data:", data.user);
       
       // After successful login, update local storage and user state
-      const userData = {
+      const userData: User = {
         id: data.user.id,
-        email: data.user.email,
-        name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
+        email: data.user.email || '',
+        name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || '',
         subscription: {
-          tier: 'Free',
+          tier: 'Free', // Explicitly using literal type 'Free', not a generic string
           expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
           active: true
         },
