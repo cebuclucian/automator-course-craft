@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
+import GeneratedMaterialsTab from './account/GeneratedMaterialsTab';
 
 const AccountDashboard = () => {
   const { user } = useAuth();
@@ -53,22 +54,7 @@ const AccountDashboard = () => {
         </div>
 
         <div className="flex-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Materiale generate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <Link to="/generate">
-                  <Button>Generează curs nou</Button>
-                </Link>
-              </div>
-
-              {(!user?.generatedCourses || user.generatedCourses.length === 0) && (
-                <p className="text-muted-foreground">Nu aveți materiale generate încă.</p>
-              )}
-            </CardContent>
-          </Card>
+          <GeneratedMaterialsTab />
         </div>
       </div>
     </div>

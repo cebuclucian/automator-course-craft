@@ -3,42 +3,6 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GeneratedCourse } from '@/types';
 
-// Simulate data for testing - decomment if you want to inject mock data
-/*
-const MOCK_COURSES: GeneratedCourse[] = [
-  {
-    id: '123',
-    createdAt: new Date(),
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    formData: {
-      language: 'română',
-      context: 'Corporativ',
-      subject: 'Management Agile',
-      level: 'Intermediar',
-      audience: 'Profesioniști',
-      duration: '1 zi',
-      tone: 'Profesional'
-    },
-    sections: [
-      {
-        title: 'Plan de lecție',
-        content: 'Conținut plan de lecție...',
-        categories: [],
-        type: 'lesson-plan'
-      },
-      {
-        title: 'Slides',
-        content: 'Conținut slides...',
-        categories: [],
-        type: 'slides'
-      }
-    ],
-    previewMode: false,
-    status: 'completed'
-  }
-];
-*/
-
 export const useUserRefresh = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -85,9 +49,6 @@ export const useUserRefresh = () => {
         }
       }
       
-      // Uncomment this line to inject mock data for testing
-      // if (generatedCourses.length === 0) generatedCourses = MOCK_COURSES;
-      
       // Build the updated user object
       const updatedUser = {
         id: sessionData.session.user.id,
@@ -100,7 +61,8 @@ export const useUserRefresh = () => {
         },
         generationsLeft: subscriberData.generations_left || 0,
         generatedCourses: generatedCourses,
-        googleAuth: sessionData.session.user.app_metadata?.provider === 'google'
+        googleAuth: sessionData.session.user.app_metadata?.provider === 'google',
+        lastGenerationDate: subscriberData.last_generation_date || null
       };
       
       // Update localStorage
