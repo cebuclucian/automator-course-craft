@@ -13,6 +13,19 @@ interface AuthMethodsProps {
 export const useAuthMethods = ({ setUser, setIsLoading, setError }: AuthMethodsProps) => {
   const { toast } = useToast();
 
+  const getInitialGenerationsCount = (tier: 'Free' | 'Basic' | 'Pro' | 'Enterprise'): number => {
+    switch (tier) {
+      case 'Basic':
+        return 3;
+      case 'Pro':
+        return 10;
+      case 'Enterprise':
+        return 30;
+      default: // Free tier
+        return 1;
+    }
+  };
+
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
@@ -25,18 +38,23 @@ export const useAuthMethods = ({ setUser, setIsLoading, setError }: AuthMethodsP
 
       console.log("Login successful, user data:", data.user);
       
-      // After successful login, update local storage and user state
+      // Calculate subscription expiry date (1 month from now)
+      const expiryDate = new Date();
+      expiryDate.setMonth(expiryDate.getMonth() + 1);
+      
+      // Create user data with correct subscription tier type
       const userData: User = {
         id: data.user.id,
         email: data.user.email || '',
         name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || '',
         subscription: {
-          tier: 'Free', // Explicitly using literal type 'Free', not a generic string
-          expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+          tier: 'Free' as const, // Explicitly typed as literal
+          expiresAt: expiryDate,
           active: true
         },
-        generationsLeft: 0,
-        generatedCourses: []
+        generationsLeft: getInitialGenerationsCount('Free'),
+        generatedCourses: [],
+        lastGenerationDate: new Date() // Track when they last generated content
       };
       
       // Update localStorage with user data

@@ -8,7 +8,8 @@ export interface User {
   subscription?: Subscription;
   generationsLeft?: number;
   generatedCourses?: GeneratedCourse[];
-  googleAuth?: boolean; // Added the googleAuth property
+  lastGenerationDate?: Date;
+  googleAuth?: boolean;
 }
 
 export interface Subscription {
