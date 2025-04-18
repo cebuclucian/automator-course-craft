@@ -41,7 +41,7 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     
     console.log("Calling Supabase Edge Function: generate-course");
     
-    // Remove the abortSignal property as it's not supported in FunctionInvokeOptions
+    // Call the edge function with more detailed logging
     const result = await supabase.functions.invoke('generate-course', {
       body: { 
         formData,
@@ -89,17 +89,19 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
         const user = JSON.parse(automatorUser);
         const generatedCourses = user.generatedCourses || [];
         
-        // Create a new course object
+        // Create a new course object with better date handling
         const newCourse = {
           id: jobId,
-          createdAt: new Date(),
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+          createdAt: new Date().toISOString(), // Store as ISO string for consistency
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
           formData,
           sections: resultData.sections || [],
           previewMode: formData.generationType === 'Preview',
           status: responseData.data.status || 'processing',
           jobId
         };
+        
+        console.log("New course object being added to localStorage:", newCourse);
         
         // Add the new course to the user's courses
         user.generatedCourses = [newCourse, ...generatedCourses];
@@ -131,7 +133,7 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
   try {
     console.log("Checking status for job:", jobId);
     
-    // Remove the abortSignal property as it's not supported in FunctionInvokeOptions
+    // Call edge function to check status with improved error handling
     const result = await supabase.functions.invoke('generate-course', {
       body: { 
         action: 'status',
@@ -139,7 +141,7 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
       }
     });
     
-    console.log("Status check response:", result);
+    console.log("Status check full response:", JSON.stringify(result, null, 2));
     
     if (result && typeof result === 'object' && 'error' in result && result.error) {
       console.error("Error checking job status:", result.error);
@@ -154,9 +156,45 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
     }
     
     // Log additional details about the response
-    console.log("Job status:", responseData.data.status);
+    console.log("Job status from API:", responseData.data.status);
+    console.log("Job data:", responseData.data.data ? "Present" : "Missing");
+    
     if (responseData.data.message) {
       console.log("Job message:", responseData.data.message);
+    }
+    
+    // Check if status is completed and update localStorage
+    if (responseData.data.status === 'completed') {
+      console.log("Job completed, updating localStorage with final data");
+      
+      const automatorUser = localStorage.getItem('automatorUser');
+      if (automatorUser) {
+        try {
+          const user = JSON.parse(automatorUser);
+          const generatedCourses = user.generatedCourses || [];
+          
+          // Find the course with matching jobId
+          const updatedCourses = generatedCourses.map(course => {
+            if (course.jobId === jobId) {
+              console.log("Found course to update in localStorage:", course.id);
+              return {
+                ...course,
+                status: 'completed',
+                sections: responseData.data.data?.sections || course.sections,
+                completedAt: new Date().toISOString()
+              };
+            }
+            return course;
+          });
+          
+          // Update user data in localStorage
+          user.generatedCourses = updatedCourses;
+          localStorage.setItem('automatorUser', JSON.stringify(user));
+          console.log("Updated course status in localStorage to completed");
+        } catch (error) {
+          console.error("Error updating course status in localStorage:", error);
+        }
+      }
     }
     
     // Validate data if completed
@@ -164,7 +202,7 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
         responseData.data.data && 
         (!responseData.data.data.sections || responseData.data.data.sections.length === 0)) {
       console.warn("Job returned empty or invalid data structure:", responseData.data.data);
-      // Asigurăm-ne că există cel puțin secțiunile de bază, chiar dacă sunt goale
+      // Ensure basic section structure even if data is missing
       if (responseData.data.data) {
         responseData.data.data.sections = responseData.data.data.sections || [
           { title: 'Plan de lecție', content: 'Conținut indisponibil', categories: [], type: 'lesson-plan' },

@@ -19,6 +19,8 @@ const GeneratedMaterialsTab = () => {
   const [processingCourses, setProcessingCourses] = useState<Record<string, boolean>>({});
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState<boolean>(false);
+  const [pollingIntervals, setPollingIntervals] = useState<Record<string, number>>({});
+  const [hasCheckedStatuses, setHasCheckedStatuses] = useState<boolean>(false);
   
   // Add more debug logging to trace the user object and its courses
   useEffect(() => {
@@ -40,36 +42,48 @@ const GeneratedMaterialsTab = () => {
   
   // Effect to check processing courses and update their status
   useEffect(() => {
-    if (!user?.generatedCourses?.length) return;
+    if (!user?.generatedCourses?.length || hasCheckedStatuses) return;
     
-    const processingCoursesFound: Record<string, boolean> = {};
-    const progressMap: Record<string, number> = {};
+    console.log("GeneratedMaterialsTab - Checking for processing courses, count:", user.generatedCourses.length);
+    
+    const newProcessingCourses: Record<string, boolean> = {};
+    const newProgressMap: Record<string, number> = {};
+    const newIntervals: Record<string, number> = {};
+    
+    // Clear any existing intervals first
+    Object.values(pollingIntervals).forEach(interval => {
+      clearInterval(interval);
+    });
     
     user.generatedCourses.forEach(course => {
       if (course.status === 'processing' && course.jobId) {
-        processingCoursesFound[course.id] = true;
-        progressMap[course.id] = 10;
-      }
-    });
-    
-    setProcessingCourses(processingCoursesFound);
-    setProgress(progressMap);
-    
-    if (Object.keys(processingCoursesFound).length > 0) {
-      const checkStatuses = async () => {
-        for (const courseId in processingCoursesFound) {
-          const course = user.generatedCourses?.find(c => c.id === courseId);
-          if (course?.jobId) {
-            try {
-              const statusResult = await checkCourseGenerationStatus(course.jobId);
-              console.log('Status result for course:', courseId, statusResult);
+        console.log(`Course ${course.id} is still processing, setting up polling`);
+        newProcessingCourses[course.id] = true;
+        newProgressMap[course.id] = 10;
+        
+        // Set up polling for this course 
+        const checkStatusForCourse = async () => {
+          try {
+            console.log(`Checking status for course ${course.id} with jobId ${course.jobId}`);
+            const statusResult = await checkCourseGenerationStatus(course.jobId);
+            console.log(`Status check for ${course.id} returned:`, statusResult);
+            
+            if (statusResult.status === 'completed') {
+              console.log(`Course ${course.id} generation completed`);
+              newProcessingCourses[course.id] = false;
+              newProgressMap[course.id] = 100;
               
-              if (statusResult.status === 'completed') {
-                processingCoursesFound[courseId] = false;
-                progressMap[courseId] = 100;
-                
-                const updatedCourses = user.generatedCourses?.map(c => {
-                  if (c.id === courseId) {
+              // Clear this interval
+              if (newIntervals[course.id]) {
+                console.log(`Clearing interval for course ${course.id}`);
+                clearInterval(newIntervals[course.id]);
+                delete newIntervals[course.id];
+              }
+              
+              // Update user data with completed course
+              if (user.generatedCourses) {
+                const updatedCourses = user.generatedCourses.map(c => {
+                  if (c.id === course.id) {
                     return {
                       ...c,
                       status: 'completed',
@@ -84,8 +98,11 @@ const GeneratedMaterialsTab = () => {
                   generatedCourses: updatedCourses
                 };
                 
+                // Update localStorage
                 localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
+                console.log(`Updated localStorage with completed course ${course.id}`);
                 
+                // Notify the user
                 toast({
                   title: language === 'ro' ? 'Material finalizat!' : 'Material completed!',
                   description: language === 'ro'
@@ -93,38 +110,76 @@ const GeneratedMaterialsTab = () => {
                     : `The material "${course.formData.subject}" has been successfully generated.`,
                 });
                 
-                await refreshUser();
-              } else if (statusResult.status === 'processing') {
-                progressMap[courseId] = Math.min(90, progressMap[courseId] + 10);
-              } else if (statusResult.status === 'error') {
-                processingCoursesFound[courseId] = false;
-                progressMap[courseId] = 100;
-                
-                toast({
-                  variant: 'destructive',
-                  title: language === 'ro' ? 'Eroare' : 'Error',
-                  description: language === 'ro'
-                    ? `A apărut o eroare la generarea materialului: ${statusResult.error || 'Eroare necunoscută'}`
-                    : `An error occurred while generating the material: ${statusResult.error || 'Unknown error'}`
-                });
+                // Refresh user data 
+                refreshUser();
               }
-            } catch (error) {
-              console.error('Error checking course status:', error);
+              
+              setProcessingCourses(prev => {
+                const updated = {...prev};
+                delete updated[course.id];
+                return updated;
+              });
+              
+            } else if (statusResult.status === 'processing') {
+              console.log(`Course ${course.id} still processing, updating progress`);
+              newProgressMap[course.id] = Math.min(95, (newProgressMap[course.id] || 0) + 5);
+              setProgress(prev => ({
+                ...prev,
+                [course.id]: Math.min(95, (prev[course.id] || 0) + 5)
+              }));
+            } else if (statusResult.status === 'error') {
+              console.error(`Course ${course.id} generation error:`, statusResult.error);
+              newProcessingCourses[course.id] = false;
+              
+              // Clear this interval
+              if (newIntervals[course.id]) {
+                clearInterval(newIntervals[course.id]);
+                delete newIntervals[course.id];
+              }
+              
+              // Notify the user
+              toast({
+                variant: 'destructive',
+                title: language === 'ro' ? 'Eroare' : 'Error',
+                description: language === 'ro'
+                  ? `A apărut o eroare la generarea materialului: ${statusResult.error || 'Eroare necunoscută'}`
+                  : `An error occurred while generating the material: ${statusResult.error || 'Unknown error'}`
+              });
+              
+              setProcessingCourses(prev => {
+                const updated = {...prev};
+                delete updated[course.id];
+                return updated;
+              });
             }
+          } catch (error) {
+            console.error(`Error checking status for course ${course.id}:`, error);
           }
-        }
+        };
         
-        setProcessingCourses({...processingCoursesFound});
-        setProgress({...progressMap});
-      };
-      
-      checkStatuses();
-      
-      const intervalId = setInterval(checkStatuses, 10000);
-      
-      return () => clearInterval(intervalId);
-    }
-  }, [user?.generatedCourses, refreshUser, toast, language]);
+        // Run once immediately
+        checkStatusForCourse();
+        
+        // Set up interval to check every 10 seconds - store the interval ID
+        const intervalId = window.setInterval(checkStatusForCourse, 10000);
+        newIntervals[course.id] = intervalId;
+      }
+    });
+    
+    // Update state
+    setProcessingCourses(newProcessingCourses);
+    setProgress(newProgressMap);
+    setPollingIntervals(newIntervals);
+    setHasCheckedStatuses(true);
+    
+    // Clean up intervals on unmount
+    return () => {
+      console.log("GeneratedMaterialsTab - Cleaning up polling intervals");
+      Object.values(newIntervals).forEach(interval => {
+        clearInterval(interval);
+      });
+    };
+  }, [user?.generatedCourses, refreshUser, toast, language, hasCheckedStatuses, pollingIntervals]);
 
   // Handle case when no user is found
   if (!user) {
@@ -147,6 +202,14 @@ const GeneratedMaterialsTab = () => {
   // Function to refresh the materials manually
   const handleRefreshMaterials = async () => {
     setLoading(true);
+    setHasCheckedStatuses(false);
+    
+    // Clean up any existing intervals
+    Object.values(pollingIntervals).forEach(interval => {
+      clearInterval(interval);
+    });
+    setPollingIntervals({});
+    
     await refreshUser();
     setLoading(false);
   };
@@ -158,6 +221,7 @@ const GeneratedMaterialsTab = () => {
   console.log("- Subscription tier:", user.subscription?.tier);
   console.log("- Generations left:", user.generationsLeft);
   console.log("- Generated courses count:", user.generatedCourses?.length || 0);
+  console.log("- Processing courses:", Object.keys(processingCourses).length);
 
   return (
     <Card className="w-full">
@@ -176,10 +240,7 @@ const GeneratedMaterialsTab = () => {
       <CardContent>
         <div className="mb-6">
           <Link to="/generate">
-            <Button 
-              onClick={() => setLoading(true)} 
-              disabled={loading}
-            >
+            <Button>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -212,7 +273,7 @@ const GeneratedMaterialsTab = () => {
                   <div>
                     <h3 className="text-lg font-medium">{course.formData.subject}</h3>
                     <p className="text-xs text-gray-400 mt-1">
-                      {new Date(course.createdAt).toLocaleDateString()}
+                      {course.createdAt ? new Date(course.createdAt).toLocaleDateString() : 'Data necunoscută'}
                     </p>
                   </div>
                   
