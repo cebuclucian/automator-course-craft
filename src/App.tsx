@@ -22,6 +22,7 @@ import {
 import AccountPage from "@/pages/AccountPage"
 import GeneratePage from "@/pages/GeneratePage"
 import MaterialDetailPage from "@/pages/MaterialDetailPage"
+import MaterialsPage from "@/pages/MaterialsPage"
 
 import Layout from "@/components/Layout"
 import { AuthProvider } from "@/contexts/AuthContext"
@@ -50,6 +51,7 @@ function AppContent() {
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/account" element={<AccountPage />} />
               <Route path="/account/materials/:id" element={<MaterialDetailPage />} />
+              <Route path="/account/materials" element={<MaterialsPage />} />
               <Route path="/generate" element={<GeneratePage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

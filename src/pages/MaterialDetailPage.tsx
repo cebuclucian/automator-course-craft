@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -115,8 +114,8 @@ const MaterialDetailPage = () => {
         : 'Content for this material is not available.';
     }
     
-    // Use optional chaining and nullish coalescing to safely access the 'type' property
-    const section = material.sections.find(s => s && (s as any).type === materialType);
+    // Safely access the type property with optional chaining
+    const section = material.sections.find(s => s && s.type === materialType);
     return section?.content || (
       language === 'ro' 
         ? 'Conținutul pentru acest material nu este disponibil.'

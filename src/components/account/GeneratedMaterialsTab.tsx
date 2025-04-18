@@ -5,25 +5,21 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Eye, FileText, Download, Printer } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { checkCourseGenerationStatus } from '@/services/courseGeneration';
 import { GeneratedCourse } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
 
 const GeneratedMaterialsTab = () => {
   const { user, refreshUser } = useAuth();
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const { toast } = useToast();
   const [processingCourses, setProcessingCourses] = useState<Record<string, boolean>>({});
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState<boolean>(false);
   
-  // Nou: starea pentru materialele per curs
-  const [courseMaterials, setCourseMaterials] = useState<Record<string, any>>({});
-
   useEffect(() => {
     if (!user?.generatedCourses?.length) return;
     
@@ -52,14 +48,6 @@ const GeneratedMaterialsTab = () => {
               if (statusResult.status === 'completed') {
                 processingCoursesFound[courseId] = false;
                 progressMap[courseId] = 100;
-                
-                // Salvăm materialele generate
-                if (statusResult.data && statusResult.data.sections) {
-                  setCourseMaterials(prev => ({
-                    ...prev,
-                    [courseId]: statusResult.data
-                  }));
-                }
                 
                 const updatedCourses = user.generatedCourses?.map(c => {
                   if (c.id === courseId) {
@@ -119,27 +107,6 @@ const GeneratedMaterialsTab = () => {
     }
   }, [user?.generatedCourses, refreshUser, toast, language]);
 
-  // Funcții pentru acțiuni pe materiale
-  const handleDownload = (course) => {
-    console.log('Downloading material:', course.id);
-    toast({
-      title: language === 'ro' ? 'Descărcare inițiată' : 'Download started',
-      description: language === 'ro' 
-        ? 'Materialul se descarcă...' 
-        : 'Material is downloading...'
-    });
-  };
-
-  const handlePrint = (course) => {
-    console.log('Printing material:', course.id);
-    toast({
-      title: language === 'ro' ? 'Pregătire printare' : 'Preparing to print',
-      description: language === 'ro' 
-        ? 'Se pregătește materialul pentru printare...' 
-        : 'Preparing material for printing...'
-    });
-  };
-
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -148,6 +115,9 @@ const GeneratedMaterialsTab = () => {
     setLoading(true);
     setTimeout(() => setLoading(false), 1000);
   };
+
+  // Debug information
+  console.log("User generated courses:", user.generatedCourses);
 
   return (
     <Card className="w-full">
@@ -181,77 +151,53 @@ const GeneratedMaterialsTab = () => {
           </Alert>
         ) : (
           <div className="space-y-4">
-            {user.generatedCourses.map((course: GeneratedCourse) => (
+            <Link to="/account/materials" className="block w-full">
+              <Button variant="secondary" className="w-full mb-4">
+                {language === 'ro' ? 'Vezi toate materialele' : 'View all materials'}
+              </Button>
+            </Link>
+            
+            {user.generatedCourses.slice(0, 3).map((course: GeneratedCourse) => (
               <Card key={course.id} className="p-4">
-                <div className="flex flex-col space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-medium">{course.formData.subject}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline">{course.formData.level}</Badge>
-                        <Badge variant="outline">{course.formData.audience}</Badge>
-                        <Badge>{course.formData.duration}</Badge>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {new Date(course.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    
-                    {processingCourses[course.id] ? (
-                      <div className="w-52">
-                        <p className="text-sm mb-1">
-                          {language === 'ro' ? 'Generare în curs...' : 'Generation in progress...'}
-                        </p>
-                        <Progress value={progress[course.id] || 0} className="h-2" />
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <Link to={`/account/materials/${course.id}`}>
-                          <Button variant="outline" size="sm">
-                            <Eye className="h-4 w-4 mr-1" />
-                            {language === 'ro' ? 'Vizualizează' : 'View'}
-                          </Button>
-                        </Link>
-                        <Button variant="outline" size="sm" onClick={() => handleDownload(course)}>
-                          <Download className="h-4 w-4 mr-1" />
-                          {language === 'ro' ? 'Descarcă' : 'Download'}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handlePrint(course)}>
-                          <Printer className="h-4 w-4 mr-1" />
-                          {language === 'ro' ? 'Printează' : 'Print'}
-                        </Button>
-                      </div>
-                    )}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-medium">{course.formData.subject}</h3>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(course.createdAt).toLocaleDateString()}
+                    </p>
                   </div>
-
-                  {!processingCourses[course.id] && course.sections && course.sections.length > 0 && (
-                    <div className="mt-2 pt-2 border-t">
-                      <h4 className="text-sm font-medium mb-2">
-                        {language === 'ro' ? 'Materiale disponibile:' : 'Available materials:'}
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
-                          <FileText className="h-3 w-3 mr-1" /> 
-                          {language === 'ro' ? 'Plan de lecție' : 'Lesson plan'}
-                        </Badge>
-                        <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
-                          <FileText className="h-3 w-3 mr-1" /> 
-                          {language === 'ro' ? 'Slide-uri prezentare' : 'Presentation slides'}
-                        </Badge>
-                        <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
-                          <FileText className="h-3 w-3 mr-1" /> 
-                          {language === 'ro' ? 'Note trainer' : 'Trainer notes'}
-                        </Badge>
-                        <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
-                          <FileText className="h-3 w-3 mr-1" /> 
-                          {language === 'ro' ? 'Exerciții' : 'Exercises'}
-                        </Badge>
-                      </div>
+                  
+                  {processingCourses[course.id] ? (
+                    <div className="w-52">
+                      <p className="text-sm mb-1">
+                        {language === 'ro' ? 'Generare în curs...' : 'Generation in progress...'}
+                      </p>
+                      <Progress value={progress[course.id] || 0} className="h-2" />
+                    </div>
+                  ) : (
+                    <div>
+                      <Link to={`/account/materials/${course.id}`}>
+                        <Button variant="outline" size="sm">
+                          {language === 'ro' ? 'Vizualizează' : 'View'}
+                        </Button>
+                      </Link>
                     </div>
                   )}
                 </div>
               </Card>
             ))}
+            
+            {user.generatedCourses.length > 3 && (
+              <div className="text-center pt-2">
+                <Link to="/account/materials">
+                  <Button variant="link">
+                    {language === 'ro' 
+                      ? `+ ${user.generatedCourses.length - 3} mai multe materiale` 
+                      : `+ ${user.generatedCourses.length - 3} more materials`}
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
