@@ -11,14 +11,18 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import CourseGeneratorForm from './course-generator/CourseGeneratorForm';
 import CourseGeneratorAuth from './course-generator/CourseGeneratorAuth';
 import ToneExplanations from './ToneExplanations';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const CourseGenerator = () => {
   const { user } = useAuth();
-  const { profile } = useUserProfile();
+  const { profile, decrementGenerationsLeft, refreshProfile } = useUserProfile();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [showLongGenerationWarning, setShowLongGenerationWarning] = useState(false);
   const [formData, setFormData] = useState<CourseFormData>({
@@ -56,8 +60,13 @@ const CourseGenerator = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Reset any previous errors or success messages
+    setError(null);
+    setSuccess(null);
+    
     // Contul admin nu are restricții
     if (!isAdminUser && (!profile || profile.generationsLeft <= 0)) {
+      console.log("User has no generations left:", profile?.generationsLeft);
       toast({
         title: language === 'ro' ? 'Limită atinsă' : 'Limit reached',
         description: language === 'ro' 
@@ -79,11 +88,42 @@ const CourseGenerator = () => {
     setLoading(true);
     
     try {
+      console.log("Starting course generation with form data:", formData);
+      console.log("Generation type:", generationType);
+      
       const fullFormData = { ...formData, generationType };
       const generatedCourse = await generateCourse(fullFormData);
       
+      console.log("Course generation completed successfully:", generatedCourse);
+      
       if (generatedCourse) {
         const isProcessing = generatedCourse.status === 'processing';
+        
+        // Decrementăm doar dacă nu este admin
+        if (!isAdminUser) {
+          console.log("Decrementing generations left for non-admin user");
+          const decrementSuccess = await decrementGenerationsLeft(user.id);
+          
+          if (decrementSuccess) {
+            console.log("Successfully decremented generations count");
+            await refreshProfile();
+          } else {
+            console.warn("Failed to decrement generations count");
+          }
+        } else {
+          console.log("Admin user - skipping generation count decrement");
+        }
+        
+        // Afișăm un mesaj de succes în interfață
+        setSuccess(
+          language === 'ro' 
+            ? isProcessing 
+              ? 'Generarea a început și poate dura până la câteva minute. Veți fi redirecționat când se finalizează.'
+              : 'Material generat cu succes!'
+            : isProcessing
+              ? 'Generation has started and might take a few minutes. You will be redirected when it completes.'
+              : 'Material successfully generated!'
+        );
         
         toast({
           title: language === 'ro' 
@@ -98,10 +138,25 @@ const CourseGenerator = () => {
               : 'You can access the material from your account.',
         });
 
-        navigate('/account');
+        // Redirecționăm doar dacă generarea este completă și nu în procesare
+        if (!isProcessing) {
+          setTimeout(() => {
+            navigate('/account');
+          }, 2000); // Delay redirect by 2 seconds to show success message
+        } else {
+          // Pentru procesări în curs, vom adăuga logică pentru verificare periodică
+          console.log("Long-running job detected, will check status periodically");
+          // Status checking logic would be implemented here or in a useEffect
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in course generation:", error);
+      setError(error.message || "A apărut o eroare neașteptată în timpul generării materialelor");
+      toast({
+        title: language === 'ro' ? 'Eroare la generare' : 'Generation error',
+        description: error.message || "A apărut o eroare neașteptată",
+        variant: 'destructive'
+      });
     } finally {
       setLoading(false);
     }
@@ -115,6 +170,22 @@ const CourseGenerator = () => {
         </h1>
         <ToneExplanations />
       </div>
+      
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>{language === 'ro' ? 'Eroare' : 'Error'}</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
+      {success && (
+        <Alert variant="default" className="mb-6 bg-green-50 border-green-200 text-green-800">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertTitle>{language === 'ro' ? 'Succes' : 'Success'}</AlertTitle>
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
       
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
