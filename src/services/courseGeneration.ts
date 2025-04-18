@@ -41,13 +41,12 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     
     console.log("Calling Supabase Edge Function: generate-course");
     
+    // Remove the abortSignal property as it's not supported in FunctionInvokeOptions
     const result = await supabase.functions.invoke('generate-course', {
       body: { 
         formData,
         action: 'start' 
-      },
-      // Add a longer timeout to prevent client-side timeout issues
-      abortSignal: AbortSignal.timeout(60000), // 60 seconds
+      }
     });
     
     console.log("Edge function response received:", result);
@@ -89,13 +88,12 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
   try {
     console.log("Checking status for job:", jobId);
     
+    // Remove the abortSignal property as it's not supported in FunctionInvokeOptions
     const result = await supabase.functions.invoke('generate-course', {
       body: { 
         action: 'status',
         jobId 
-      },
-      // Add a longer timeout
-      abortSignal: AbortSignal.timeout(30000), // 30 seconds
+      }
     });
     
     console.log("Status check response:", result);
