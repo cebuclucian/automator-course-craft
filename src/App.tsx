@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter as Router,
   Routes,
@@ -23,10 +24,11 @@ import AccountPage from "@/pages/AccountPage"
 import GeneratePage from "@/pages/GeneratePage"
 import MaterialDetailPage from "@/pages/MaterialDetailPage"
 
-import { Layout } from "@/components/Layout"
+import Layout from "@/components/Layout"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { LanguageProvider } from "@/contexts/LanguageContext"
 import { UserProfileProvider } from "@/contexts/UserProfileContext"
+import { ThemeProvider } from "@/contexts/ThemeContext"
 
 const queryClient = new QueryClient()
 
@@ -37,31 +39,33 @@ function App() {
     <div className={theme === 'dark' ? 'dark' : 'light'}>
       <div className="min-h-screen bg-background text-foreground dark:bg-background dark:text-foreground">
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <LanguageProvider>
-              <UserProfileProvider>
-                <ScrollRestoration />
-                <Toaster />
-                <Router>
-                  <Layout>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/about" element={<AboutPage />} />
-                      <Route path="/how-it-works" element={<HowItWorksPage />} />
-                      <Route path="/packages" element={<PackagesPage />} />
-                      <Route path="/contact" element={<ContactPage />} />
-                      <Route path="/terms" element={<TermsPage />} />
-                      <Route path="/privacy" element={<PrivacyPage />} />
-                      <Route path="/account" element={<AccountPage />} />
-                      <Route path="/account/materials/:id" element={<MaterialDetailPage />} />
-                      <Route path="/generate" element={<GeneratePage />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </Layout>
-                </Router>
-              </UserProfileProvider>
-            </LanguageProvider>
-          </AuthProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <LanguageProvider>
+                <UserProfileProvider>
+                  <ScrollRestoration />
+                  <Toaster />
+                  <Router>
+                    <Layout>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/about" element={<AboutPage />} />
+                        <Route path="/how-it-works" element={<HowItWorksPage />} />
+                        <Route path="/packages" element={<PackagesPage />} />
+                        <Route path="/contact" element={<ContactPage />} />
+                        <Route path="/terms" element={<TermsPage />} />
+                        <Route path="/privacy" element={<PrivacyPage />} />
+                        <Route path="/account" element={<AccountPage />} />
+                        <Route path="/account/materials/:id" element={<MaterialDetailPage />} />
+                        <Route path="/generate" element={<GeneratePage />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </Layout>
+                  </Router>
+                </UserProfileProvider>
+              </LanguageProvider>
+            </AuthProvider>
+          </ThemeProvider>
         </QueryClientProvider>
       </div>
     </div>

@@ -115,7 +115,8 @@ const MaterialDetailPage = () => {
         : 'Content for this material is not available.';
     }
     
-    const section = material.sections.find(s => s.type === materialType);
+    // Use optional chaining and nullish coalescing to safely access the 'type' property
+    const section = material.sections.find(s => s && (s as any).type === materialType);
     return section?.content || (
       language === 'ro' 
         ? 'Conținutul pentru acest material nu este disponibil.'
