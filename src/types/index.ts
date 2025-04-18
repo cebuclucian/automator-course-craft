@@ -34,6 +34,7 @@ export interface CourseSection {
   title: string;
   content: string;
   categories: CourseCategory[];
+  type?: string; // Added type property as optional to maintain compatibility
 }
 
 export interface CourseCategory {
