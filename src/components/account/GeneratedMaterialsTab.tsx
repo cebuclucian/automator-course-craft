@@ -20,12 +20,25 @@ const GeneratedMaterialsTab = () => {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState<boolean>(false);
   
-  // Add more debug logging
+  // Add more debug logging to trace the user object and its courses
   useEffect(() => {
-    console.log("GeneratedMaterialsTab - Current user object:", user);
-    console.log("GeneratedMaterialsTab - Generated courses:", user?.generatedCourses);
+    if (user) {
+      console.log("GeneratedMaterialsTab - Current user object:", {
+        id: user.id,
+        email: user.email,
+        coursesCount: user.generatedCourses?.length || 0
+      });
+      
+      if (user.generatedCourses?.length) {
+        console.log("GeneratedMaterialsTab - First course:", 
+          user.generatedCourses[0].formData?.subject);
+      }
+    } else {
+      console.log("GeneratedMaterialsTab - No user data available");
+    }
   }, [user]);
   
+  // Effect to check processing courses and update their status
   useEffect(() => {
     if (!user?.generatedCourses?.length) return;
     
@@ -113,39 +126,58 @@ const GeneratedMaterialsTab = () => {
     }
   }, [user?.generatedCourses, refreshUser, toast, language]);
 
+  // Handle case when no user is found
   if (!user) {
-    console.log("GeneratedMaterialsTab - No user found");
-    return <div>Loading...</div>;
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>{language === 'ro' ? 'Materiale generate' : 'Generated materials'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertDescription>
+              {language === 'ro' ? 'Se încarcă...' : 'Loading...'}
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
   }
 
-  const handleGenerateClick = () => {
+  // Function to refresh the materials manually
+  const handleRefreshMaterials = async () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 1000);
+    await refreshUser();
+    setLoading(false);
   };
 
-  // Additional detailed debug information about user object
-  if (user) {
-    console.log("User details for debugging:");
-    console.log("- User ID:", user.id);
-    console.log("- Email:", user.email);
-    console.log("- Subscription tier:", user.subscription?.tier);
-    console.log("- Generations left:", user.generationsLeft);
-    console.log("- Generated courses count:", user.generatedCourses?.length || 0);
-    if (user.generatedCourses && user.generatedCourses.length > 0) {
-      console.log("- First course subject:", user.generatedCourses[0].formData?.subject);
-    }
-  }
+  // Debug information to help diagnose issues
+  console.log("User details for debugging:");
+  console.log("- User ID:", user.id);
+  console.log("- Email:", user.email);
+  console.log("- Subscription tier:", user.subscription?.tier);
+  console.log("- Generations left:", user.generationsLeft);
+  console.log("- Generated courses count:", user.generatedCourses?.length || 0);
 
   return (
     <Card className="w-full">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{language === 'ro' ? 'Materiale generate' : 'Generated materials'}</CardTitle>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleRefreshMaterials} 
+          disabled={loading}
+        >
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {language === 'ro' ? 'Reîmprospătează' : 'Refresh'}
+        </Button>
       </CardHeader>
       <CardContent>
         <div className="mb-6">
           <Link to="/generate">
             <Button 
-              onClick={handleGenerateClick} 
+              onClick={() => setLoading(true)} 
               disabled={loading}
             >
               {loading ? (

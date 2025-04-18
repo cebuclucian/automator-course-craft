@@ -1,31 +1,37 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import GeneratedMaterialList from '@/components/account/GeneratedMaterialList';
 import { useAuth } from '@/contexts/AuthContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const MaterialsPage = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const { user, refreshUser } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Refresh user data when the page loads
+  // Refresh user data when the page loads to ensure we have the latest generated materials
   useEffect(() => {
     console.log("MaterialsPage - Initial user data:", user);
     
     const loadData = async () => {
+      setIsLoading(true);
       console.log("MaterialsPage - Refreshing user data...");
       if (refreshUser) {
-        await refreshUser();
+        const success = await refreshUser();
+        console.log("MaterialsPage - User data refresh success:", success);
         console.log("MaterialsPage - User data after refresh:", user);
+        console.log("MaterialsPage - Generated courses count:", user?.generatedCourses?.length || 0);
       }
+      setIsLoading(false);
     };
     
     loadData();
-  }, [refreshUser, user]);
+  }, [refreshUser]);
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -39,7 +45,15 @@ const MaterialsPage = () => {
         </h1>
       </div>
       
-      <GeneratedMaterialList />
+      {isLoading ? (
+        <div className="space-y-4">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      ) : (
+        <GeneratedMaterialList />
+      )}
     </div>
   );
 };

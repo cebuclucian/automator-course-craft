@@ -23,16 +23,31 @@ const AccountPage = () => {
         // Fetch fresh user data when the account page loads
         const success = await refreshUser();
         console.log("User data refreshed on account page load, success:", success);
-        console.log("Current user data after refresh:", user);
         
-        // Debug the user's generated courses
-        if (user && user.generatedCourses) {
-          console.log("User has", user.generatedCourses.length, "generated courses");
-          if (user.generatedCourses.length > 0) {
-            console.log("First course subject:", user.generatedCourses[0].formData.subject);
+        if (user) {
+          // Log detailed information about user state
+          console.log("Current user data after refresh:", {
+            id: user.id,
+            email: user.email,
+            subscription: user.subscription,
+            generationsLeft: user.generationsLeft,
+            coursesCount: user.generatedCourses?.length || 0
+          });
+          
+          // Debug the user's generated courses
+          if (user.generatedCourses) {
+            console.log(`User has ${user.generatedCourses.length} generated courses`);
+            user.generatedCourses.forEach((course, index) => {
+              console.log(`Course ${index + 1}:`, {
+                id: course.id,
+                subject: course.formData?.subject,
+                createdAt: course.createdAt,
+                status: course.status
+              });
+            });
+          } else {
+            console.log("User has no generated courses or generatedCourses array is undefined");
           }
-        } else {
-          console.log("User has no generated courses or generatedCourses array is undefined");
         }
       } catch (error) {
         console.error("Error refreshing user data:", error);
@@ -58,7 +73,7 @@ const AccountPage = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [refreshUser, authLoading, toast]);
   
   if (authLoading || localLoading) {
     return (
