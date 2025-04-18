@@ -1,103 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-
-import UserInfoCard from './account/UserInfoCard';
-import GeneratedMaterialsTab from './account/GeneratedMaterialsTab';
-import SubscriptionTab from './account/SubscriptionTab';
-import SettingsTab from './account/SettingsTab';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Link } from 'react-router-dom';
 
 const AccountDashboard = () => {
-  const { user, refreshUser } = useAuth();
-  const { toast } = useToast();
-  const [isCreatingProSubscription, setIsCreatingProSubscription] = useState(false);
-  const [lastResponse, setLastResponse] = useState<any>(null);
-  const [showDialog, setShowDialog] = useState(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { user } = useAuth();
 
-  // Format date helper function
   const formatDate = (dateString: Date | string | undefined) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const isAdmin = user?.email === 'admin@automator.ro';
-
-  const createAdminProSubscription = async () => {
-    if (!isAdmin) return;
-    
-    setIsCreatingProSubscription(true);
-    try {
-      console.log("Calling create-admin-pro-subscription edge function...");
-      
-      const { data, error } = await supabase.functions.invoke('create-admin-pro-subscription', {
-        method: 'POST',
-      });
-
-      setLastResponse({ data, error });
-
-      if (error) {
-        throw new Error(`Eroare la crearea abonamentului: ${error.message}`);
-      }
-
-      console.log("Edge function response:", data);
-
-      toast({
-        title: "Abonament creat cu succes",
-        description: "Abonamentul Pro a fost creat pentru contul de administrator.",
-      });
-      
-      const { data: newStatus, error: statusError } = await supabase
-        .from('subscribers')
-        .select('*')
-        .eq('email', 'admin@automator.ro')
-        .single();
-      
-      setSubscriptionStatus({ data: newStatus, error: statusError });
-      setShowDialog(true);
-      
-    } catch (err) {
-      console.error('Error creating Pro subscription:', err);
-      toast({
-        title: "Eroare",
-        description: err instanceof Error ? err.message : "A apărut o eroare la crearea abonamentului Pro.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsCreatingProSubscription(false);
-    }
-  };
-
-  const handleRefreshUser = async () => {
-    setIsRefreshing(true);
-    try {
-      const success = await refreshUser();
-      
-      if (success) {
-        toast({
-          title: "Cont actualizat",
-          description: "Datele contului au fost actualizate cu succes."
-        });
-        setShowDialog(false);
-      } else {
-        throw new Error("Nu s-a putut actualiza datele contului.");
-      }
-    } catch (err) {
-      console.error('Error refreshing user:', err);
-      toast({
-        title: "Eroare",
-        description: "Nu s-a putut actualiza datele contului.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsRefreshing(false);
-    }
+    return new Date(dateString).toLocaleDateString('ro-RO');
   };
 
   return (
@@ -106,62 +20,57 @@ const AccountDashboard = () => {
       
       <div className="flex flex-col md:flex-row gap-8">
         <div className="w-full md:w-64">
-          <UserInfoCard 
-            user={user}
-            isAdmin={isAdmin}
-            isCreatingProSubscription={isCreatingProSubscription}
-            lastResponse={lastResponse}
-            subscriptionStatus={subscriptionStatus}
-            onCreateAdminProSubscription={createAdminProSubscription}
-            formatDate={formatDate}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Informații utilizator</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Nume</p>
+                <p className="font-medium">{user?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Email</p>
+                <p className="font-medium">{user?.email}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Tip abonament</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">{user?.subscription?.tier || 'Free'}</p>
+                  {user?.subscription?.active && (
+                    <Badge variant="outline" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100">
+                      Activ
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Expiră</p>
+                <p className="font-medium">{formatDate(user?.subscription?.expiresAt)}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="flex-1">
-          <Tabs defaultValue="generated">
-            <TabsList className="mb-4">
-              <TabsTrigger value="generated">Materiale generate</TabsTrigger>
-              <TabsTrigger value="subscription">Abonament</TabsTrigger>
-              <TabsTrigger value="settings">Setări</TabsTrigger>
-            </TabsList>
+          <Card>
+            <CardHeader>
+              <CardTitle>Materiale generate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <Link to="/generate">
+                  <Button>Generează curs nou</Button>
+                </Link>
+              </div>
 
-            <TabsContent value="generated">
-              <GeneratedMaterialsTab />
-            </TabsContent>
-
-            <TabsContent value="subscription">
-              <SubscriptionTab user={user} formatDate={formatDate} />
-            </TabsContent>
-
-            <TabsContent value="settings">
-              <SettingsTab />
-            </TabsContent>
-          </Tabs>
+              {(!user?.generatedCourses || user.generatedCourses.length === 0) && (
+                <p className="text-muted-foreground">Nu aveți materiale generate încă.</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
-      
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Status abonament actualizat</DialogTitle>
-            <DialogDescription>
-              Abonamentul a fost creat/actualizat în baza de date. Reîmprospătăm informațiile contului...
-            </DialogDescription>
-          </DialogHeader>
-          <div className="p-2 bg-muted text-xs rounded overflow-auto max-h-60">
-            <p>Date abonament:</p>
-            <pre>{JSON.stringify(subscriptionStatus, null, 2)}</pre>
-          </div>
-          <DialogFooter>
-            <Button 
-              onClick={handleRefreshUser}
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? "Se actualizează..." : "Reîmprospătează cont"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
