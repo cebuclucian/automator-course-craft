@@ -1,4 +1,3 @@
-
 import { CourseFormData } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -7,22 +6,24 @@ import { isAdminUser } from "./generationsService";
 
 export const generateCourse = async (formData: CourseFormData): Promise<any> => {
   try {
-    console.log("Generare curs cu datele:", formData);
+    console.log("CRITICAL: Începere funcție generateCourse cu datele:", JSON.stringify(formData));
     
     // Verificare autentificare utilizator
     const { data: userData } = await supabase.auth.getUser();
     if (!userData?.user) {
-      console.error("Eroare autentificare: Utilizator neautentificat");
+      console.error("CRITICAL: Eroare autentificare: Utilizator neautentificat");
       throw new Error("Utilizator neautentificat");
     }
     
+    console.log("CRITICAL: Autentificare utilizator verificată, ID:", userData.user.id);
+    
     // Verifică dacă utilizatorul este admin
     const isAdmin = await isAdminUser(userData.user.id);
-    console.log("Utilizator admin:", isAdmin);
+    console.log("CRITICAL: Utilizator admin:", isAdmin);
     
     // Verifică doar limitele de abonament pentru utilizatorii non-admin
     if (!isAdmin) {
-      console.log("Verificare detalii abonament pentru utilizator non-admin");
+      console.log("CRITICAL: Verificare detalii abonament pentru utilizator non-admin");
       const { data: subscriberData, error: subscriberError } = await supabase
         .from('subscribers')
         .select('*')
@@ -30,18 +31,31 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
         .single();
         
       if (subscriberError) {
-        console.error("Eroare verificare abonament:", subscriberError);
+        console.error("CRITICAL: Eroare verificare abonament:", subscriberError);
         throw new Error("Nu am putut verifica detaliile abonamentului.");
       }
 
-      console.log("Date abonat recuperate:", subscriberData);
+      console.log("CRITICAL: Date abonat recuperate:", subscriberData);
+      console.log("CRITICAL: Generații rămase:", subscriberData.generations_left);
+      
+      // Verificare explicită pentru generații rămase
+      if (subscriberData.generations_left <= 0 && !isAdmin) {
+        console.error("CRITICAL: BLOCAJ - Utilizator fără generații rămase");
+        throw new Error("Nu mai aveți generări disponibile pentru acest abonament.");
+      }
     } else {
-      console.log("Utilizator admin detectat - ocolire verificări abonament");
+      console.log("CRITICAL: Utilizator admin detectat - ocolire verificări abonament");
     }
     
-    console.log("Apelare Edge Function Supabase: generate-course");
+    console.log("CRITICAL: Apelare Edge Function Supabase: generate-course");
+    console.log("CRITICAL: Moment apelare API:", new Date().toISOString());
     
     // Apelare edge function cu logging detaliat
+    console.log("CRITICAL: Trimitere request cu body:", JSON.stringify({ 
+      formData,
+      action: 'start' 
+    }));
+    
     const result = await supabase.functions.invoke('generate-course', {
       body: { 
         formData,
@@ -49,10 +63,10 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
       }
     });
     
-    console.log("Răspuns Edge Function primit:", result);
+    console.log("CRITICAL: Răspuns Edge Function primit:", JSON.stringify(result));
     
     if (result && typeof result === 'object' && 'error' in result && result.error) {
-      console.error("Eroare de la funcția generate-course:", result.error);
+      console.error("CRITICAL: Eroare de la funcția generate-course:", result.error);
       const errorMessage = typeof result.error === 'object' && result.error !== null && 'message' in result.error 
         ? String(result.error.message) 
         : "Nu am putut genera cursul";
@@ -62,16 +76,16 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     const responseData = result as { data?: { success?: boolean, error?: string, data?: any, jobId?: string, status?: string } };
     
     if (!responseData.data || !responseData.data.success) {
-      console.error("API a returnat o eroare sau răspuns invalid:", responseData.data);
+      console.error("CRITICAL: API a returnat o eroare sau răspuns invalid:", responseData.data);
       throw new Error(responseData.data?.error || "Nu am putut genera cursul");
     }
     
-    console.log("Job generare curs pornit cu succes:", responseData.data);
+    console.log("CRITICAL: Job generare curs pornit cu succes:", responseData.data);
     
     // Ne asigurăm că avem un jobId pentru verificarea statusului
     const jobId = responseData.data.jobId;
     if (!jobId) {
-      console.error("Niciun job ID returnat de la API:", responseData.data);
+      console.error("CRITICAL: Niciun job ID returnat de la API:", responseData.data);
       throw new Error("Eroare sistem: Nu s-a putut obține un ID pentru job");
     }
     
@@ -79,7 +93,7 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     const resultData = responseData.data.data || getMockData(formData);
     
     // Debug date răspuns
-    console.log("Date răspuns generare care vor fi stocate:", resultData);
+    console.log("CRITICAL: Date răspuns generare care vor fi stocate:", resultData);
     
     // Stocare curs generat în localStorage
     const automatorUser = localStorage.getItem('automatorUser');
@@ -100,7 +114,7 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
           jobId
         };
         
-        console.log("Obiect nou curs adăugat în localStorage:", newCourse);
+        console.log("CRITICAL: Obiect nou curs adăugat în localStorage:", newCourse);
         
         // Adăugare curs nou la cursurile utilizatorului
         user.generatedCourses = [newCourse, ...generatedCourses];
@@ -108,9 +122,9 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
         // Salvare date actualizate utilizator în localStorage
         localStorage.setItem('automatorUser', JSON.stringify(user));
         
-        console.log("Date utilizator actualizate stocate în localStorage cu noul curs:", newCourse);
+        console.log("CRITICAL: Date utilizator actualizate stocate în localStorage cu noul curs");
       } catch (error) {
-        console.error("Eroare actualizare localStorage cu noul curs:", error);
+        console.error("CRITICAL: Eroare actualizare localStorage cu noul curs:", error);
       }
     }
     
@@ -123,7 +137,7 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
       status
     };
   } catch (error: any) {
-    console.error("Eroare în generateCourse:", error);
+    console.error("CRITICAL: Eroare în generateCourse:", error);
     throw error;
   }
 };
