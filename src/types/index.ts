@@ -1,4 +1,3 @@
-
 import { SupportedCourseLanguage } from '@/config/supportedCourseLanguages';
 
 export interface User {
@@ -21,14 +20,23 @@ export interface Subscription {
 export type GenerationType = 'Preview' | 'Complet';
 
 export interface CourseFormData {
-  language: SupportedCourseLanguage;
-  context: 'Corporativ' | 'Academic';
+  language: 'română' | 'english' | 'français' | 'deutsch' | 'español' | 'português' | '日本語' | 'italiano' | '中文' | 'русский' | 'العربية' | 'हिन्दी' | '한국어';
+  context: string;
   subject: string;
-  level: 'Începător' | 'Intermediar' | 'Avansat';
-  audience: 'Elevi' | 'Studenți' | 'Profesori' | 'Profesioniști' | 'Manageri';
-  duration: '1h' | '2h' | '4h' | '1 zi' | '2 zile' | '3 zile' | '4 zile' | '5 zile';
-  tone: 'Socratic' | 'Energizant' | 'Haios' | 'Profesional';
+  level: string;
+  audience: string;
+  duration: string;
+  tone: 'Profesional' | 'Socratic' | 'Energizant' | 'Haios';
   generationType?: GenerationType;
+  clientInfo?: {
+    userAgent: string;
+    language: string;
+    screenWidth: number;
+    screenHeight: number;
+    timestamp: string;
+    url: string;
+    submitCount?: number;
+  };
 }
 
 export interface CourseSection {

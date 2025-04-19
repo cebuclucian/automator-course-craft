@@ -11,6 +11,7 @@ import { processJob } from "../helpers/jobProcessor.ts";
 export const handleStartJob = async (requestData: any, headers: Record<string, string>) => {
   try {
     console.log("StartJob - Începere procesare cerere:", new Date().toISOString());
+    console.log("StartJob - Request data preview:", JSON.stringify(requestData).substring(0, 300));
     
     // Verificare date formular
     const formData = requestData.formData;
@@ -32,11 +33,26 @@ export const handleStartJob = async (requestData: any, headers: Record<string, s
       );
     }
     
-    console.log("StartJob - Procesare cerere cu formData:", JSON.stringify(formData));
+    // Diagnostic informații client
+    const clientInfo = formData.clientInfo || requestData.clientInfo;
+    if (clientInfo) {
+      console.log("StartJob - Client info:", JSON.stringify(clientInfo));
+    }
+    
+    console.log("StartJob - Procesare cerere cu formData:", JSON.stringify({
+      subject: formData.subject,
+      level: formData.level,
+      audience: formData.audience,
+      duration: formData.duration,
+      language: formData.language,
+      tone: formData.tone,
+      context: formData.context
+    }));
     
     // Verificare Claude API Key
     const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
     console.log("StartJob - CLAUDE_API_KEY este configurată:", !!CLAUDE_API_KEY);
+    console.log("StartJob - CLAUDE_API_KEY primele 4 caractere:", CLAUDE_API_KEY ? CLAUDE_API_KEY.substring(0, 4) : "NULL");
     
     if (!CLAUDE_API_KEY) {
       console.error("StartJob - Claude API Key is not set");
@@ -123,24 +139,35 @@ Crează exerciții practice relevante pentru temă:
 
 Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitluri, liste și evidențieri unde este necesar. Conținutul trebuie să fie ${formData.language === 'română' ? 'în limba română' : 'in English'}.`;
 
-      console.log(`StartJob - Prompt generat cu succes, lungime: ${prompt.length} caractere`);
+      // Măsurăm dimensiunea promptului pentru diagnosticare
+      const promptSize = new Blob([prompt]).size;
+      console.log(`StartJob - Prompt generat cu succes, lungime: ${prompt.length} caractere, ${promptSize} bytes`);
+      console.log(`StartJob - Primele 100 caractere din prompt: ${prompt.substring(0, 100)}`);
+      console.log(`StartJob - Ultimele 100 caractere din prompt: ${prompt.substring(prompt.length - 100)}`);
     } catch (promptError) {
       console.error("StartJob - Eroare la generarea promptului:", promptError);
       prompt = `Generează un curs despre ${formData.subject || 'subiectul specificat'} pentru ${formData.audience || 'profesioniști'} în format markdown. Include plan de lecție, slide-uri, note pentru trainer și exerciții.`;
       console.log("StartJob - Am folosit prompt de rezervă:", prompt);
     }
     
-    // Înregistrare job în store
+    // Înregistrare job în store cu milestone pentru a urmări progresul în detaliu
     jobStore.set(jobId, {
       status: 'processing',
       formData,
       startedAt: new Date().toISOString(),
+      milestone: 'job_created',
+      lastUpdated: new Date().toISOString(),
       sections: [], // Inițializăm un array gol pentru secțiuni
       processedSections: 0, // Numărul de secțiuni procesate
-      totalSections: 0 // Va fi actualizat în timpul procesării
+      totalSections: 0, // Va fi actualizat în timpul procesării
+      diagnosticInfo: {
+        clientInfo,
+        promptLength: prompt.length,
+        requestTimestamp: new Date().toISOString(),
+      }
     });
     
-    console.log(`StartJob - Job înregistrat în store cu statusul "processing"`);
+    console.log(`StartJob - Job înregistrat în store cu statusul "processing", milestone: job_created`);
     
     try {
       // DIAGNOSTIC: Verificăm dacă EdgeRuntime și waitUntil sunt disponibile
@@ -148,6 +175,16 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
       const hasWaitUntil = hasEdgeRuntime && typeof EdgeRuntime.waitUntil === 'function';
       
       console.log(`StartJob - EdgeRuntime disponibil: ${hasEdgeRuntime}, waitUntil disponibil: ${hasWaitUntil}`);
+      
+      // Actualizăm milestone-ul pentru a indica începerea procesării
+      const job = jobStore.get(jobId);
+      if (job) {
+        jobStore.set(jobId, {
+          ...job,
+          milestone: 'processing_started',
+          lastUpdated: new Date().toISOString()
+        });
+      }
       
       // Metodă de executare asincronă adaptată în funcție de disponibilitatea API-urilor
       if (hasWaitUntil) {
@@ -157,6 +194,16 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
         EdgeRuntime.waitUntil((async () => {
           try {
             console.log(`StartJob [Background] - Procesare job ${jobId} începută în background la ${new Date().toISOString()}`);
+            // Actualizăm milestone-ul pentru a indica API call
+            const job = jobStore.get(jobId);
+            if (job) {
+              jobStore.set(jobId, {
+                ...job,
+                milestone: 'api_call_started',
+                lastUpdated: new Date().toISOString()
+              });
+            }
+            
             await processJob(jobId, prompt, formData);
             console.log(`StartJob [Background] - Procesare job ${jobId} finalizată cu succes în background la ${new Date().toISOString()}`);
           } catch (backgroundError) {
@@ -168,9 +215,21 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
               jobStore.set(jobId, {
                 ...job,
                 status: 'error',
+                milestone: 'error_during_processing',
                 error: backgroundError.message || "Eroare necunoscută în procesarea background",
-                completedAt: new Date().toISOString()
+                errorDetails: {
+                  message: backgroundError.message,
+                  stack: backgroundError.stack,
+                  timestamp: new Date().toISOString()
+                },
+                completedAt: new Date().toISOString(),
+                lastUpdated: new Date().toISOString()
               });
+              
+              console.error(`StartJob [Background] - Job ${jobId} marcat cu eroare. Detalii: ${JSON.stringify({
+                message: backgroundError.message,
+                stack: backgroundError.stack?.substring(0, 200)
+              })}`);
             }
           }
         })());
@@ -183,6 +242,17 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
         setTimeout(async () => {
           try {
             console.log(`StartJob [Background] - Procesare job ${jobId} începută în background alternativ la ${new Date().toISOString()}`);
+            
+            // Actualizăm milestone-ul pentru a indica API call
+            const job = jobStore.get(jobId);
+            if (job) {
+              jobStore.set(jobId, {
+                ...job,
+                milestone: 'api_call_started_alt',
+                lastUpdated: new Date().toISOString()
+              });
+            }
+            
             await processJob(jobId, prompt, formData);
             console.log(`StartJob [Background] - Procesare job ${jobId} finalizată cu succes în background alternativ la ${new Date().toISOString()}`);
           } catch (backgroundError) {
@@ -194,8 +264,15 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
               jobStore.set(jobId, {
                 ...job,
                 status: 'error',
+                milestone: 'error_during_processing_alt',
                 error: backgroundError.message || "Eroare necunoscută în procesarea background alternativ",
-                completedAt: new Date().toISOString()
+                errorDetails: {
+                  message: backgroundError.message,
+                  stack: backgroundError.stack,
+                  timestamp: new Date().toISOString()
+                },
+                completedAt: new Date().toISOString(),
+                lastUpdated: new Date().toISOString()
               });
             }
           }
@@ -212,6 +289,17 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
       setTimeout(async () => {
         try {
           console.log(`StartJob [Emergency] - Procesare job ${jobId} începută în mod emergency la ${new Date().toISOString()}`);
+          
+          // Actualizăm milestone-ul pentru a indica Emergency API call
+          const job = jobStore.get(jobId);
+          if (job) {
+            jobStore.set(jobId, {
+              ...job,
+              milestone: 'api_call_started_emergency',
+              lastUpdated: new Date().toISOString()
+            });
+          }
+          
           await processJob(jobId, prompt, formData);
           console.log(`StartJob [Emergency] - Procesare job ${jobId} finalizată cu succes în mod emergency la ${new Date().toISOString()}`);
         } catch (error) {
@@ -223,8 +311,15 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
             jobStore.set(jobId, {
               ...job,
               status: 'error',
+              milestone: 'error_during_processing_emergency',
               error: error.message || "Eroare necunoscută la procesarea job-ului",
-              completedAt: new Date().toISOString()
+              errorDetails: {
+                message: error.message,
+                stack: error.stack,
+                timestamp: new Date().toISOString()
+              },
+              completedAt: new Date().toISOString(),
+              lastUpdated: new Date().toISOString()
             });
           }
         }
@@ -239,7 +334,17 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
         success: true,
         jobId,
         status: 'processing',
-        message: "Job înregistrat și procesat în background"
+        milestone: 'job_created',
+        message: "Job înregistrat și procesat în background",
+        diagnosticInfo: {
+          timestamp: new Date().toISOString(),
+          promptLength: prompt.length,
+          clientInfo: clientInfo ? {
+            userAgent: clientInfo.userAgent ? clientInfo.userAgent.substring(0, 50) + "..." : "N/A",
+            screenSize: clientInfo.screenWidth && clientInfo.screenHeight ? 
+              `${clientInfo.screenWidth}x${clientInfo.screenHeight}` : "N/A"
+          } : "N/A"
+        }
       }),
       {
         headers: {
@@ -253,7 +358,12 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
     return new Response(
       JSON.stringify({
         success: false,
-        error: `Eroare la înregistrarea job-ului: ${error.message || 'Unknown error'}`
+        error: `Eroare la înregistrarea job-ului: ${error.message || 'Unknown error'}`,
+        errorDetails: {
+          message: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString()
+        }
       }),
       {
         status: 500,

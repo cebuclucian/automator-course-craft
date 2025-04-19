@@ -38,6 +38,7 @@ const CourseGenerator = () => {
   const [pollingInterval, setPollingInterval] = useState<number | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationTimeout, setGenerationTimeout] = useState<number | null>(null);
+  const [generationStatusMessage, setGenerationStatusMessage] = useState<string | null>(null);
   const [technicalDetails, setTechnicalDetails] = useState<string | null>(null);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [pollingErrorCount, setPollingErrorCount] = useState(0);
@@ -45,6 +46,7 @@ const CourseGenerator = () => {
   const [showDiagnosticButton, setShowDiagnosticButton] = useState(false);
   const [isDiagnosticRunning, setIsDiagnosticRunning] = useState(false);
   const formSubmitCount = useRef(0);
+  const [milestone, setMilestone] = useState<string | null>(null);
 
   // Debug user and profile state
   useEffect(() => {
@@ -207,14 +209,30 @@ const CourseGenerator = () => {
     const interval = window.setInterval(async () => {
       try {
         console.log('CourseGenerator - Polling job status for:', generationJobId);
+        
+        // Adăugăm informații de diagnosticare în cererea de verificare status
         const statusResponse = await checkCourseGenerationStatus(generationJobId);
         console.log('CourseGenerator - Job status response:', statusResponse);
+        
+        // Actualizăm milestone pentru UI
+        if (statusResponse.milestone && statusResponse.milestone !== milestone) {
+          setMilestone(statusResponse.milestone);
+          console.log('CourseGenerator - Milestone actualizat:', statusResponse.milestone);
+        }
+        
+        // Actualizăm mesajul de status pentru UI
+        if (statusResponse.statusMessage) {
+          setGenerationStatusMessage(statusResponse.statusMessage);
+        }
         
         if (statusResponse.status === 'completed') {
           console.log('CourseGenerator - Job completed successfully!');
           cleanupTimers();
           setLoading(false);
           setGenerationProgress(100);
+          setGenerationStatusMessage(language === 'ro' 
+            ? 'Material generat cu succes!' 
+            : 'Material successfully generated!');
           setSuccess(
             language === 'ro'
               ? 'Material generat cu succes!'
@@ -239,6 +257,9 @@ const CourseGenerator = () => {
           cleanupTimers();
           setLoading(false);
           setError(statusResponse.error || (language === 'ro' ? 'A apărut o eroare în timpul generării' : 'An error occurred during generation'));
+          setGenerationStatusMessage(language === 'ro'
+            ? `Eroare: ${statusResponse.error || 'Necunoscută'}`
+            : `Error: ${statusResponse.error || 'Unknown'}`);
           
           // Stocare detalii tehnice pentru debugging
           if (statusResponse.errorDetails) {
@@ -248,10 +269,21 @@ const CourseGenerator = () => {
           // Afișăm butonul de diagnosticare
           setShowDiagnosticButton(true);
         } else if (statusResponse.status === 'processing') {
-          const elapsed = (Date.now() - new Date(statusResponse.startedAt || Date.now()).getTime()) / 1000;
-          const estimatedProgress = Math.min(Math.round(elapsed / 90 * 100), 95);
-          setGenerationProgress(estimatedProgress);
-          console.log(`CourseGenerator - Job still processing. Estimated progress: ${estimatedProgress}%`);
+          // Actualizăm progresul bazat pe răspunsul de la server
+          setGenerationProgress(statusResponse.progressPercent || 0);
+          
+          // Afișăm mesaj de blocare dacă job-ul pare blocat
+          if (statusResponse.jobBlocked) {
+            setGenerationStatusMessage(
+              language === 'ro'
+                ? `${statusResponse.statusMessage || 'Se procesează'} (posibil blocat - fără actualizări recente)`
+                : `${statusResponse.statusMessage || 'Processing'} (possibly stuck - no recent updates)`
+            );
+          } else {
+            setGenerationStatusMessage(statusResponse.statusMessage);
+          }
+          
+          console.log(`CourseGenerator - Job still processing. Progress: ${statusResponse.progressPercent}%, Status: ${statusResponse.statusMessage}`);
         } else if (statusResponse.status === 'not_found') {
           console.error('CourseGenerator - Job not found in store');
           cleanupTimers();
@@ -259,6 +291,9 @@ const CourseGenerator = () => {
           setError(language === 'ro' 
             ? 'Job-ul de generare nu a fost găsit. Este posibil să fi expirat sau să nu fi fost creat corect.' 
             : 'Generation job not found. It may have expired or not been created correctly.');
+          setGenerationStatusMessage(language === 'ro'
+            ? 'Job-ul de generare nu a fost găsit'
+            : 'Generation job not found');
           
           // Afișăm butonul de diagnosticare
           setShowDiagnosticButton(true);
@@ -282,6 +317,9 @@ const CourseGenerator = () => {
           setError(language === 'ro' 
             ? 'Nu s-a putut verifica statusul generării. Verificați materialele în contul dvs.' 
             : 'Could not check generation status. Please check materials in your account.');
+          setGenerationStatusMessage(language === 'ro'
+            ? 'Eroare verificare status'
+            : 'Status check error');
           
           // Afișăm butonul de diagnosticare
           setShowDiagnosticButton(true);
@@ -292,7 +330,7 @@ const CourseGenerator = () => {
     setPollingInterval(interval);
     
     return () => cleanupTimers();
-  }, [generationJobId, language, navigate, toast, cleanupTimers, refreshUser, pollingErrorCount]);
+  }, [generationJobId, language, navigate, toast, cleanupTimers, refreshUser, pollingErrorCount, milestone]);
   
   useEffect(() => {
     return () => cleanupTimers();
@@ -364,6 +402,8 @@ const CourseGenerator = () => {
     setTechnicalDetails(null);
     setShowTechnicalDetails(false);
     setShowDiagnosticButton(false);
+    setMilestone(null);
+    setGenerationStatusMessage(language === 'ro' ? 'Se inițiază generarea...' : 'Initializing generation...');
     
     cleanupTimers();
     
@@ -410,7 +450,20 @@ const CourseGenerator = () => {
       console.log(`CourseGenerator - Generation #${submitCount} type:`, generationType);
       
       const fullFormData = { ...formData, generationType };
-      console.log(`CourseGenerator - Calling generateCourse service for submit #${submitCount}`);
+      
+      // Adăugăm informații de diagnosticare în cererea finală
+      const clientInfo = {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        screenWidth: window.innerWidth,
+        screenHeight: window.innerHeight,
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        submitCount
+      };
+      fullFormData.clientInfo = clientInfo;
+      
+      console.log(`CourseGenerator - Calling generateCourse service for submit #${submitCount} with clientInfo:`, clientInfo);
       
       // Test API Claude înainte de a continua - nou
       try {
@@ -419,7 +472,8 @@ const CourseGenerator = () => {
           body: { 
             action: 'test-claude',
             submitCount,
-            clientTimestamp: new Date().toISOString()
+            clientTimestamp: new Date().toISOString(),
+            clientInfo
           }
         });
         
@@ -448,6 +502,8 @@ const CourseGenerator = () => {
             ? 'Testul API Claude a eșuat. Detalii în secțiunea tehnică.' 
             : 'Claude API test failed. See technical section for details.');
         }
+        
+        console.log(`CourseGenerator - Claude API test passed for submit #${submitCount}, proceeding with generation`);
       } catch (claudeTestError) {
         console.error(`CourseGenerator - Error testing Claude API for submit #${submitCount}:`, claudeTestError);
         setLoading(false);
@@ -460,16 +516,14 @@ const CourseGenerator = () => {
         return;
       }
       
-      // Adăugăm informații de diagnosticare în cererea finală
-      fullFormData.clientInfo = {
-        userAgent: navigator.userAgent,
-        language: navigator.language,
-        screenWidth: window.innerWidth,
-        screenHeight: window.innerHeight,
+      console.log(`CourseGenerator - Sending final generation request for submit #${submitCount}`);
+      
+      // Log detalii exacte despre cerere înainte de a o trimite
+      console.log(`CourseGenerator - Request details for submit #${submitCount}:`, {
+        formData: fullFormData,
+        clientInfo,
         timestamp: new Date().toISOString(),
-        url: window.location.href,
-        submitCount
-      };
+      });
       
       const generatedCourse = await generateCourse(fullFormData);
       
@@ -482,6 +536,11 @@ const CourseGenerator = () => {
         if (generatedCourse.jobId) {
           console.log(`CourseGenerator - Setting job ID for polling (submit #${submitCount}):`, generatedCourse.jobId);
           setGenerationJobId(generatedCourse.jobId);
+          
+          // Actualizăm milestone dacă există
+          if (generatedCourse.milestone) {
+            setMilestone(generatedCourse.milestone);
+          }
         }
         
         if (!isAdminUser) {
@@ -664,15 +723,28 @@ const CourseGenerator = () => {
         <CardContent>
           {loading && generationJobId && (
             <div className="mb-4">
-              <p className="text-sm font-medium mb-2 text-center">
+              <p className="text-sm font-medium mb-2">
                 {language === 'ro' ? 'Progres generare' : 'Generation progress'}
               </p>
               <Progress value={generationProgress} className="h-2" />
-              <p className="text-xs text-gray-500 mt-1 text-center">
-                {language === 'ro' 
-                  ? `Se generează materialul (${generationProgress}%)`
-                  : `Generating material (${generationProgress}%)`}
-              </p>
+              <div className="mt-1 flex flex-col gap-1">
+                <p className="text-sm text-center">
+                  {generationStatusMessage || (language === 'ro' 
+                    ? `Se generează materialul (${generationProgress}%)`
+                    : `Generating material (${generationProgress}%)`)}
+                </p>
+                
+                {milestone && (
+                  <p className="text-xs text-gray-500 text-center">
+                    {milestone === 'job_created' && (language === 'ro' ? 'Job creat' : 'Job created')}
+                    {milestone === 'processing_started' && (language === 'ro' ? 'Procesare pornită' : 'Processing started')}
+                    {milestone === 'api_call_started' && (language === 'ro' ? 'Apel API inițiat' : 'API call initiated')}
+                    {milestone === 'api_response_received' && (language === 'ro' ? 'Răspuns API primit' : 'API response received')}
+                    {milestone === 'processing_content' && (language === 'ro' ? 'Procesare conținut' : 'Processing content')}
+                    {milestone.includes('error') && (language === 'ro' ? 'Eroare: ' : 'Error: ') + milestone}
+                  </p>
+                )}
+              </div>
             </div>
           )}
           
