@@ -143,44 +143,79 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
     console.log(`StartJob - Job înregistrat în store cu statusul "processing"`);
     
     try {
-      // Inițiere procesare job în mod asincron folosind EdgeRuntime.waitUntil
-      console.log(`StartJob - Începere procesare asincronă pentru job ${jobId} folosind EdgeRuntime.waitUntil()`);
+      // DIAGNOSTIC: Verificăm dacă EdgeRuntime și waitUntil sunt disponibile
+      const hasEdgeRuntime = typeof EdgeRuntime !== 'undefined';
+      const hasWaitUntil = hasEdgeRuntime && typeof EdgeRuntime.waitUntil === 'function';
       
-      // Folosim explicit EdgeRuntime.waitUntil pentru a asigura că procesarea continuă în background
-      EdgeRuntime.waitUntil((async () => {
-        try {
-          console.log(`StartJob [Background] - Procesare job ${jobId} începută în background la ${new Date().toISOString()}`);
-          await processJob(jobId, prompt, formData);
-          console.log(`StartJob [Background] - Procesare job ${jobId} finalizată cu succes în background la ${new Date().toISOString()}`);
-        } catch (backgroundError) {
-          console.error(`StartJob [Background] - Eroare în procesarea background pentru job ${jobId}:`, backgroundError);
-          
-          // Actualizare status job în caz de eroare
-          const job = jobStore.get(jobId);
-          if (job) {
-            jobStore.set(jobId, {
-              ...job,
-              status: 'error',
-              error: backgroundError.message || "Eroare necunoscută în procesarea background",
-              completedAt: new Date().toISOString()
-            });
+      console.log(`StartJob - EdgeRuntime disponibil: ${hasEdgeRuntime}, waitUntil disponibil: ${hasWaitUntil}`);
+      
+      // Metodă de executare asincronă adaptată în funcție de disponibilitatea API-urilor
+      if (hasWaitUntil) {
+        // Metoda preferată: EdgeRuntime.waitUntil
+        console.log(`StartJob - Începere procesare asincronă pentru job ${jobId} folosind EdgeRuntime.waitUntil()`);
+        
+        EdgeRuntime.waitUntil((async () => {
+          try {
+            console.log(`StartJob [Background] - Procesare job ${jobId} începută în background la ${new Date().toISOString()}`);
+            await processJob(jobId, prompt, formData);
+            console.log(`StartJob [Background] - Procesare job ${jobId} finalizată cu succes în background la ${new Date().toISOString()}`);
+          } catch (backgroundError) {
+            console.error(`StartJob [Background] - Eroare în procesarea background pentru job ${jobId}:`, backgroundError);
+            
+            // Actualizare status job în caz de eroare
+            const job = jobStore.get(jobId);
+            if (job) {
+              jobStore.set(jobId, {
+                ...job,
+                status: 'error',
+                error: backgroundError.message || "Eroare necunoscută în procesarea background",
+                completedAt: new Date().toISOString()
+              });
+            }
           }
-        }
-      })());
-      
-      console.log(`StartJob - Job ${jobId} trimis pentru procesare asincronă`);
+        })());
+        
+        console.log(`StartJob - Job ${jobId} trimis pentru procesare asincronă cu EdgeRuntime.waitUntil`);
+      } else {
+        // Alternativă: executare detașată folosind setTimeout 0ms
+        console.log(`StartJob - Începere procesare asincronă pentru job ${jobId} folosind setTimeout (EdgeRuntime.waitUntil nu este disponibil)`);
+        
+        setTimeout(async () => {
+          try {
+            console.log(`StartJob [Background] - Procesare job ${jobId} începută în background alternativ la ${new Date().toISOString()}`);
+            await processJob(jobId, prompt, formData);
+            console.log(`StartJob [Background] - Procesare job ${jobId} finalizată cu succes în background alternativ la ${new Date().toISOString()}`);
+          } catch (backgroundError) {
+            console.error(`StartJob [Background] - Eroare în procesarea background alternativ pentru job ${jobId}:`, backgroundError);
+            
+            // Actualizare status job în caz de eroare
+            const job = jobStore.get(jobId);
+            if (job) {
+              jobStore.set(jobId, {
+                ...job,
+                status: 'error',
+                error: backgroundError.message || "Eroare necunoscută în procesarea background alternativ",
+                completedAt: new Date().toISOString()
+              });
+            }
+          }
+        }, 0);
+        
+        console.log(`StartJob - Job ${jobId} trimis pentru procesare asincronă cu setTimeout`);
+      }
     } catch (asyncError) {
       console.error(`StartJob - Eroare la pornirea procesării asincrone pentru job ${jobId}:`, asyncError);
       
-      // Încercăm metoda alternativă, dar fără a aștepta rezultatul
-      console.log(`StartJob - Încercare alternativă de procesare pentru job ${jobId}`);
+      // Încercăm metoda alternativă cu setTimeout, fără a aștepta rezultatul
+      console.log(`StartJob - Încercare alternativă de procesare pentru job ${jobId} după eroarea:`, asyncError.message);
       
-      // Folosim IIFE pattern pentru a evita await direct
-      EdgeRuntime.waitUntil((async () => {
+      setTimeout(async () => {
         try {
+          console.log(`StartJob [Emergency] - Procesare job ${jobId} începută în mod emergency la ${new Date().toISOString()}`);
           await processJob(jobId, prompt, formData);
+          console.log(`StartJob [Emergency] - Procesare job ${jobId} finalizată cu succes în mod emergency la ${new Date().toISOString()}`);
         } catch (error) {
-          console.error(`StartJob - Eroare și la procesarea directă pentru job ${jobId}:`, error);
+          console.error(`StartJob [Emergency] - Eroare în procesarea emergency pentru job ${jobId}:`, error);
           
           // Actualizare status job în caz de eroare
           const job = jobStore.get(jobId);
@@ -193,7 +228,9 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
             });
           }
         }
-      })());
+      }, 0);
+      
+      console.log(`StartJob - Job ${jobId} trimis pentru procesare asincronă după eroare`);
     }
     
     // Returnare răspuns imediat

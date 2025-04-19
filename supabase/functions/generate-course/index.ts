@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "./cors.ts";
 import { handleStartJob } from "./handlers/startJob.ts";
@@ -357,6 +358,230 @@ async function handlePublicDebug(req: Request) {
   }
 }
 
+// Nou endpoint pentru diagnoză completă a sistemului
+async function handleFullDiagnosis(req: Request) {
+  try {
+    console.log("generate-course - Handling full-diagnosis request");
+    
+    // Informații despre mediu
+    const environment = {
+      timestamp: new Date().toISOString(),
+      denoVersion: Deno.version.deno,
+      v8Version: Deno.version.v8,
+      typescriptVersion: Deno.version.typescript,
+      memoryUsage: Deno.memoryUsage(),
+      availableEnvVars: Object.keys(Deno.env.toObject()),
+      claudeApiKeyConfigured: !!CLAUDE_API_KEY,
+      requestUrl: req.url,
+      requestHeaders: Object.fromEntries(req.headers)
+    };
+    
+    // Informații despre jobStore
+    const jobStoreStats = {
+      totalJobs: jobStore.size,
+      activeJobs: 0,
+      completedJobs: 0,
+      errorJobs: 0,
+      oldestJobTimestamp: null,
+      newestJobTimestamp: null,
+      jobIds: []
+    };
+    
+    // Analizăm jobStore pentru statistici
+    if (jobStore.size > 0) {
+      let oldestTime = Date.now();
+      let newestTime = 0;
+      
+      jobStore.forEach((job, id) => {
+        jobStoreStats.jobIds.push(id);
+        
+        if (job.status === 'processing') {
+          jobStoreStats.activeJobs++;
+        } else if (job.status === 'completed') {
+          jobStoreStats.completedJobs++;
+        } else if (job.status === 'error') {
+          jobStoreStats.errorJobs++;
+        }
+        
+        const jobTime = job.startedAt ? new Date(job.startedAt).getTime() : 0;
+        if (jobTime > 0) {
+          if (jobTime < oldestTime) oldestTime = jobTime;
+          if (jobTime > newestTime) newestTime = jobTime;
+        }
+      });
+      
+      if (oldestTime !== Date.now()) {
+        jobStoreStats.oldestJobTimestamp = new Date(oldestTime).toISOString();
+      }
+      
+      if (newestTime > 0) {
+        jobStoreStats.newestJobTimestamp = new Date(newestTime).toISOString();
+      }
+    }
+    
+    // Test minim de conectivitate Claude API
+    let claudeApiTest = { success: false, message: "Test nerealizat" };
+    if (CLAUDE_API_KEY) {
+      try {
+        const testPrompt = "Acesta este un test simplu. Răspunde doar cu 'Test reușit!'";
+        
+        console.log("full-diagnosis - Testare conexiune Claude API");
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': CLAUDE_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-3-sonnet-20240229',
+            max_tokens: 100,
+            messages: [
+              {
+                role: 'user',
+                content: testPrompt
+              }
+            ]
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          claudeApiTest = {
+            success: true,
+            message: "Conexiune reușită",
+            status: response.status,
+            responseContent: data.content?.[0]?.text || "Răspuns gol"
+          };
+        } else {
+          const errorText = await response.text();
+          claudeApiTest = {
+            success: false,
+            message: `Eroare conexiune: ${response.status}`,
+            error: errorText
+          };
+        }
+      } catch (error) {
+        claudeApiTest = {
+          success: false,
+          message: "Excepție la testare",
+          error: error.message || "Eroare necunoscută"
+        };
+      }
+    } else {
+      claudeApiTest.message = "API Key Claude nesetat";
+    }
+    
+    // Verificăm funcționarea backend-ului cu un job de test simplu
+    let jobTestResult = { success: false, message: "Test nerealizat" };
+    
+    try {
+      console.log("full-diagnosis - Testare creare job");
+      
+      // Creăm un job de test simplu
+      const testJobId = `diagnose-${Date.now()}`;
+      const testFormData = {
+        subject: "Test Diagnostic",
+        language: "română",
+        level: "Începător",
+        audience: "Testeri",
+        duration: "1 oră",
+        tone: "Profesional",
+        context: "Diagnostic"
+      };
+      
+      // Înregistrăm job-ul direct în jobStore
+      jobStore.set(testJobId, {
+        status: 'processing',
+        formData: testFormData,
+        startedAt: new Date().toISOString(),
+        sections: [],
+        processedSections: 0,
+        totalSections: 3
+      });
+      
+      // Simulăm procesarea unui job
+      setTimeout(() => {
+        const job = jobStore.get(testJobId);
+        if (job) {
+          const simpleSections = [
+            {
+              title: "Test Diagnostic",
+              content: "Acesta este un material de test diagnosticare.",
+              type: "diagnostic-test"
+            }
+          ];
+          
+          jobStore.set(testJobId, {
+            ...job,
+            status: 'completed',
+            sections: simpleSections,
+            data: { sections: simpleSections },
+            completedAt: new Date().toISOString(),
+            processedSections: 1,
+            totalSections: 1
+          });
+          
+          console.log(`full-diagnosis - Job test ${testJobId} marcat ca finalizat`);
+        }
+      }, 2000);
+      
+      jobTestResult = {
+        success: true,
+        message: "Job de test înregistrat cu succes",
+        jobId: testJobId,
+        jobStoreSize: jobStore.size
+      };
+    } catch (jobError) {
+      jobTestResult = {
+        success: false,
+        message: "Eroare la testarea job",
+        error: jobError.message || "Eroare necunoscută"
+      };
+    }
+    
+    // Construim răspunsul final
+    const diagnosticResult = {
+      success: true,
+      timestamp: new Date().toISOString(),
+      environment,
+      jobStore: jobStoreStats,
+      claudeApiTest,
+      jobTest: jobTestResult,
+      message: "Diagnoză completă efectuată cu succes"
+    };
+    
+    console.log("generate-course - Diagnostic complet finalizat");
+    
+    return new Response(
+      JSON.stringify(diagnosticResult),
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  } catch (error) {
+    console.error("Error in full-diagnosis endpoint:", error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        timestamp: new Date().toISOString(),
+        error: error.message || "Unknown error",
+        stack: error.stack
+      }),
+      { 
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 500
+      }
+    );
+  }
+}
+
 serve(async (req) => {
   // Measure request processing time for debugging
   const requestStartTime = Date.now();
@@ -366,11 +591,33 @@ serve(async (req) => {
   console.log(`generate-course - Request received at ${new Date().toISOString()}: ${req.method} ${pathname}`);
   console.log("generate-course - Headers:", JSON.stringify(Array.from(req.headers.entries())));
   
+  try {
+    // Request body (doar pentru debugging)
+    if (req.method !== 'OPTIONS' && req.body) {
+      const clonedReq = req.clone();
+      try {
+        const bodyText = await clonedReq.text();
+        console.log(`generate-course - Request body preview (first 200 chars): ${bodyText.substring(0, 200)}`);
+      } catch (bodyError) {
+        console.log(`generate-course - Could not preview request body: ${bodyError.message}`);
+      }
+    }
+  } catch (reqDebugError) {
+    console.error("Error debugging request:", reqDebugError);
+  }
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log("generate-course - Handling OPTIONS preflight request");
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Add the new full diagnosis endpoint
+  if (pathname.endsWith('/full-diagnosis')) {
+    console.log("generate-course - Handling full-diagnosis request");
+    return await handleFullDiagnosis(req);
+  }
+  
   // Add the new public debug endpoint
   if (pathname.endsWith('/public-debug')) {
     console.log("generate-course - Handling public-debug request");
@@ -434,6 +681,7 @@ serve(async (req) => {
     let requestData;
     try {
       requestData = await req.json();
+      console.log("generate-course - Parsed request data:", JSON.stringify(requestData).substring(0, 500) + "...");
     } catch (parseError) {
       console.error("Error parsing JSON from request:", parseError);
       clearTimeout(timeout);

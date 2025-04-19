@@ -1,18 +1,24 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { CourseFormData, GenerationType } from '@/types';
-import { generateCourse, checkCourseGenerationStatus } from '@/services/courseGeneration';
+import { 
+  generateCourse, 
+  checkCourseGenerationStatus, 
+  testEdgeFunctionConnection,
+  testClaudeAPI,
+  runFullDiagnosis 
+} from '@/services/courseGeneration';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import CourseGeneratorForm from './course-generator/CourseGeneratorForm';
 import CourseGeneratorAuth from './course-generator/CourseGeneratorAuth';
 import ToneExplanations from './ToneExplanations';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, RefreshCcw } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,8 +40,11 @@ const CourseGenerator = () => {
   const [generationTimeout, setGenerationTimeout] = useState<number | null>(null);
   const [technicalDetails, setTechnicalDetails] = useState<string | null>(null);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
-  // Define pollingErrorCount state before it's used
   const [pollingErrorCount, setPollingErrorCount] = useState(0);
+  const [diagnosticResults, setDiagnosticResults] = useState<any>(null);
+  const [showDiagnosticButton, setShowDiagnosticButton] = useState(false);
+  const [isDiagnosticRunning, setIsDiagnosticRunning] = useState(false);
+  const formSubmitCount = useRef(0);
 
   // Debug user and profile state
   useEffect(() => {
@@ -123,15 +132,33 @@ const CourseGenerator = () => {
     try {
       console.log('CourseGenerator - Verificare conexiune API Claude');
       
+      // Înregistrăm detalii despre client pentru diagnosticare
+      const clientInfo = {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        screenWidth: window.innerWidth,
+        screenHeight: window.innerHeight,
+        timestamp: new Date().toISOString(),
+        url: window.location.href
+      };
+      console.log('CourseGenerator - Informații client:', clientInfo);
+      
       const { data: response, error } = await supabase.functions.invoke('generate-course', {
-        body: { action: 'test-connection' }
+        body: { 
+          action: 'test-connection',
+          clientInfo
+        }
       });
       
       console.log('CourseGenerator - Răspuns conexiune API:', response);
       
       if (error) {
         console.error('CourseGenerator - Eroare la verificarea conexiunii API:', error);
-        setTechnicalDetails(JSON.stringify(error, null, 2));
+        setTechnicalDetails(JSON.stringify({
+          error,
+          timestamp: new Date().toISOString(),
+          clientInfo
+        }, null, 2));
         return false;
       }
       
@@ -140,12 +167,20 @@ const CourseGenerator = () => {
         return true;
       } else {
         console.error('CourseGenerator - Conexiune API eșuată');
-        setTechnicalDetails(JSON.stringify(response, null, 2));
+        setTechnicalDetails(JSON.stringify({
+          response, 
+          timestamp: new Date().toISOString(),
+          clientInfo
+        }, null, 2));
         return false;
       }
     } catch (error) {
       console.error('CourseGenerator - Eroare verificare conexiune API:', error);
-      setTechnicalDetails(JSON.stringify(error, null, 2));
+      setTechnicalDetails(JSON.stringify({
+        error: error.message || 'Unknown error',
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      }, null, 2));
       return false;
     }
   };
@@ -162,6 +197,9 @@ const CourseGenerator = () => {
       setError(language === 'ro' 
         ? 'Timpul de generare a expirat. Vă rugăm să încercați din nou sau contactați suportul.' 
         : 'Generation time expired. Please try again or contact support.');
+      
+      // Afișăm butonul de diagnosticare
+      setShowDiagnosticButton(true);
     }, 90000); // 90 seconds
     
     setGenerationTimeout(timeout);
@@ -206,11 +244,24 @@ const CourseGenerator = () => {
           if (statusResponse.errorDetails) {
             setTechnicalDetails(JSON.stringify(statusResponse.errorDetails, null, 2));
           }
+          
+          // Afișăm butonul de diagnosticare
+          setShowDiagnosticButton(true);
         } else if (statusResponse.status === 'processing') {
           const elapsed = (Date.now() - new Date(statusResponse.startedAt || Date.now()).getTime()) / 1000;
           const estimatedProgress = Math.min(Math.round(elapsed / 90 * 100), 95);
           setGenerationProgress(estimatedProgress);
           console.log(`CourseGenerator - Job still processing. Estimated progress: ${estimatedProgress}%`);
+        } else if (statusResponse.status === 'not_found') {
+          console.error('CourseGenerator - Job not found in store');
+          cleanupTimers();
+          setLoading(false);
+          setError(language === 'ro' 
+            ? 'Job-ul de generare nu a fost găsit. Este posibil să fi expirat sau să nu fi fost creat corect.' 
+            : 'Generation job not found. It may have expired or not been created correctly.');
+          
+          // Afișăm butonul de diagnosticare
+          setShowDiagnosticButton(true);
         }
       } catch (error: any) {
         console.error('CourseGenerator - Error checking job status:', error);
@@ -231,6 +282,9 @@ const CourseGenerator = () => {
           setError(language === 'ro' 
             ? 'Nu s-a putut verifica statusul generării. Verificați materialele în contul dvs.' 
             : 'Could not check generation status. Please check materials in your account.');
+          
+          // Afișăm butonul de diagnosticare
+          setShowDiagnosticButton(true);
         }
       }
     }, 3000); // Poll every 3 seconds
@@ -255,9 +309,52 @@ const CourseGenerator = () => {
     }
   };
 
+  // Funcție pentru diagnosticare completă
+  const runDiagnostics = async () => {
+    try {
+      setIsDiagnosticRunning(true);
+      setTechnicalDetails(null);
+      setError(null);
+      
+      console.log("CourseGenerator - Rulare diagnosticare completă");
+      
+      const diagnosticResults = await runFullDiagnosis();
+      console.log("CourseGenerator - Rezultate diagnoză:", diagnosticResults);
+      
+      setDiagnosticResults(diagnosticResults);
+      setTechnicalDetails(JSON.stringify(diagnosticResults, null, 2));
+      setShowTechnicalDetails(true);
+      
+      toast({
+        title: language === 'ro' ? 'Diagnosticare finalizată' : 'Diagnostics completed',
+        description: language === 'ro' 
+          ? 'Rezultatele diagnosticării sunt disponibile în secțiunea tehnică.' 
+          : 'Diagnostic results are available in the technical section.',
+        variant: 'default',
+      });
+    } catch (error) {
+      console.error("CourseGenerator - Eroare la diagnosticare:", error);
+      setTechnicalDetails(JSON.stringify({
+        error: error.message || 'Unknown error',
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      }, null, 2));
+      setShowTechnicalDetails(true);
+      
+      toast({
+        title: language === 'ro' ? 'Eroare diagnoză' : 'Diagnostic error',
+        description: error.message || (language === 'ro' ? 'A apărut o eroare în timpul diagnosticării' : 'An error occurred during diagnostics'),
+        variant: 'destructive'
+      });
+    } finally {
+      setIsDiagnosticRunning(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("CourseGenerator - Form submit triggered");
+    const submitCount = ++formSubmitCount.current;
+    console.log(`CourseGenerator - Form submit #${submitCount} triggered`);
     
     setError(null);
     setSuccess(null);
@@ -266,6 +363,7 @@ const CourseGenerator = () => {
     setPollingErrorCount(0);
     setTechnicalDetails(null);
     setShowTechnicalDetails(false);
+    setShowDiagnosticButton(false);
     
     cleanupTimers();
     
@@ -275,6 +373,9 @@ const CourseGenerator = () => {
       setError(language === 'ro' 
         ? 'Nu s-a putut conecta la API. Verificați conexiunea și încercați din nou.' 
         : 'Could not connect to API. Check your connection and try again.');
+      
+      // Afișăm butonul de diagnosticare
+      setShowDiagnosticButton(true);
       return;
     }
     
@@ -305,70 +406,96 @@ const CourseGenerator = () => {
     setLoading(true);
     
     try {
-      console.log("CourseGenerator - Starting course generation with form data:", formData);
-      console.log("CourseGenerator - Generation type:", generationType);
+      console.log(`CourseGenerator - Starting course generation #${submitCount} with form data:`, formData);
+      console.log(`CourseGenerator - Generation #${submitCount} type:`, generationType);
       
       const fullFormData = { ...formData, generationType };
-      console.log("CourseGenerator - Calling generateCourse service");
+      console.log(`CourseGenerator - Calling generateCourse service for submit #${submitCount}`);
       
       // Test API Claude înainte de a continua - nou
       try {
-        console.log("CourseGenerator - Testing Claude API before generation");
+        console.log(`CourseGenerator - Testing Claude API before generation #${submitCount}`);
         const { data: claudeTestResponse, error: claudeTestError } = await supabase.functions.invoke('generate-course', {
-          body: { action: 'test-claude' }
+          body: { 
+            action: 'test-claude',
+            submitCount,
+            clientTimestamp: new Date().toISOString()
+          }
         });
         
-        console.log("CourseGenerator - Claude API test response:", claudeTestResponse);
+        console.log(`CourseGenerator - Claude API test response for submit #${submitCount}:`, claudeTestResponse);
         
         if (claudeTestError) {
-          console.error("CourseGenerator - Claude API test error:", claudeTestError);
-          setTechnicalDetails(JSON.stringify(claudeTestError, null, 2));
+          console.error(`CourseGenerator - Claude API test error for submit #${submitCount}:`, claudeTestError);
+          setTechnicalDetails(JSON.stringify({
+            claudeTestError,
+            timestamp: new Date().toISOString(),
+            submitCount
+          }, null, 2));
           throw new Error(language === 'ro' 
             ? 'API-ul Claude nu este disponibil în acest moment. Vă rugăm să încercați mai târziu.' 
             : 'Claude API is not available at the moment. Please try again later.');
         }
         
         if (!claudeTestResponse || !claudeTestResponse.success) {
-          console.error("CourseGenerator - Claude API test failed:", claudeTestResponse);
-          setTechnicalDetails(JSON.stringify(claudeTestResponse, null, 2));
+          console.error(`CourseGenerator - Claude API test failed for submit #${submitCount}:`, claudeTestResponse);
+          setTechnicalDetails(JSON.stringify({
+            claudeTestResponse,
+            timestamp: new Date().toISOString(),
+            submitCount
+          }, null, 2));
           throw new Error(language === 'ro' 
             ? 'Testul API Claude a eșuat. Detalii în secțiunea tehnică.' 
             : 'Claude API test failed. See technical section for details.');
         }
       } catch (claudeTestError) {
-        console.error("CourseGenerator - Error testing Claude API:", claudeTestError);
+        console.error(`CourseGenerator - Error testing Claude API for submit #${submitCount}:`, claudeTestError);
         setLoading(false);
         setError(claudeTestError.message || (language === 'ro' 
           ? 'Nu s-a putut verifica disponibilitatea API Claude.' 
           : 'Could not verify Claude API availability.'));
+        
+        // Afișăm butonul de diagnosticare
+        setShowDiagnosticButton(true);
         return;
       }
       
+      // Adăugăm informații de diagnosticare în cererea finală
+      fullFormData.clientInfo = {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        screenWidth: window.innerWidth,
+        screenHeight: window.innerHeight,
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        submitCount
+      };
+      
       const generatedCourse = await generateCourse(fullFormData);
       
-      console.log("CourseGenerator - Course generation response received:", generatedCourse);
+      console.log(`CourseGenerator - Course generation #${submitCount} response received:`, generatedCourse);
       
       if (generatedCourse) {
         const isProcessing = generatedCourse.status === 'processing';
-        console.log("CourseGenerator - Job status:", generatedCourse.status);
+        console.log(`CourseGenerator - Job #${submitCount} status:`, generatedCourse.status);
         
         if (generatedCourse.jobId) {
-          console.log("CourseGenerator - Setting job ID for polling:", generatedCourse.jobId);
+          console.log(`CourseGenerator - Setting job ID for polling (submit #${submitCount}):`, generatedCourse.jobId);
           setGenerationJobId(generatedCourse.jobId);
         }
         
         if (!isAdminUser) {
-          console.log("CourseGenerator - Decrementing generations left for non-admin user");
+          console.log(`CourseGenerator - Decrementing generations left for non-admin user (submit #${submitCount})`);
           const decrementSuccess = await decrementGenerationsLeft(user.id);
           
           if (decrementSuccess) {
-            console.log("CourseGenerator - Successfully decremented generations count");
+            console.log(`CourseGenerator - Successfully decremented generations count (submit #${submitCount})`);
             await refreshProfile();
           } else {
-            console.warn("CourseGenerator - Failed to decrement generations count");
+            console.warn(`CourseGenerator - Failed to decrement generations count (submit #${submitCount})`);
           }
         } else {
-          console.log("CourseGenerator - Admin user - skipping generation count decrement");
+          console.log(`CourseGenerator - Admin user - skipping generation count decrement (submit #${submitCount})`);
         }
         
         if (!isProcessing) {
@@ -403,7 +530,7 @@ const CourseGenerator = () => {
         }
       }
     } catch (error: any) {
-      console.error("CourseGenerator - Error in course generation:", error);
+      console.error(`CourseGenerator - Error in course generation (submit #${submitCount}):`, error);
       setLoading(false);
       setError(error.message || (language === 'ro' ? "A apărut o eroare neașteptată în timpul generării materialelor" : "An unexpected error occurred during material generation"));
       
@@ -412,7 +539,8 @@ const CourseGenerator = () => {
         errorMessage: error.message,
         errorDetails: error.details || null,
         errorResponse: error.response || null,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        submitCount
       }, null, 2));
       
       toast({
@@ -420,6 +548,9 @@ const CourseGenerator = () => {
         description: error.message || (language === 'ro' ? "A apărut o eroare neașteptată" : "An unexpected error occurred"),
         variant: 'destructive'
       });
+      
+      // Afișăm butonul de diagnosticare
+      setShowDiagnosticButton(true);
     }
   };
 
@@ -432,6 +563,7 @@ const CourseGenerator = () => {
     setError(null);
     setTechnicalDetails(null);
     setShowTechnicalDetails(false);
+    setShowDiagnosticButton(false);
     handleSubmit(new Event('submit') as any);
   };
 
@@ -459,27 +591,46 @@ const CourseGenerator = () => {
           <AlertTitle>{language === 'ro' ? 'Eroare' : 'Error'}</AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
             <p>{error}</p>
-            {technicalDetails && (
-              <div className="mt-2">
-                <Button variant="outline" size="sm" onClick={toggleTechnicalDetails} className="flex items-center gap-1 text-xs">
+            
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleRetry} className="flex items-center gap-1">
+                {language === 'ro' ? 'Încearcă din nou' : 'Try again'}
+              </Button>
+              
+              {showDiagnosticButton && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={runDiagnostics} 
+                  disabled={isDiagnosticRunning}
+                  className="flex items-center gap-1"
+                >
+                  <RefreshCcw className={`h-3 w-3 ${isDiagnosticRunning ? 'animate-spin' : ''}`} />
+                  {language === 'ro' ? 'Rulează diagnostic' : 'Run diagnostics'}
+                </Button>
+              )}
+              
+              {technicalDetails && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={toggleTechnicalDetails} 
+                  className="flex items-center gap-1"
+                >
                   <Info className="h-3 w-3" />
                   {showTechnicalDetails 
                     ? (language === 'ro' ? 'Ascunde detalii tehnice' : 'Hide technical details')
                     : (language === 'ro' ? 'Arată detalii tehnice' : 'Show technical details')
                   }
                 </Button>
-                
-                {showTechnicalDetails && (
-                  <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-60">
-                    {technicalDetails}
-                  </pre>
-                )}
-              </div>
-            )}
+              )}
+            </div>
             
-            <Button variant="outline" size="sm" onClick={handleRetry} className="self-start mt-2">
-              {language === 'ro' ? 'Încearcă din nou' : 'Try again'}
-            </Button>
+            {showTechnicalDetails && technicalDetails && (
+              <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-60">
+                {technicalDetails}
+              </pre>
+            )}
           </AlertDescription>
         </Alert>
       )}

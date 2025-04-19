@@ -6,6 +6,10 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
   try {
     const jobId = requestData.jobId;
     
+    // Log detaliat pentru debugging
+    console.log(`CheckStatus - Request primit la ${new Date().toISOString()} pentru jobId: ${jobId || 'undefined'}`);
+    console.log(`CheckStatus - Request data:`, JSON.stringify(requestData));
+    
     if (!jobId) {
       console.error("CheckStatus - Missing jobId in request");
       return new Response(
@@ -24,6 +28,8 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
     }
     
     console.log(`CheckStatus - Verificare status pentru job: ${jobId}`);
+    console.log(`CheckStatus - JobStore size: ${jobStore.size}`);
+    console.log(`CheckStatus - JobStore keys: ${Array.from(jobStore.keys()).join(', ')}`);
     
     // Verificăm dacă job-ul există în store
     const jobData = jobStore.get(jobId);
@@ -48,6 +54,13 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
     }
     
     console.log(`CheckStatus - Status curent pentru job ${jobId}: ${jobData.status}`);
+    console.log(`CheckStatus - Job data:`, JSON.stringify(jobData, (key, value) => {
+      // Excludem conținutul mare pentru a evita logarea prea mult text
+      if (key === 'data' || key === 'sections') {
+        return '[Conținut ascuns pentru brevitate]';
+      }
+      return value;
+    }));
     
     // Calculăm timpul scurs și estimăm progresul
     const startTime = jobData.startedAt ? new Date(jobData.startedAt).getTime() : Date.now();
@@ -95,12 +108,23 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
       response.totalSections = jobData.totalSections;
     }
     
+    // Adăugăm milestone pentru debugging
+    if (jobData.milestone) {
+      response.milestone = jobData.milestone;
+    }
+    
+    // Adăugăm timestamp ultimul update
+    if (jobData.lastUpdated) {
+      response.lastUpdated = jobData.lastUpdated;
+    }
+    
     // Dacă job-ul este finalizat, includem și datele generate
     if (jobData.status === 'completed') {
       console.log(`CheckStatus - Job ${jobId} este finalizat, returnare date`);
       
       // Pentru versiunea incrementală, verificăm dacă avem date în formatul nou (cu secțiuni multiple)
       if (jobData.processedSections && jobData.sections && Array.isArray(jobData.sections)) {
+        console.log(`CheckStatus - Job ${jobId} returnat cu ${jobData.sections.length} secțiuni`);
         return new Response(
           JSON.stringify({
             ...response,
@@ -117,6 +141,7 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
       }
       
       // Fallback la formatul vechi
+      console.log(`CheckStatus - Job ${jobId} returnat cu format vechi de date`);
       return new Response(
         JSON.stringify({
           ...response,
@@ -139,6 +164,7 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
         JSON.stringify({
           ...response,
           error: jobData.error,
+          errorDetails: jobData.errorDetails || null,  // Adăugat pentru diagnosticare
           data: jobData.data, // Includem datele de rezervă în caz de eroare
           completedAt: jobData.completedAt
         }),
@@ -157,16 +183,8 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
       response.partialData = { sections: jobData.sections };
     }
     
-    // Adăugăm milestone și ultimul update pentru job-uri în procesare
-    if (jobData.milestone) {
-      response.milestone = jobData.milestone;
-    }
-    
-    if (jobData.lastUpdated) {
-      response.lastUpdated = jobData.lastUpdated;
-    }
-    
     // Răspuns standard pentru job-uri în procesare
+    console.log(`CheckStatus - Returnare status pentru job ${jobId}: ${jobData.status}, progres: ${progressPercent}%`);
     return new Response(
       JSON.stringify(response),
       {

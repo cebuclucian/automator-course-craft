@@ -131,6 +131,77 @@ export const testClaudeAPI = async (): Promise<any> => {
   }
 };
 
+// Nou endpoint de diagnosticare completă
+export const runFullDiagnosis = async (): Promise<any> => {
+  try {
+    console.log("courseGeneration.ts - Rulare diagnosticare completă");
+    
+    const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const diagnosisUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course/full-diagnosis`;
+    
+    console.log(`courseGeneration.ts - Apelare endpoint diagnoză completă: ${diagnosisUrl}`);
+    
+    // Încercăm invoke standard
+    try {
+      console.log("courseGeneration.ts - Încercare apel standard pentru diagnoză completă");
+      const { data, error } = await supabase.functions.invoke('generate-course', {
+        body: { action: 'full-diagnosis' }
+      });
+      
+      if (error) {
+        console.log("courseGeneration.ts - Eroare apel standard pentru diagnoză:", error);
+        throw error;
+      }
+      
+      console.log("courseGeneration.ts - Diagnosticare completă succesă:", data);
+      return data;
+    } catch (invokeError) {
+      console.log("courseGeneration.ts - Apel standard pentru diagnoză eșuat, încercare fetch direct:", invokeError);
+      
+      // Backup: încercăm cu fetch direct
+      const response = await fetch(diagnosisUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      console.log("courseGeneration.ts - Status fetch direct pentru diagnoză:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("courseGeneration.ts - Eroare fetch direct pentru diagnoză:", response.status, errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      
+      const responseText = await response.text();
+      console.log("courseGeneration.ts - Răspuns brut fetch direct pentru diagnoză:", responseText.substring(0, 200) + "...");
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("courseGeneration.ts - Eroare parsare JSON pentru diagnoză:", e);
+        data = { raw: responseText.substring(0, 1000) + "..." };
+      }
+      
+      console.log("courseGeneration.ts - Răspuns parsat fetch direct pentru diagnoză:", 
+        JSON.stringify(data, (key, value) => {
+          // Excludem conținutul mare pentru a evita logarea prea mult text
+          if (typeof value === 'string' && value.length > 100) {
+            return value.substring(0, 100) + '...';
+          }
+          return value;
+        }));
+        
+      return data;
+    }
+  } catch (error) {
+    console.error("courseGeneration.ts - Eroare la rularea diagnosticării complete:", error);
+    throw error;
+  }
+};
+
 // Funcție pentru a genera un curs cu text
 export const generateCourse = async (formData: CourseFormData): Promise<any> => {
   try {
@@ -149,11 +220,21 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
         attempt++;
         console.log(`courseGeneration.ts - Încercare ${attempt} din ${maxAttempts}`);
         
+        // DIAGNOZA: Adăugăm informații de timestamp și user agent pentru monitoring
+        const diagnosticInfo = {
+          clientTimestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          screenWidth: window.innerWidth,
+          screenHeight: window.innerHeight,
+          attemptNumber: attempt
+        };
+        
         const { data, error } = await supabase.functions.invoke('generate-course', {
           body: { 
             action: 'start',
             formData,
-            timestamp: new Date().toISOString() // Pentru a preveni caching-ul
+            timestamp: new Date().toISOString(), // Pentru a preveni caching-ul
+            diagnostic: diagnosticInfo
           }
         });
         
@@ -229,11 +310,18 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
         attempt++;
         console.log(`courseGeneration.ts - Verificare status încercare ${attempt} din ${maxAttempts}`);
         
+        // DIAGNOZA: Adăugăm informații de timestamp pentru monitoring
+        const diagnosticInfo = {
+          clientTimestamp: new Date().toISOString(),
+          attemptNumber: attempt
+        };
+        
         const { data, error } = await supabase.functions.invoke('generate-course', {
           body: { 
             action: 'status',
             jobId,
-            timestamp: new Date().toISOString() // Pentru a preveni caching-ul
+            timestamp: new Date().toISOString(), // Pentru a preveni caching-ul
+            diagnostic: diagnosticInfo
           }
         });
         
