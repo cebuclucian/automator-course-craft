@@ -55,6 +55,7 @@ const translations: Record<SupportedLanguages, Record<string, string>> = {
     'auth.signupWithGoogle': 'Înregistrare cu Google',
     'auth.continueWithGoogle': 'Continuă cu Google',
     'auth.continueWith': 'sau continuă cu',
+    'account.userInfo': 'Informații utilizator',
   },
   en: {
     'nav.about': 'About',
@@ -101,6 +102,7 @@ const translations: Record<SupportedLanguages, Record<string, string>> = {
     'auth.signupWithGoogle': 'Sign up with Google',
     'auth.continueWithGoogle': 'Continue with Google',
     'auth.continueWith': 'or continue with',
+    'account.userInfo': 'User Information',
   }
 };
 

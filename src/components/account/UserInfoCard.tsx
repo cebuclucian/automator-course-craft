@@ -4,6 +4,7 @@ import { User } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface UserInfoCardProps {
   user: User | null;
@@ -24,10 +25,12 @@ const UserInfoCard = ({
   onCreateAdminProSubscription,
   formatDate,
 }: UserInfoCardProps) => {
+  const { t } = useLanguage();
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Informații utilizator</CardTitle>
+        <CardTitle>{t('account.userInfo')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
