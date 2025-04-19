@@ -8,6 +8,7 @@ import { Loader2, Infinity as InfinityIcon } from 'lucide-react';
 import { CourseFormData } from '@/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supportedCourseLanguages } from '@/config/supportedCourseLanguages';
+import GenerationProgress from './GenerationProgress';
 
 interface CourseGeneratorFormProps {
   formData: CourseFormData;
@@ -47,6 +48,10 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
     jobId,
     loading 
   });
+
+  const handleDurationChange = (value: string) => {
+    onFormDataChange('duration', value);
+  };
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
