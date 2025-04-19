@@ -3,7 +3,12 @@ import { useState } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
-import { decrementGenerations, isAdminUser } from "@/services/generationsService";
+import { 
+  decrementGenerations, 
+  isAdminUser, 
+  checkAndResetMonthlyGenerations, 
+  getAvailableGenerations 
+} from "@/services/generationsService";
 
 export const useProfileState = () => {
   const [profile, setProfile] = useState<User | null>(null);
@@ -75,10 +80,21 @@ export const useProfileState = () => {
     const success = await decrementGenerations(userId);
     
     if (success && profile && profile.id === userId) {
-      setProfile({
-        ...profile,
-        generationsLeft: Math.max(0, (profile.generationsLeft || 0) - 1)
-      });
+      // Obținem direct din baza de date numărul actualizat de generări
+      const updatedGenerations = await getAvailableGenerations(userId);
+      
+      if (updatedGenerations !== null) {
+        setProfile({
+          ...profile,
+          generationsLeft: updatedGenerations
+        });
+      } else {
+        // Dacă nu se poate obține valoarea actualizată, decrementăm local
+        setProfile({
+          ...profile,
+          generationsLeft: Math.max(0, (profile.generationsLeft || 0) - 1)
+        });
+      }
     }
     
     return success;
@@ -91,6 +107,9 @@ export const useProfileState = () => {
 
       const { data: session } = await supabase.auth.getSession();
       if (!session.session?.user) return null;
+
+      // Verificăm resetarea lunară a generărilor
+      await checkAndResetMonthlyGenerations(session.session.user.id);
 
       let subscriberData;
       const { data, error: profileError } = await supabase
@@ -110,7 +129,7 @@ export const useProfileState = () => {
             email: session.session.user.email,
             subscription_tier: 'Free',
             subscribed: false,
-            generations_left: 1
+            generations_left: 1 // Inițializăm cu 1 generare pentru contul gratuit
           })
           .select()
           .single();
@@ -123,8 +142,10 @@ export const useProfileState = () => {
       // Verifică dacă utilizatorul este admin@automator.ro
       const isAdmin = subscriberData.email === 'admin@automator.ro';
       
-      // Numărul de generări disponibile - nelimitat pentru admin
-      const generationsLeft = isAdmin ? 999999 : (subscriberData.generations_left ?? 0);
+      // Numărul de generări disponibile
+      const generationsLeft = isAdmin ? 
+        999999 : // Valoare foarte mare pentru admin
+        (subscriberData.generations_left ?? calculateInitialGenerations(subscriberData.subscription_tier || 'Free'));
       
       // Subscription tier pentru admin - întotdeauna Enterprise
       const subscriptionTier = isAdmin ? 'Enterprise' : (subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise');
@@ -170,3 +191,4 @@ export const useProfileState = () => {
     error
   };
 };
+
