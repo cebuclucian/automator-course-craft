@@ -1,8 +1,7 @@
-
 import { JobStore } from "../helpers/jobProcessor.ts";
 import { buildPrompt } from "../helpers/promptBuilder.ts";
 import { generateMockStructureData, MockGenerationType } from "../helpers/mockGenerators/courseStructure.ts";
-import { CourseFormData } from "../../../src/types/index.ts";
+import { CourseFormData } from "../types.ts";
 import { Job } from "../index.ts";
 
 interface StartJobResult {

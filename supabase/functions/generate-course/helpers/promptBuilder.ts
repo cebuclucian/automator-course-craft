@@ -1,6 +1,6 @@
+import { CourseFormData } from "../types.ts";
 
-// Helper function to build the prompt for Claude API
-export const buildPrompt = (formData) => {
+export function buildPrompt(formData: CourseFormData): string {
   // Template string from the brief
   let promptTemplate = `# Sistem pentru generarea automată a materialelor de curs fizic și academic
 
@@ -129,4 +129,4 @@ Use clear, formal, and structured language. Focus on accuracy and logical flow. 
     .replace(/EXPIRY_DATE/g, new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString());
 
   return promptTemplate;
-};
+}

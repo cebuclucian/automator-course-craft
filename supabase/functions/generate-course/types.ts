@@ -52,24 +52,3 @@ export interface CourseCategory {
   content: string;
   type?: string;
 }
-
-export interface User {
-  id: string;
-  email?: string;
-  name?: string;
-  subscription?: Subscription;
-  generatedCourses?: GeneratedCourse[];
-  generationsLeft?: number;
-}
-
-export interface Subscription {
-  tier: 'Free' | 'Basic' | 'Pro' | 'Enterprise';
-  active: boolean;
-  expiresAt?: string | Date;
-  features?: string[];
-  limits?: {
-    coursesPerMonth?: number;
-    customization?: boolean;
-    support?: string;
-  };
-}
