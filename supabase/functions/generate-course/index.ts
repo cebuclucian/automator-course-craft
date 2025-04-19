@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "./cors.ts";
 import { handleStartJob } from "./handlers/startJob.ts";
@@ -176,12 +175,110 @@ serve(async (req) => {
 
   // Endpoint de test pentru verificarea conectivității
   if (pathname.endsWith('/test-connection')) {
-    return await handleTestConnection();
+    console.log("Handling /test-connection request");
+    return new Response(
+      JSON.stringify({ 
+        status: 'ok', 
+        timestamp: Date.now(),
+        message: 'Edge Function is running correctly',
+        apiKeyConfigured: !!CLAUDE_API_KEY
+      }), 
+      { 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json' 
+        } 
+      }
+    );
   }
   
   // Endpoint de test pentru API Claude
   if (pathname.endsWith('/test-claude')) {
-    return await handleTestClaude();
+    console.log("Handling /test-claude request");
+    try {
+      if (!CLAUDE_API_KEY) {
+        console.error("Claude API key not configured");
+        return new Response(
+          JSON.stringify({ 
+            error: 'Claude API key not configured' 
+          }), 
+          { 
+            status: 500, 
+            headers: { 
+              ...corsHeaders,
+              'Content-Type': 'application/json' 
+            } 
+          }
+        );
+      }
+
+      console.log("Attempting minimal Claude API test");
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": CLAUDE_API_KEY,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: "claude-3-sonnet-20240229",
+          max_tokens: 100,
+          messages: [{ 
+            role: "user", 
+            content: "Respond with 'Claude API is working correctly'" 
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Claude API error:", response.status, errorText);
+        return new Response(
+          JSON.stringify({ 
+            error: `Claude API error: ${response.status}`,
+            details: errorText
+          }), 
+          { 
+            status: 500, 
+            headers: { 
+              ...corsHeaders,
+              'Content-Type': 'application/json' 
+            } 
+          }
+        );
+      }
+
+      const data = await response.json();
+      console.log("Claude API test successful");
+      return new Response(
+        JSON.stringify({ 
+          status: 'ok',
+          message: 'Claude API connection successful',
+          response: data.content?.[0]?.text || "No response text"
+        }), 
+        { 
+          headers: { 
+            ...corsHeaders,
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    } catch (error) {
+      console.error("Exception testing Claude API:", error);
+      return new Response(
+        JSON.stringify({ 
+          error: `Exception testing Claude API: ${error.message}`,
+          stack: error.stack
+        }), 
+        { 
+          status: 500, 
+          headers: { 
+            ...corsHeaders,
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    }
   }
 
   try {

@@ -1,7 +1,38 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { CourseFormData, GenerationType, GeneratedCourse } from '@/types';
 import { UUID } from 'crypto';
+
+// Funcție pentru testarea conectivității Edge Function
+export const testEdgeFunctionConnection = async (): Promise<any> => {
+  try {
+    console.log("courseGeneration.ts - Testing Edge Function connection");
+    const { data, error } = await supabase.functions.invoke('generate-course', {
+      body: { action: 'test-connection' }
+    });
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("courseGeneration.ts - Error testing connection:", error);
+    throw error;
+  }
+};
+
+// Funcție pentru testarea API Claude
+export const testClaudeAPI = async (): Promise<any> => {
+  try {
+    console.log("courseGeneration.ts - Testing Claude API connection");
+    const { data, error } = await supabase.functions.invoke('generate-course', {
+      body: { action: 'test-claude' }
+    });
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("courseGeneration.ts - Error testing Claude API:", error);
+    throw error;
+  }
+};
 
 // Funcție pentru a genera un curs cu text
 export const generateCourse = async (formData: CourseFormData): Promise<any> => {

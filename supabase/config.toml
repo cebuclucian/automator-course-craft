@@ -1,14 +1,10 @@
 
-project_id = "ittzxpynkyzcrytyudlt"
-
+[functions]
 [functions.generate-course]
 verify_jwt = true
 
-[functions.create-checkout]
-verify_jwt = true
+[functions.generate-course.test-connection]
+verify_jwt = false
 
-[functions.customer-portal]
-verify_jwt = true
-
-[functions.config]
-allowed_domains = ["https://automator.ro", "http://automator.ro", "https://www.automator.ro", "http://www.automator.ro"]
+[functions.generate-course.test-claude]
+verify_jwt = false
