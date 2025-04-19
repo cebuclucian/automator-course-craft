@@ -10,17 +10,21 @@ import { Facebook, Github } from "lucide-react";
 import LoginForm from "./auth/LoginForm";
 import RegisterForm from "./auth/RegisterForm";
 import EmailConfirmation from "./auth/EmailConfirmation";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { InfoIcon } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: "login" | "register";
+  selectedPackage?: string | null;
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   initialMode = "login",
+  selectedPackage
 }) => {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "register">(initialMode);
@@ -38,14 +42,19 @@ const AuthModal: React.FC<AuthModalProps> = ({
     }
   }, [isOpen, mode]);
 
+  const handleSuccessfulAuth = () => {
+    onClose();
+    if (selectedPackage) {
+      navigate('/account');
+    }
+  };
+
   const handleLogin = async (email: string, password: string) => {
     setIsSubmitting(true);
     try {
       const success = await login(email, password);
       if (success) {
-        onClose();
-        console.log("Login successful, navigating to account page");
-        navigate('/account');
+        handleSuccessfulAuth();
       }
     } finally {
       setIsSubmitting(false);
@@ -112,7 +121,15 @@ const AuthModal: React.FC<AuthModalProps> = ({
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-md">
-          <EmailConfirmation email={email} onClose={onClose} />
+          <EmailConfirmation 
+            email={email} 
+            onClose={() => {
+              onClose();
+              if (selectedPackage) {
+                navigate('/account');
+              }
+            }} 
+          />
         </DialogContent>
       </Dialog>
     );
@@ -126,9 +143,21 @@ const AuthModal: React.FC<AuthModalProps> = ({
             {mode === "login" ? t("auth.loginButton") : t("auth.registerButton")}
           </DialogTitle>
           <DialogDescription>
-            {mode === "login" 
-              ? "Introduceți datele pentru a vă autentifica" 
-              : "Completați formularul pentru a crea un cont nou"}
+            {selectedPackage ? (
+              <Alert className="mt-2 bg-blue-50 dark:bg-blue-900/20">
+                <InfoIcon className="h-4 w-4" />
+                <AlertDescription>
+                  {language === 'ro' 
+                    ? `Trebuie să îți creezi un cont pentru a putea accesa pachetul ${selectedPackage}.`
+                    : `You need to create an account to access the ${selectedPackage} package.`
+                  }
+                </AlertDescription>
+              </Alert>
+            ) : (
+              mode === "login" 
+                ? "Introduceți datele pentru a vă autentifica" 
+                : "Completați formularul pentru a crea un cont nou"
+            )}
           </DialogDescription>
         </DialogHeader>
 

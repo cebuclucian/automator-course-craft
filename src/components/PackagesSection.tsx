@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -7,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import AuthModal from './AuthModal';
 
 const PackagesSection = () => {
   const { language } = useLanguage();
@@ -14,6 +14,8 @@ const PackagesSection = () => {
   const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [processingPackage, setProcessingPackage] = React.useState('');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
 
   const packages = {
     ro: [
@@ -142,14 +144,8 @@ const PackagesSection = () => {
 
   const handlePackageSelect = async (packageName: string) => {
     if (!user) {
-      toast({
-        title: language === 'ro' ? 'Autentificare necesară' : 'Authentication required',
-        description: language === 'ro' 
-          ? 'Trebuie să fii autentificat pentru a alege un pachet.' 
-          : 'You need to be logged in to select a package.',
-        variant: "default"
-      });
-      navigate('/account');
+      setSelectedPackage(packageName);
+      setIsAuthModalOpen(true);
       return;
     }
 
@@ -293,9 +289,17 @@ const PackagesSection = () => {
           ))}
         </div>
       </div>
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setSelectedPackage(null);
+        }}
+        selectedPackage={selectedPackage}
+        initialMode="register"
+      />
     </section>
   );
 };
 
 export default PackagesSection;
-
