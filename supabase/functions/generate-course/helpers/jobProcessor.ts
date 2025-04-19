@@ -1,4 +1,3 @@
-
 import { jobStore } from "../index.ts";
 import { mockCourseData } from "./mockData.ts";
 
@@ -30,12 +29,11 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
     }
 
     console.log(`JobProcessor: Calling Claude API for job ${jobId}...`);
-
+    
     // CRITICAL: Log the API request details
     console.log(`JobProcessor: Request to API with model: claude-3-sonnet-20240229, temperature: 0.7, max_tokens: 16000`);
     console.log(`JobProcessor: System prompt: "Expert in course design and training"`);
-    console.log(`JobProcessor: First 100 chars of prompt: ${prompt.substring(0, 100)}...`);
-
+    
     // Call Anthropic/Claude API to generate content
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -69,7 +67,6 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
     // Process response
     const result = await response.json();
     console.log(`JobProcessor: Response received from Claude, contains data: ${!!result}`);
-    console.log(`JobProcessor: Content length: ${result.content?.length || 0}`);
     
     if (!result || !result.content || result.content.length === 0) {
       throw new Error("Empty or invalid response from API");

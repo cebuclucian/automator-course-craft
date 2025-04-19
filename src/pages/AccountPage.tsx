@@ -14,6 +14,7 @@ const AccountPage = () => {
   const [localLoading, setLocalLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [loadAttempts, setLoadAttempts] = useState(0);
+  const [isFixingData, setIsFixingData] = useState(false);
   const { toast } = useToast();
   
   // Logging for debugging
@@ -35,19 +36,52 @@ const AccountPage = () => {
       const automatorUser = localStorage.getItem('automatorUser');
       console.log("AccountPage - localStorage automatorUser exists:", !!automatorUser);
       if (automatorUser) {
-        const parsed = JSON.parse(automatorUser);
-        console.log("AccountPage - localStorage parsed user:", {
-          id: parsed.id,
-          email: parsed.email,
-          generatedCoursesLength: parsed.generatedCourses ? 
-            (Array.isArray(parsed.generatedCourses) ? parsed.generatedCourses.length : 'Not an array') : 
-            'undefined'
-        });
+        try {
+          const parsed = JSON.parse(automatorUser);
+          console.log("AccountPage - localStorage parsed user:", {
+            id: parsed.id,
+            email: parsed.email,
+            generatedCoursesLength: parsed.generatedCourses ? 
+              (Array.isArray(parsed.generatedCourses) ? parsed.generatedCourses.length : 'Not an array') : 
+              'undefined'
+          });
+          
+          // Check for data issues and fix them
+          if (parsed.generatedCourses && !Array.isArray(parsed.generatedCourses)) {
+            console.error("AccountPage - localStorage has corrupted generatedCourses, fixing...");
+            setIsFixingData(true);
+            
+            // Fix corrupted data
+            const fixedUser = {
+              ...parsed,
+              generatedCourses: [] // Reset to empty array
+            };
+            
+            // Update storage
+            localStorage.setItem('automatorUser', JSON.stringify(fixedUser));
+            console.log("AccountPage - Fixed corrupted generatedCourses in localStorage");
+            
+            // Force refresh once fixed
+            refreshUser().then(() => {
+              setIsFixingData(false);
+              console.log("AccountPage - User data refreshed after fixing corrupted data");
+            });
+          }
+        } catch (e) {
+          console.error("AccountPage - Error parsing localStorage:", e);
+          
+          // If we can't parse the data, it's corrupted - clear it
+          localStorage.removeItem('automatorUser');
+          console.log("AccountPage - Removed corrupted automatorUser from localStorage");
+          
+          // Force refresh
+          refreshUser();
+        }
       }
     } catch (e) {
-      console.error("AccountPage - Error parsing localStorage:", e);
+      console.error("AccountPage - Error accessing localStorage:", e);
     }
-  }, [user, authLoading, localLoading]);
+  }, [refreshUser]);
   
   // Load user data only once when the account page initially loads
   useEffect(() => {
@@ -129,7 +163,7 @@ const AccountPage = () => {
     };
     
     // Only refresh if we're not already loading and if this isn't a retry that would exceed our max attempts
-    if (!authLoading && (loadAttempts < 3)) {
+    if (!authLoading && !isFixingData && (loadAttempts < 3)) {
       loadUserData();
     } else if (loadAttempts >= 3) {
       // If we've exceeded max retry attempts, show an error
@@ -141,19 +175,26 @@ const AccountPage = () => {
       isMounted = false;
       clearTimeout(loadTimeout);
     };
-  }, [refreshUser, authLoading, toast, loadAttempts, user?.id]);
+  }, [refreshUser, authLoading, toast, loadAttempts, user?.id, isFixingData, localLoading]);
 
   const handleRetry = useCallback(() => {
     console.log("AccountPage - Manual retry triggered");
     setLoadError(false);
     setLocalLoading(true);
     setLoadAttempts(0);
+    // First try clearing localStorage for automatorUser and refreshing
+    try {
+      localStorage.removeItem('automatorUser');
+      console.log("AccountPage - Cleared automatorUser from localStorage for fresh start");
+    } catch (e) {
+      console.error("AccountPage - Error clearing localStorage:", e);
+    }
     // Force full page reload to reset the app state
     window.location.reload();
   }, []);
   
   // Show loading state
-  if (authLoading || localLoading) {
+  if (authLoading || localLoading || isFixingData) {
     return (
       <div className="container mx-auto px-4 py-10">
         <div className="flex flex-col md:flex-row gap-8">
@@ -211,32 +252,19 @@ const AccountPage = () => {
     );
   }
   
-  // Ensure user.generatedCourses is an array
-  if (user.generatedCourses && !Array.isArray(user.generatedCourses)) {
-    console.error("AccountPage - user.generatedCourses is not an array:", user.generatedCourses);
-    const fixedUser = {
-      ...user,
-      generatedCourses: [] // Safe fallback
-    };
-    console.log("AccountPage - Fixed user with empty generatedCourses array");
-    
-    // Update localStorage with corrected user data
-    try {
-      localStorage.setItem('automatorUser', JSON.stringify(fixedUser));
-    } catch (e) {
-      console.error("AccountPage - Error updating localStorage with fixed user:", e);
-    }
-    
+  // Final safety check for generatedCourses
+  if (!Array.isArray(user.generatedCourses)) {
+    console.error("AccountPage - user.generatedCourses is not an array:", typeof user.generatedCourses);
     return (
       <div className="container mx-auto px-4 py-10">
         <Alert variant="destructive" className="mb-6">
           <AlertDescription>
-            Datele despre materialele generate sunt incorecte. Am încercat să reparăm automat. Vă rugăm să reîncărcați pagina.
+            Datele despre materiale sunt în format invalid. Se va încerca repararea automată.
           </AlertDescription>
         </Alert>
         <Button onClick={handleRetry} className="flex items-center gap-2">
           <RefreshCw className="h-4 w-4" />
-          Reîncarcă pagina
+          Repară și reîncarcă
         </Button>
       </div>
     );

@@ -132,6 +132,18 @@ export const useUserRefresh = () => {
           } else if (parsedUser.generatedCourses) {
             console.error("useUserRefresh: generatedCourses exists but is not an array:", typeof parsedUser.generatedCourses);
             generatedCourses = []; // Reset to empty array if data is corrupted
+            
+            // Try to repair the stored data
+            try {
+              const fixedUser = {
+                ...parsedUser,
+                generatedCourses: [] // Ensure it's an array
+              };
+              localStorage.setItem('automatorUser', JSON.stringify(fixedUser));
+              console.log("useUserRefresh: Fixed corrupted generatedCourses data in localStorage");
+            } catch (e) {
+              console.error("useUserRefresh: Error fixing corrupted data:", e);
+            }
           }
         } catch (e) {
           console.error("useUserRefresh: Error parsing stored user data:", e);
@@ -141,6 +153,14 @@ export const useUserRefresh = () => {
             variant: "destructive"
           });
           generatedCourses = [];
+          
+          // If we can't parse the data, it's probably corrupted, so let's clear it
+          try {
+            localStorage.removeItem('automatorUser');
+            console.log("useUserRefresh: Removed corrupted automatorUser from localStorage");
+          } catch (e) {
+            console.error("useUserRefresh: Error removing corrupted data:", e);
+          }
         }
       }
       
