@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,20 +13,16 @@ const HeroSection = () => {
   
   const handleCTA = () => {
     if (user) {
-      // Dacă utilizatorul este deja autentificat, îl ducem direct la pagina de generare
       navigate('/generate');
     } else {
-      // Dacă utilizatorul nu este autentificat, deschidem modalul de autentificare
       setIsAuthModalOpen(true);
     }
   };
   
   const handleAccountCTA = () => {
     if (user) {
-      // Dacă utilizatorul este deja autentificat, îl ducem la pagina de cont
       navigate('/account');
     } else {
-      // Dacă utilizatorul nu este autentificat, deschidem modalul de autentificare
       setIsAuthModalOpen(true);
     }
   };
@@ -36,11 +31,11 @@ const HeroSection = () => {
     <section className="relative py-20 bg-gradient-to-br from-automator-50 via-automator-100 to-blue-100 dark:from-automator-950 dark:via-automator-900 dark:to-blue-900">
       <div className="container mx-auto px-4 text-center">
         <h1 className="text-4xl font-bold mb-6 my-[18px] md:text-7xl">
-          {language === 'ro' ? 'Ai de livrat un curs maine? E gata acum!' : 'Have a course to deliver tomorrow? It\'s ready now!'}
+          {language === 'ro' ? 'Ai de livrat un curs mâine? E gata acum!' : 'Have a course to deliver tomorrow? It\'s ready now!'}
         </h1>
         <p className="text-lg md:text-xl mb-8 max-w-2xl mx-auto text-gray-700 dark:text-gray-300">
           {language === 'ro' 
-            ? 'Platforma care te ajută să creezi materiale pentru orice tip de curs adaptat nevoilor tale in cateva minute' 
+            ? 'Platforma care te ajută să creezi materiale pentru orice tip de curs adaptat nevoilor tale în câteva minute' 
             : 'The platform that helps you create materials for any type of course tailored to your needs in minutes'}
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -61,7 +56,6 @@ const HeroSection = () => {
         </div>
       </div>
 
-      {/* Authentication Modal */}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} initialMode="register" />
     </section>
   );
