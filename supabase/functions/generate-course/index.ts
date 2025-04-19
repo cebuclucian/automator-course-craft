@@ -1,11 +1,10 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { corsHeaders } from "./cors.ts";
 import { handleStartJob } from "./handlers/startJob.ts";
 import { handleCheckStatus } from "./handlers/checkStatus.ts";
 import { mockCourseData } from "./helpers/mockData.ts";
 
+// Securely retrieve Claude API key from environment
 const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
 
 // Store în memorie pentru urmărirea job-urilor (într-o aplicație de producție, ar utiliza o bază de date)
