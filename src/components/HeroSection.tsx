@@ -31,7 +31,21 @@ const HeroSection = () => {
     <section className="relative py-20 bg-gradient-to-br from-automator-50 via-automator-100 to-blue-100 dark:from-automator-950 dark:via-automator-900 dark:to-blue-900">
       <div className="container mx-auto px-4 text-center">
         <h1 className="text-4xl font-bold mb-6 my-[18px] md:text-7xl">
-          {language === 'ro' ? 'Ai de livrat un curs mâine? E gata acum!' : 'Have a course to deliver tomorrow? It\'s ready now!'}
+          {language === 'ro' 
+            ? (
+              <>
+                Ai de livrat un curs mâine? 
+                <br />
+                E gata acum!
+              </>
+            ) 
+            : (
+              <>
+                Have a course to deliver tomorrow? 
+                <br />
+                It's ready now!
+              </>
+            )}
         </h1>
         <p className="text-lg md:text-xl mb-8 max-w-2xl mx-auto text-gray-700 dark:text-gray-300">
           {language === 'ro' 
