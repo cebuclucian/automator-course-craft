@@ -2,132 +2,120 @@
 import { jobStore } from "../index.ts";
 import { corsHeaders } from "../cors.ts";
 
-// Handler for checking a job status
-export async function handleCheckStatus(requestData: any, corsHeaders: any) {
-  console.log("CRITICAL: checkStatus handler called with data:", JSON.stringify(requestData));
-  
-  const { jobId } = requestData;
-  
-  // Check for jobId
-  if (!jobId) {
-    console.error("CRITICAL: Job ID missing in status check request");
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: "Job ID is required" 
-      }),
-      { 
-        status: 400, 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
-    );
-  }
-
+export const handleCheckStatus = async (requestData: any, headers: Record<string, string>) => {
   try {
-    console.log(`CRITICAL: Checking status for job ${jobId}`);
-    console.log(`CRITICAL: Available jobs in store: ${jobStore.size}`);
-    console.log(`CRITICAL: Job keys in store: ${Array.from(jobStore.keys()).join(', ')}`);
+    const jobId = requestData.jobId;
     
-    // Check if job exists
-    if (!jobStore.has(jobId)) {
-      console.error(`CRITICAL: Job ${jobId} doesn't exist in store`);
-      
-      // Return a success response with proper fallback data to avoid UI errors
+    if (!jobId) {
+      console.error("CheckStatus - Missing jobId in request");
       return new Response(
-        JSON.stringify({ 
-          success: true,  // Return success=true to avoid errors in UI
-          status: 'completed',  // Consider job complete if we can't find it
-          message: `Job ${jobId} doesn't exist or has expired`,
-          jobId,
-          data: {
-            sections: [
-              { 
-                type: 'lesson-plan', 
-                title: 'Plan de lecție',
-                content: `# Job expired or unavailable\n\nCouldn't find the requested job. It may have expired or been processed previously.`
-              }
-            ]
-          }
+        JSON.stringify({
+          success: false,
+          error: "ID-ul job-ului lipsește din cerere"
         }),
-        { 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
+        {
+          status: 400,
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json'
+          }
         }
       );
     }
     
-    // Get job data
+    console.log(`CheckStatus - Verificare status pentru job: ${jobId}`);
+    
+    // Verificăm dacă job-ul există în store
     const jobData = jobStore.get(jobId);
-    console.log(`CRITICAL: Job ${jobId} status: ${jobData.status}`);
     
-    // Ensure job has proper data structure, even if empty
-    if (!jobData.data) {
-      console.log(`CRITICAL: Job ${jobId} has no data, initializing empty structure`);
-      jobData.data = { sections: [] };
+    if (!jobData) {
+      console.error(`CheckStatus - Job ${jobId} nu există în store`);
+      
+      // Returnăm un status special pentru job-uri care nu există
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: 'not_found',
+          message: `Job-ul cu ID ${jobId} nu a fost găsit. Este posibil să fi expirat sau să nu fi fost creat.`
+        }),
+        {
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
     }
     
-    if (!jobData.data.sections || !Array.isArray(jobData.data.sections)) {
-      console.log(`CRITICAL: Job ${jobId} has invalid or missing sections, initializing empty array`);
-      jobData.data.sections = [];
-    }
+    console.log(`CheckStatus - Status curent pentru job ${jobId}: ${jobData.status}`);
     
-    // Complete response structure to ensure frontend has all needed fields
+    // Construirea răspunsului în funcție de status
     const response = {
       success: true,
-      status: jobData.status || 'unknown',
-      startedAt: jobData.startedAt || new Date().toISOString(),
-      completedAt: jobData.completedAt,
-      error: jobData.error,
-      data: {
-        sections: Array.isArray(jobData.data.sections) ? 
-          jobData.data.sections : []
-      },
-      message: jobData.message,
-      jobId
+      jobId: jobId,
+      status: jobData.status,
+      startedAt: jobData.startedAt
     };
     
-    console.log(`CRITICAL: checkStatus response for ${jobId}:`, {
-      status: response.status,
-      sectionsCount: response.data.sections.length,
-      hasError: !!response.error
-    });
+    // Dacă job-ul este finalizat, includem și datele generate
+    if (jobData.status === 'completed') {
+      console.log(`CheckStatus - Job ${jobId} este finalizat, returnare date`);
+      return new Response(
+        JSON.stringify({
+          ...response,
+          data: jobData.data,
+          completedAt: jobData.completedAt
+        }),
+        {
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
     
-    // Return status and data
+    // Dacă job-ul a eșuat, includem eroarea
+    if (jobData.status === 'error') {
+      console.log(`CheckStatus - Job ${jobId} a eșuat, returnare eroare`);
+      return new Response(
+        JSON.stringify({
+          ...response,
+          error: jobData.error
+        }),
+        {
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+    
+    // Răspuns standard pentru job-uri în procesare
     return new Response(
       JSON.stringify(response),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+      {
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        }
       }
     );
   } catch (error) {
-    console.error("CRITICAL: Error in checkStatus handler:", error);
-    
-    // Return error response with compatible data structure for frontend
+    console.error("CheckStatus - Eroare:", error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message || "Internal server error while checking status",
-        status: 'error',
-        data: {
-          sections: []
-        },
-        jobId
+      JSON.stringify({
+        success: false,
+        error: `Eroare verificare status: ${error.message || 'Unknown error'}`
       }),
-      { 
-        status: 500, 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+      {
+        status: 500,
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        }
       }
     );
   }
-}
+};

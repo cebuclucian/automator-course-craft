@@ -1,168 +1,127 @@
 
-import { jobStore } from "../index.ts";
-import { corsHeaders } from "../cors.ts";
-import { buildPrompt } from "../helpers/promptBuilder.ts";
 import { processJob } from "../helpers/jobProcessor.ts";
+import { jobStore } from "../index.ts";
 import { mockCourseData } from "../helpers/mockData.ts";
+import { v4 as uuidv4 } from "https://deno.land/std@0.167.0/uuid/mod.ts";
 
-// Handler for starting a new job
-export async function handleStartJob(requestData, corsHeaders) {
-  console.log("CRITICAL: startJob handler called with data:", JSON.stringify(requestData));
-  
-  const { formData } = requestData;
-  
-  // Check for formData existence
-  if (!formData) {
-    console.error("CRITICAL: Form data missing in request");
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: "Form data is missing" 
-      }),
-      { 
-        status: 400, 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
-    );
-  }
-
+export const handleStartJob = async (requestData: any, headers: Record<string, string>) => {
   try {
-    // Log API key configuration
-    const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
-    console.log(`CRITICAL: Claude API Key configured: ${CLAUDE_API_KEY ? 'Yes' : 'No'}`);
+    // Verificare date formular
+    const formData = requestData.formData;
     
-    if (!CLAUDE_API_KEY) {
-      console.error("CRITICAL: Claude API Key is missing");
+    if (!formData) {
+      console.error("StartJob - Missing formData in request");
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "API key configuration error" 
+        JSON.stringify({
+          success: false,
+          error: "Datele formularului lipsesc"
         }),
-        { 
-          status: 500, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
+        {
+          status: 400,
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json'
+          }
         }
       );
     }
     
-    // Generate unique job ID
-    const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    console.log("StartJob - Procesare cerere cu formData:", JSON.stringify(formData));
     
-    // Build prompt - using form language
-    const prompt = buildPrompt(formData);
-    
-    console.log(`CRITICAL: Starting job ${jobId} for subject: ${formData.subject}, duration: ${formData.duration}, language: ${formData.language}`);
-    console.log(`CRITICAL: Job ${jobId} prompt length: ${prompt.length} characters`);
-    
-    // Create mock data with appropriate sections for immediate response
-    const mockData = mockCourseData(formData);
-    
-    // Ensure mockData has appropriate sections
-    if (!mockData.sections || mockData.sections.length === 0) {
-      console.log(`CRITICAL: Job ${jobId} mock data has no sections, creating default ones`);
-      mockData.sections = [
-        { 
-          type: 'lesson-plan', 
-          title: 'Plan de lecție',
-          content: `# Plan de lecție: ${formData.subject}\n\n## Obiective\n- Înțelegerea conceptelor de bază\n- Dezvoltarea abilităților practice\n- Aplicarea cunoștințelor în scenarii reale`
-        },
-        { 
-          type: 'slides', 
-          title: 'Slide-uri prezentare',
-          content: `# Prezentare: ${formData.subject}\n\n## Slide 1: Introducere\n- Despre acest curs\n- Importanța subiectului\n- Ce vom învăța`
-        },
-        { 
-          type: 'trainer-notes', 
-          title: 'Note pentru trainer',
-          content: `# Note pentru trainer: ${formData.subject}\n\n## Pregătire\n- Asigurați-vă că toate materialele sunt disponibile\n- Verificați echipamentele\n\n## Sfaturi de livrare\n- Începeți cu o activitate de spargere a gheții\n- Folosiți exemple relevante pentru audiență`
-        },
-        { 
-          type: 'exercises', 
-          title: 'Exerciții',
-          content: `# Exerciții: ${formData.subject}\n\n## Exercițiul 1: Aplicare practică\n**Timp**: 15 minute\n**Materiale**: Fișe de lucru\n\n**Instrucțiuni**:\n1. Împărțiți participanții în grupuri de 3-4 persoane\n2. Distribuiți fișele de lucru\n3. Acordați 10 minute pentru rezolvare\n4. Facilitați o discuție de 5 minute despre soluții`
+    // Verificare Claude API Key
+    const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
+    if (!CLAUDE_API_KEY) {
+      console.error("StartJob - Claude API Key is not set");
+      
+      // Generăm date mock dacă nu avem cheie API
+      console.log("StartJob - Generare date mock pentru formular:", JSON.stringify(formData));
+      const mockData = mockCourseData(formData);
+      const mockJobId = `mock-${Date.now()}-${uuidv4()}`;
+      
+      jobStore.set(mockJobId, {
+        status: 'completed',
+        formData,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        data: mockData
+      });
+      
+      console.log(`StartJob - Job mock creat cu ID: ${mockJobId}`);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          jobId: mockJobId,
+          status: 'completed',
+          message: "Date generate în mod mock (cheia API Claude lipsește)"
+        }),
+        {
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json'
+          }
         }
-      ];
+      );
     }
     
-    // Store job with initial state and mock data
+    // Generare ID unic pentru job
+    const jobId = `job-${Date.now()}-${uuidv4().substring(0, 8)}`;
+    console.log(`StartJob - Job ID generat: ${jobId}`);
+    
+    // Înregistrare job în store
     jobStore.set(jobId, {
       status: 'processing',
       formData,
-      data: mockData,
-      startedAt: new Date().toISOString(),
-      initialDataReturned: true
+      startedAt: new Date().toISOString()
     });
     
-    // Log number of active jobs and their IDs for debugging
-    console.log(`CRITICAL: Current active jobs: ${jobStore.size}`);
-    console.log(`CRITICAL: Job keys in store: ${[...jobStore.keys()].join(', ')}`);
-
-    // CRITICAL FIX: Check explicitly if Edge Runtime exists before trying to use waitUntil
-    const hasEdgeRuntime = typeof EdgeRuntime !== 'undefined';
-    console.log(`CRITICAL: Edge Runtime available: ${hasEdgeRuntime}`);
+    console.log(`StartJob - Job înregistrat în store cu statusul "processing"`);
     
-    // Use waitUntil to handle async job
-    try {
-      console.log(`CRITICAL: Attempting to start background processing for job ${jobId}`);
+    // Procesare job în background
+    processJob(jobId, formData).then(() => {
+      console.log(`StartJob - Job ${jobId} a fost preluat pentru procesare`);
+    }).catch(error => {
+      console.error(`StartJob - Eroare la pornirea procesării pentru job ${jobId}:`, error);
       
-      if (hasEdgeRuntime) {
-        EdgeRuntime.waitUntil(processJob(jobId, prompt, formData));
-        console.log(`CRITICAL: Background processing started for job ${jobId} using EdgeRuntime.waitUntil`);
-      } else {
-        // Fallback if EdgeRuntime isn't available
-        console.log(`CRITICAL: EdgeRuntime not available, starting processJob directly`);
-        // Start the job but don't wait for result - it will run in background
-        processJob(jobId, prompt, formData)
-          .then(() => console.log(`CRITICAL: Job ${jobId} processing complete`))
-          .catch(err => console.error(`CRITICAL: Error in background job ${jobId} processing:`, err));
-      }
-    } catch (error) {
-      console.error(`CRITICAL: Error starting background processing for job ${jobId}:`, error);
-      // CRITICAL FIX: Start job processing directly even if waitUntil fails
-      console.log(`CRITICAL: Attempting direct processJob after waitUntil failure`);
-      processJob(jobId, prompt, formData)
-        .then(() => console.log(`CRITICAL: Direct job ${jobId} processing complete`))
-        .catch(err => console.error(`CRITICAL: Error in direct job ${jobId} processing:`, err));
-    }
+      // Actualizare status job în caz de eroare
+      jobStore.set(jobId, {
+        status: 'error',
+        formData,
+        startedAt: (jobStore.get(jobId)?.startedAt || new Date().toISOString()),
+        completedAt: new Date().toISOString(),
+        error: error.message || "Eroare necunoscută la procesarea job-ului"
+      });
+    });
     
-    // Return immediately with job ID and mock data
-    console.log(`CRITICAL: Job ${jobId} returns immediate mock data with ${mockData.sections?.length || 0} sections`);
-    
+    // Returnare răspuns imediat
     return new Response(
       JSON.stringify({
         success: true,
         jobId,
-        data: mockData,
-        status: "processing",
-        message: "Job started successfully and will continue processing in background"
+        status: 'processing',
+        message: "Job înregistrat și procesat în background"
       }),
       {
         headers: {
-          ...corsHeaders,
+          ...headers,
           'Content-Type': 'application/json'
         }
       }
     );
   } catch (error) {
-    console.error("CRITICAL: Error in startJob handler:", error);
+    console.error("StartJob - Eroare:", error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message || "Internal server error" 
+      JSON.stringify({
+        success: false,
+        error: `Eroare la înregistrarea job-ului: ${error.message || 'Unknown error'}`
       }),
-      { 
-        status: 500, 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+      {
+        status: 500,
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        }
       }
     );
   }
-}
+};

@@ -17,13 +17,13 @@ const AccountPage = () => {
   const [isFixingData, setIsFixingData] = useState(false);
   const { toast } = useToast();
   
-  // Add safety timeout to prevent infinite loading
+  // Add safety timeout to prevent infinite loading - redus la 3 secunde
   useEffect(() => {
     if (localLoading) {
       const safetyTimeout = setTimeout(() => {
         console.log("AccountPage - Safety timeout triggered, forcing loading state to complete");
         setLocalLoading(false);
-      }, 7000); // 7 second maximum timeout
+      }, 3000); // 3 secunde maximum timeout
       
       return () => clearTimeout(safetyTimeout);
     }
@@ -100,67 +100,36 @@ const AccountPage = () => {
     }
   }, [refreshUser]);
   
-  // Load user data only once when the account page initially loads
+  // Modificat pentru a elimina loop-ul infinit - facem refresh doar o singură dată
   useEffect(() => {
     let isMounted = true;
-    let loadTimeout: NodeJS.Timeout | null = null;
     
+    // Only try to load once at component mount
     const loadUserData = async () => {
       if (!isMounted) return;
       
       setLocalLoading(true);
       try {
-        // Set a safety timeout to avoid UI blocking
-        loadTimeout = setTimeout(() => {
-          if (isMounted && localLoading) {
-            console.error("⚠️ AccountPage - Timeout loading user data after 10 seconds");
-            setLocalLoading(false);
-            setLoadError(true);
-          }
-        }, 10000); // 10 second maximum timeout
+        console.log("AccountPage - Attempting to refresh user data once on mount");
         
-        // Fetch fresh user data when the account page loads
-        console.log("AccountPage - Attempting to refresh user data, attempt:", loadAttempts + 1);
-        const success = await refreshUser();
-        
-        if (isMounted) {
-          if (success) {
-            console.log("AccountPage - User data refresh successful");
-            
-            // Log detailed information about user state
-            if (user) {
-              console.log("AccountPage - Current user data:", {
-                id: user.id,
-                email: user.email,
-                subscription: user.subscription || "No subscription data",
-                generationsLeft: user.generationsLeft,
-                coursesCount: user.generatedCourses?.length || 0,
-                coursesArray: Array.isArray(user.generatedCourses)
-              });
-            } else {
-              console.warn("AccountPage - User is null after successful refresh");
+        // Verificăm dacă avem deja date în localStorage
+        const existingUserData = localStorage.getItem('automatorUser');
+        if (existingUserData) {
+          try {
+            const parsed = JSON.parse(existingUserData);
+            if (parsed && parsed.id && parsed.email) {
+              console.log("AccountPage - Using existing user data from localStorage");
+              setLocalLoading(false);
+              return; // Dacă avem date valide, nu mai facem refresh
             }
-          } else {
-            console.error("AccountPage - User data refresh failed");
-            setLoadError(true);
-            
-            // Try a few times before giving up
-            if (loadAttempts < 2) {
-              console.log("AccountPage - Scheduling retry attempt", loadAttempts + 1);
-              setTimeout(() => {
-                if (isMounted) {
-                  setLoadAttempts(prev => prev + 1);
-                }
-              }, 3000);
-            } else {
-              toast({
-                title: "Eroare",
-                description: "Nu s-a putut actualiza informațiile contului după multiple încercări.",
-                variant: "destructive"
-              });
-            }
+          } catch (e) {
+            console.error("AccountPage - Error parsing existing user data:", e);
           }
         }
+        
+        // Doar dacă nu avem date în localStorage sau sunt invalide, facem refresh
+        await refreshUser();
+        console.log("AccountPage - Initial user refresh completed");
       } catch (error) {
         console.error("AccountPage - Error refreshing user data:", error);
         if (isMounted) {
@@ -173,45 +142,33 @@ const AccountPage = () => {
         });
       } finally {
         if (isMounted) {
-          if (loadTimeout) clearTimeout(loadTimeout);
           setLocalLoading(false);
         }
       }
     };
     
-    // Only refresh if we're not already loading and if this isn't a retry that would exceed our max attempts
-    if (!authLoading && !isFixingData && (loadAttempts < 3)) {
+    // Call once at mount
+    if (!authLoading && !isFixingData) {
       loadUserData();
-    } else if (loadAttempts >= 3) {
-      // If we've exceeded max retry attempts, show an error
-      setLocalLoading(false);
-      setLoadError(true);
     }
     
     return () => {
       isMounted = false;
-      if (loadTimeout) clearTimeout(loadTimeout);
     };
-  }, [refreshUser, authLoading, toast, loadAttempts, user?.id, isFixingData]);
+  }, [refreshUser, authLoading, toast, isFixingData]);
 
   const handleRetry = useCallback(() => {
     console.log("AccountPage - Manual retry triggered");
     setLoadError(false);
     setLocalLoading(true);
     setLoadAttempts(0);
-    // First try clearing localStorage for automatorUser and refreshing
-    try {
-      localStorage.removeItem('automatorUser');
-      console.log("AccountPage - Cleared automatorUser from localStorage for fresh start");
-    } catch (e) {
-      console.error("AccountPage - Error clearing localStorage:", e);
-    }
-    // Force full page reload to reset the app state
+    
+    // Implementare simplificată pentru retry - doar reîncărcăm pagina
     window.location.reload();
   }, []);
   
-  // Show loading state
-  if (authLoading || localLoading || isFixingData) {
+  // Show loading state - redus timpul de afișare
+  if (authLoading || (localLoading && loadAttempts < 1) || isFixingData) {
     return (
       <div className="container mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-6">

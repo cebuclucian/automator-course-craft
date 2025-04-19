@@ -8,10 +8,42 @@ import { mockCourseData } from "./helpers/mockData.ts";
 // Securely retrieve Claude API key from environment
 const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
 
+// Verifică și logheaza disponibilitatea API key pentru debugging
+console.log(`generate-course - CLAUDE_API_KEY este ${CLAUDE_API_KEY ? 'configurată' : 'lipsă'}`);
+
 // Store în memorie pentru urmărirea job-urilor (într-o aplicație de producție, ar utiliza o bază de date)
 export const jobStore = new Map();
 
+// Curățare periodică a job-urilor vechi (pentru a preveni scurgerile de memorie)
+const cleanupInterval = setInterval(() => {
+  // Găsim job-urile mai vechi de 24 ore
+  const now = Date.now();
+  const dayInMs = 24 * 60 * 60 * 1000;
+  
+  let removedCount = 0;
+  
+  jobStore.forEach((job, id) => {
+    const startedAt = job.startedAt ? new Date(job.startedAt).getTime() : 0;
+    if ((now - startedAt) > dayInMs) {
+      jobStore.delete(id);
+      removedCount++;
+    }
+  });
+  
+  if (removedCount > 0) {
+    console.log(`Cleanup - ${removedCount} job-uri vechi eliminate din store`);
+  }
+}, 60 * 60 * 1000); // Rulează la fiecare oră
+
+// Oprire curățare când funcția este închisă
+addEventListener('beforeunload', () => {
+  clearInterval(cleanupInterval);
+});
+
 serve(async (req) => {
+  // Logging pentru debugging
+  console.log(`generate-course - Cerere primită: ${req.method} ${new URL(req.url).pathname}`);
+  
   // Gestionare cereri preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -20,24 +52,12 @@ serve(async (req) => {
   try {
     // Verifică dacă cheia API Claude este configurată
     if (!CLAUDE_API_KEY) {
-      console.error("Cheia API Claude nu este setată!");
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Cheia API Claude nu este configurată" 
-        }),
-        { 
-          status: 500, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
-        }
-      );
+      console.warn("Cheia API Claude nu este setată! Se vor genera date mock.");
     }
     
     // Verifică dacă cererea conține date valide
     if (!req.body) {
+      console.error("Corpul cererii este gol");
       return new Response(
         JSON.stringify({ 
           success: false, 

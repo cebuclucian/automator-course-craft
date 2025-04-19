@@ -9,17 +9,17 @@ export const useUserRefresh = () => {
   const { toast } = useToast();
 
   const refreshUser = useCallback(async () => {
-    // Safety timeout to prevent hanging
-    const refreshTimeout = setTimeout(() => {
-      setIsRefreshing(false);
-      console.warn("useUserRefresh - Refresh timeout triggered after 8 seconds");
-    }, 8000);
-    
+    // Verificăm dacă un refresh este deja în desfășurare pentru a preveni apeluri multiple
     if (isRefreshing) {
       console.log("useUserRefresh: Already refreshing, skipping");
-      clearTimeout(refreshTimeout);
       return false;
     }
+    
+    // Safety timeout redus la 5 secunde pentru a evita blocaje
+    const refreshTimeout = setTimeout(() => {
+      setIsRefreshing(false);
+      console.warn("useUserRefresh - Refresh timeout triggered after 5 seconds");
+    }, 5000);
     
     try {
       console.log("useUserRefresh: Starting refresh");

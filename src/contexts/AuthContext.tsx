@@ -32,6 +32,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  // Tracking to prevent duplicate initialization
+  const [initialized, setInitialized] = useState(false);
   
   // Get auth methods with state setters passed in
   const { 
@@ -49,54 +51,79 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   
   const { refreshUser } = useUserRefresh();
 
-  // Add safety timeout to prevent infinite loading state
+  // Add safety timeout to prevent infinite loading state - redus la 3 secunde
   useEffect(() => {
     if (isLoading) {
       const safetyTimeout = setTimeout(() => {
         setIsLoading(false);
         console.log("AuthContext - Safety timeout triggered, forcing loading state to complete");
-      }, 5000); // 5 second maximum timeout
+      }, 3000); // 3 secunde maximum timeout
       
       return () => clearTimeout(safetyTimeout);
     }
   }, [isLoading]);
 
-  // Effect to update user data when refreshed
+  // Effect to update user data when refreshed - modificat pentru a preveni loop-urile
   useEffect(() => {
     let isMounted = true;
-    let initTimeout: NodeJS.Timeout | null = null;
+    
+    // Facem inițializarea doar o singură dată
+    if (initialized) {
+      console.log("AuthContext - Already initialized, skipping");
+      return;
+    }
     
     const initializeUser = async () => {
       try {
         console.log("AuthContext - Initializing user...");
         setIsLoading(true);
         
-        // Safety timeout to prevent infinite loading - already covered by the effect above
-        initTimeout = setTimeout(() => {
-          if (isMounted && isLoading) {
-            console.warn("AuthContext - Initialization timeout, setting isLoading to false");
-            setIsLoading(false);
+        // Încercam să încărcăm utilizatorul din localStorage mai întâi
+        const storedUser = localStorage.getItem('automatorUser');
+        if (storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            console.log("AuthContext - User loaded from localStorage:", 
+              parsedUser.email || "No email");
+            
+            if (parsedUser && parsedUser.id && parsedUser.email) {
+              setUser(parsedUser);
+              setIsLoading(false);
+              setInitialized(true);
+              
+              // Facem refresh în background dacă avem deja date
+              refreshUser().catch(e => {
+                console.error("AuthContext - Background refresh error:", e);
+              });
+              
+              return; // Ieșim dacă am reușit să încărcăm din localStorage
+            }
+          } catch (e) {
+            console.error("AuthContext - Error parsing stored user:", e);
+            // Clear corrupted user data
+            localStorage.removeItem('automatorUser');
           }
-        }, 5000);
+        }
         
+        // Dacă nu am reușit să încărcăm din localStorage, facem refresh complet
         await refreshUser();
         
-        // After refresh, check if user data exists in localStorage
+        // După refresh, verificăm dacă user data există în localStorage
         if (isMounted) {
-          const storedUser = localStorage.getItem('automatorUser');
-          if (storedUser) {
+          const refreshedUser = localStorage.getItem('automatorUser');
+          if (refreshedUser) {
             try {
-              const parsedUser = JSON.parse(storedUser);
-              console.log("AuthContext - User loaded from localStorage:", 
+              const parsedUser = JSON.parse(refreshedUser);
+              console.log("AuthContext - User loaded from localStorage after refresh:", 
                 parsedUser.email || "No email");
               setUser(parsedUser);
             } catch (e) {
-              console.error("AuthContext - Error parsing stored user:", e);
+              console.error("AuthContext - Error parsing stored user after refresh:", e);
               // Clear corrupted user data
               localStorage.removeItem('automatorUser');
             }
           } else {
-            console.log("AuthContext - No stored user found in localStorage");
+            console.log("AuthContext - No stored user found in localStorage after refresh");
           }
         }
       } catch (err) {
@@ -108,7 +135,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } finally {
         if (isMounted) {
           setIsLoading(false);
-          if (initTimeout) clearTimeout(initTimeout);
+          setInitialized(true);
         }
       }
     };
@@ -117,9 +144,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     
     return () => {
       isMounted = false;
-      if (initTimeout) clearTimeout(initTimeout);
     };
-  }, [refreshUser, isLoading]);
+  }, [refreshUser, initialized]);
   
   // Add debugging to track user state changes
   useEffect(() => {
