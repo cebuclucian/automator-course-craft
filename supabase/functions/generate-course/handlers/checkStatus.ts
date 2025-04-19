@@ -2,19 +2,19 @@
 import { jobStore } from "../index.ts";
 import { corsHeaders } from "../cors.ts";
 
-// Handler pentru verificarea statusului unui job
+// Handler for checking a job status
 export async function handleCheckStatus(requestData, corsHeaders) {
-  console.log("CRITICAL: handler checkStatus apelat cu datele:", JSON.stringify(requestData));
+  console.log("CRITICAL: checkStatus handler called with data:", JSON.stringify(requestData));
   
   const { jobId } = requestData;
   
-  // Verificare existență jobId
+  // Check for jobId
   if (!jobId) {
-    console.error("CRITICAL: ID job lipsă în cererea de verificare status");
+    console.error("CRITICAL: Job ID missing in status check request");
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: "ID job este necesar" 
+        error: "Job ID is required" 
       }),
       { 
         status: 400, 
@@ -27,26 +27,27 @@ export async function handleCheckStatus(requestData, corsHeaders) {
   }
 
   try {
-    console.log(`CRITICAL: Verificare status pentru job ${jobId}`);
-    console.log(`CRITICAL: Joburi disponibile în store: ${jobStore.size}`);
-    console.log(`CRITICAL: Chei job în store: ${Array.from(jobStore.keys()).join(', ')}`);
+    console.log(`CRITICAL: Checking status for job ${jobId}`);
+    console.log(`CRITICAL: Available jobs in store: ${jobStore.size}`);
+    console.log(`CRITICAL: Job keys in store: ${Array.from(jobStore.keys()).join(', ')}`);
     
-    // Verificare existență job în store
+    // Check if job exists
     if (!jobStore.has(jobId)) {
-      console.error(`CRITICAL: Job ${jobId} nu există în store`);
+      console.error(`CRITICAL: Job ${jobId} doesn't exist in store`);
       
+      // Return a success response with proper fallback data to avoid UI errors
       return new Response(
         JSON.stringify({ 
-          success: true,  // Returnăm succes=true pentru evitarea erorilor în UI
-          status: 'completed',  // Considerăm job-ul complet dacă nu îl mai găsim
-          message: `Job ${jobId} nu există sau a expirat`,
+          success: true,  // Return success=true to avoid errors in UI
+          status: 'completed',  // Consider job complete if we can't find it
+          message: `Job ${jobId} doesn't exist or has expired`,
           jobId,
           data: {
             sections: [
               { 
                 type: 'lesson-plan', 
                 title: 'Plan de lecție',
-                content: `# Job expirat sau indisponibil\n\nNu am putut găsi job-ul solicitat. Este posibil să fi expirat sau să fi fost procesat anterior.`
+                content: `# Job expired or unavailable\n\nCouldn't find the requested job. It may have expired or been processed previously.`
               }
             ]
           }
@@ -60,25 +61,27 @@ export async function handleCheckStatus(requestData, corsHeaders) {
       );
     }
     
-    // Obținere informații job
+    // Get job data
     const jobData = jobStore.get(jobId);
-    console.log(`CRITICAL: Status job ${jobId}: ${jobData.status}`);
+    console.log(`CRITICAL: Job ${jobId} status: ${jobData.status}`);
     
-    // Asigurăm că job-ul are date structurate corect, chiar dacă sunt goale
+    // Ensure job has proper data structure, even if empty
     if (!jobData.data) {
+      console.log(`CRITICAL: Job ${jobId} has no data, initializing empty structure`);
       jobData.data = { sections: [] };
     }
     
     if (!jobData.data.sections || !Array.isArray(jobData.data.sections)) {
+      console.log(`CRITICAL: Job ${jobId} has invalid or missing sections, initializing empty array`);
       jobData.data.sections = [];
     }
     
-    // Returnare status și date
+    // Return status and data
     return new Response(
       JSON.stringify({
         success: true,
         status: jobData.status,
-        startedAt: jobData.startedAt,
+        startedAt: jobData.startedAt || new Date().toISOString(),
         completedAt: jobData.completedAt,
         error: jobData.error,
         data: jobData.data,
@@ -92,12 +95,13 @@ export async function handleCheckStatus(requestData, corsHeaders) {
       }
     );
   } catch (error) {
-    console.error("CRITICAL: Eroare în handler checkStatus:", error);
-    // Returnează un răspuns de eroare, dar cu o structură de date compatibilă pentru frontend
+    console.error("CRITICAL: Error in checkStatus handler:", error);
+    
+    // Return error response with compatible data structure for frontend
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || "Eroare internă de server la verificarea statusului",
+        error: error.message || "Internal server error while checking status",
         status: 'error',
         data: {
           sections: []

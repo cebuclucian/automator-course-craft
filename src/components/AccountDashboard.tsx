@@ -22,8 +22,9 @@ const AccountDashboard = () => {
     }
   };
 
-  // Verificare dacă user există și are toate proprietățile necesare
+  // Verifică dacă obiectul user este complet invalidat
   if (!user) {
+    console.error("AccountDashboard - user object is null or undefined");
     return (
       <div className="container mx-auto px-4 py-10">
         <Alert>
@@ -38,6 +39,9 @@ const AccountDashboard = () => {
       </div>
     );
   }
+
+  // Asigură-te că avem un obiect subscription chiar dacă e gol
+  const subscription = user.subscription || { tier: 'Free', active: false };
   
   return (
     <div className="container mx-auto px-4 py-10">
@@ -52,17 +56,17 @@ const AccountDashboard = () => {
             <CardContent className="space-y-4">
               <div>
                 <p className="text-sm text-muted-foreground">Nume</p>
-                <p className="font-medium">{user?.name || 'N/A'}</p>
+                <p className="font-medium">{user.name || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Email</p>
-                <p className="font-medium">{user?.email}</p>
+                <p className="font-medium">{user.email || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Tip abonament</p>
                 <div className="flex items-center gap-2">
-                  <p className="font-medium">{user?.subscription?.tier || 'Free'}</p>
-                  {user?.subscription?.active && (
+                  <p className="font-medium">{subscription.tier || 'Free'}</p>
+                  {subscription.active && (
                     <Badge variant="outline" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100">
                       Activ
                     </Badge>
@@ -71,7 +75,7 @@ const AccountDashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Expiră</p>
-                <p className="font-medium">{formatDate(user?.subscription?.expiresAt)}</p>
+                <p className="font-medium">{formatDate(subscription.expiresAt)}</p>
               </div>
               <Button onClick={() => refreshUser()} className="w-full mt-4 flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />

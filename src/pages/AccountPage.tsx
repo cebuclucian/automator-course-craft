@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AccountDashboard from '@/components/AccountDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -13,6 +13,7 @@ const AccountPage = () => {
   const { user, isLoading: authLoading, refreshUser } = useAuth();
   const [localLoading, setLocalLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [loadAttempts, setLoadAttempts] = useState(0);
   const { toast } = useToast();
   
   // Load user data only once when the account page initially loads
@@ -25,47 +26,60 @@ const AccountPage = () => {
       
       setLocalLoading(true);
       try {
-        // Setăm un timeout de siguranță pentru a evita blocarea UI-ului
+        // Set a safety timeout to avoid UI blocking
         loadTimeout = setTimeout(() => {
           if (isMounted && localLoading) {
+            console.error("⚠️ Timeout loading user data after 10 seconds");
             setLocalLoading(false);
             setLoadError(true);
-            console.warn("⚠️ Timeout la încărcarea datelor utilizatorului");
           }
-        }, 10000); // 10 secunde timeout maxim
+        }, 10000); // 10 second maximum timeout
         
         // Fetch fresh user data when the account page loads
+        console.log("AccountPage - Attempting to refresh user data, attempt:", loadAttempts + 1);
         const success = await refreshUser();
-        console.log("User data refreshed on account page load, success:", success);
         
-        if (user) {
-          // Log detailed information about user state
-          console.log("Current user data after refresh:", {
-            id: user.id,
-            email: user.email,
-            subscription: user.subscription,
-            generationsLeft: user.generationsLeft,
-            coursesCount: user.generatedCourses?.length || 0
-          });
-          
-          // Debug the user's generated courses
-          if (user.generatedCourses) {
-            console.log(`User has ${user.generatedCourses.length} generated courses`);
-            user.generatedCourses.forEach((course, index) => {
-              console.log(`Course ${index + 1}:`, {
-                id: course.id,
-                subject: course.formData?.subject,
-                createdAt: course.createdAt,
-                status: course.status
+        if (isMounted) {
+          if (success) {
+            console.log("AccountPage - User data refresh successful");
+            
+            // Log detailed information about user state
+            if (user) {
+              console.log("AccountPage - Current user data:", {
+                id: user.id,
+                email: user.email,
+                subscription: user.subscription || "No subscription data",
+                generationsLeft: user.generationsLeft,
+                coursesCount: user.generatedCourses?.length || 0
               });
-            });
+            } else {
+              console.warn("AccountPage - User is null after successful refresh");
+            }
           } else {
-            console.log("User has no generated courses or generatedCourses array is undefined");
+            console.error("AccountPage - User data refresh failed");
+            setLoadError(true);
+            
+            if (loadAttempts < 2) {
+              console.log("AccountPage - Scheduling retry attempt", loadAttempts + 1);
+              setTimeout(() => {
+                if (isMounted) {
+                  setLoadAttempts(prev => prev + 1);
+                }
+              }, 3000);
+            } else {
+              toast({
+                title: "Eroare",
+                description: "Nu s-a putut actualiza informațiile contului după multiple încercări.",
+                variant: "destructive"
+              });
+            }
           }
         }
       } catch (error) {
-        console.error("Error refreshing user data:", error);
-        setLoadError(true);
+        console.error("AccountPage - Error refreshing user data:", error);
+        if (isMounted) {
+          setLoadError(true);
+        }
         toast({
           title: "Eroare",
           description: "Nu s-a putut actualiza informațiile contului.",
@@ -79,26 +93,29 @@ const AccountPage = () => {
       }
     };
     
-    // Only refresh if we're not already loading
-    if (!authLoading) {
+    // Only refresh if we're not already loading and if this isn't a retry that would exceed our max attempts
+    if (!authLoading && (loadAttempts < 3)) {
       loadUserData();
-    } else {
+    } else if (loadAttempts >= 3) {
+      // If we've exceeded max retry attempts, show an error
       setLocalLoading(false);
+      setLoadError(true);
     }
     
     return () => {
       isMounted = false;
       clearTimeout(loadTimeout);
     };
-  }, [refreshUser, authLoading, toast]);
+  }, [refreshUser, authLoading, toast, loadAttempts, user?.id]);
 
   const handleRetry = () => {
     setLoadError(false);
     setLocalLoading(true);
+    setLoadAttempts(0);
     window.location.reload();
   };
   
-  // Arată loading state
+  // Show loading state
   if (authLoading || localLoading) {
     return (
       <div className="container mx-auto px-4 py-10">
@@ -116,7 +133,7 @@ const AccountPage = () => {
     );
   }
   
-  // Arată stare de eroare cu posibilitatea de retry
+  // Show error state with retry option
   if (loadError) {
     return (
       <div className="container mx-auto px-4 py-10">
@@ -133,13 +150,15 @@ const AccountPage = () => {
     );
   }
   
-  // Redirecționează dacă nu există utilizator autentificat
+  // Redirect if no authenticated user
   if (!user) {
+    console.log("AccountPage - No user found, redirecting to home");
     return <Navigate to="/" replace />;
   }
   
-  // Adăugăm o verificare de siguranță pentru obiectul user
-  if (!user.subscription || !user.id) {
+  // Safety check for user object
+  if (!user.id) {
+    console.error("AccountPage - User object is incomplete:", user);
     return (
       <div className="container mx-auto px-4 py-10">
         <Alert variant="destructive" className="mb-6">

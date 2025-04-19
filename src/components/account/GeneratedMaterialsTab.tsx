@@ -21,8 +21,9 @@ const GeneratedMaterialsTab = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [pollingIntervals, setPollingIntervals] = useState<Record<string, number>>({});
   const [hasCheckedStatuses, setHasCheckedStatuses] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   
-  // Add more debug logging to trace the user object and its courses
+  // Log the user object and courses for debugging
   useEffect(() => {
     if (user) {
       console.log("GeneratedMaterialsTab - Current user object:", {
@@ -42,6 +43,7 @@ const GeneratedMaterialsTab = () => {
   
   // Effect to check processing courses and update their status
   useEffect(() => {
+    // Skip if no courses or we've already checked
     if (!user?.generatedCourses?.length || hasCheckedStatuses) return;
     
     console.log("GeneratedMaterialsTab - Checking for processing courses, count:", user.generatedCourses.length);
@@ -55,8 +57,14 @@ const GeneratedMaterialsTab = () => {
       clearInterval(interval);
     });
     
+    if (!Array.isArray(user.generatedCourses)) {
+      console.error("GeneratedMaterialsTab - user.generatedCourses is not an array");
+      setError("Date materiale incorecte. Contactați administratorul.");
+      return;
+    }
+    
     user.generatedCourses.forEach(course => {
-      if (course.status === 'processing' && course.jobId) {
+      if (course && course.status === 'processing' && course.jobId) {
         console.log(`Course ${course.id} is still processing, setting up polling`);
         newProcessingCourses[course.id] = true;
         newProgressMap[course.id] = 10;
@@ -87,7 +95,7 @@ const GeneratedMaterialsTab = () => {
                     return {
                       ...c,
                       status: 'completed',
-                      sections: statusResult.data?.sections || c.sections
+                      sections: statusResult.data?.sections || c.sections || []
                     };
                   }
                   return c;
@@ -99,15 +107,19 @@ const GeneratedMaterialsTab = () => {
                 };
                 
                 // Update localStorage
-                localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
-                console.log(`Updated localStorage with completed course ${course.id}`);
+                try {
+                  localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
+                  console.log(`Updated localStorage with completed course ${course.id}`);
+                } catch (storageError) {
+                  console.error("Error updating localStorage:", storageError);
+                }
                 
                 // Notify the user
                 toast({
                   title: language === 'ro' ? 'Material finalizat!' : 'Material completed!',
                   description: language === 'ro'
-                    ? `Materialul "${course.formData.subject}" a fost generat cu succes.`
-                    : `The material "${course.formData.subject}" has been successfully generated.`,
+                    ? `Materialul "${course.formData?.subject || 'Curs'}" a fost generat cu succes.`
+                    : `The material "${course.formData?.subject || 'Course'}" has been successfully generated.`,
                 });
                 
                 // Refresh user data 
@@ -203,6 +215,7 @@ const GeneratedMaterialsTab = () => {
   const handleRefreshMaterials = async () => {
     setLoading(true);
     setHasCheckedStatuses(false);
+    setError(null);
     
     // Clean up any existing intervals
     Object.values(pollingIntervals).forEach(interval => {
@@ -210,18 +223,30 @@ const GeneratedMaterialsTab = () => {
     });
     setPollingIntervals({});
     
-    await refreshUser();
-    setLoading(false);
+    try {
+      await refreshUser();
+      console.log("Materials refreshed");
+    } catch (err) {
+      console.error("Error refreshing materials:", err);
+      setError(language === 'ro' ? 
+        "Nu am putut reîmprospăta materialele. Încercați din nou." : 
+        "Could not refresh materials. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Debug information to help diagnose issues
+  // Debug information
   console.log("User details for debugging:");
   console.log("- User ID:", user.id);
   console.log("- Email:", user.email);
-  console.log("- Subscription tier:", user.subscription?.tier);
-  console.log("- Generations left:", user.generationsLeft);
+  console.log("- Subscription tier:", user.subscription?.tier || 'Not set');
+  console.log("- Generations left:", user.generationsLeft !== undefined ? user.generationsLeft : 'Not set');
   console.log("- Generated courses count:", user.generatedCourses?.length || 0);
   console.log("- Processing courses:", Object.keys(processingCourses).length);
+
+  // Make sure generatedCourses is always an array
+  const generatedCourses = Array.isArray(user.generatedCourses) ? user.generatedCourses : [];
 
   return (
     <Card className="w-full">
@@ -253,7 +278,13 @@ const GeneratedMaterialsTab = () => {
           </Link>
         </div>
 
-        {(!user.generatedCourses || user.generatedCourses.length === 0) ? (
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {(!generatedCourses || generatedCourses.length === 0) ? (
           <Alert>
             <AlertDescription>
               {language === 'ro' ? 'Nu aveți materiale generate încă.' : 'You don\'t have any generated materials yet.'}
@@ -267,11 +298,11 @@ const GeneratedMaterialsTab = () => {
               </Button>
             </Link>
             
-            {user.generatedCourses.slice(0, 3).map((course: GeneratedCourse) => (
+            {generatedCourses.slice(0, 3).map((course: GeneratedCourse) => (
               <Card key={course.id} className="p-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-lg font-medium">{course.formData.subject}</h3>
+                    <h3 className="text-lg font-medium">{course.formData?.subject || 'Curs fără titlu'}</h3>
                     <p className="text-xs text-gray-400 mt-1">
                       {course.createdAt ? new Date(course.createdAt).toLocaleDateString() : 'Data necunoscută'}
                     </p>
@@ -297,13 +328,13 @@ const GeneratedMaterialsTab = () => {
               </Card>
             ))}
             
-            {user.generatedCourses.length > 3 && (
+            {generatedCourses.length > 3 && (
               <div className="text-center pt-2">
                 <Link to="/account/materials">
                   <Button variant="link">
                     {language === 'ro' 
-                      ? `+ ${user.generatedCourses.length - 3} mai multe materiale` 
-                      : `+ ${user.generatedCourses.length - 3} more materials`}
+                      ? `+ ${generatedCourses.length - 3} mai multe materiale` 
+                      : `+ ${generatedCourses.length - 3} more materials`}
                   </Button>
                 </Link>
               </div>

@@ -1,38 +1,41 @@
-
 import { jobStore } from "../index.ts";
-import { buildPrompt } from "./promptBuilder.ts";
 import { mockCourseData } from "./mockData.ts";
 
 const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
 
-// Funcție pentru procesarea unui job de generare curs
+// Function to process a course generation job
 export async function processJob(jobId: string, prompt: string, formData: any) {
-  console.log(`JobProcessor: Începere procesare job ${jobId}`);
-  console.log(`JobProcessor: CLAUDE_API_KEY este ${CLAUDE_API_KEY ? 'configurat' : 'lipsă'}`);
+  console.log(`JobProcessor: Starting processing job ${jobId}`);
+  console.log(`JobProcessor: CLAUDE_API_KEY is ${CLAUDE_API_KEY ? 'configured' : 'missing'}`);
   
   if (!jobStore.has(jobId)) {
-    console.error(`JobProcessor: Job-ul ${jobId} nu există în store`);
+    console.error(`JobProcessor: Job ${jobId} doesn't exist in store`);
     return;
   }
 
   try {
-    console.log(`JobProcessor: Trimitere request către API Claude pentru job ${jobId}`);
-    console.log(`JobProcessor: Prompt length: ${prompt.length} caractere`);
+    console.log(`JobProcessor: Sending request to Claude API for job ${jobId}`);
+    console.log(`JobProcessor: Prompt length: ${prompt.length} characters`);
     
-    // Verificare cheie API
+    // Check API key
     if (!CLAUDE_API_KEY) {
-      throw new Error("Claude API key lipsește din variabilele de mediu");
+      throw new Error("Claude API key is missing from environment variables");
     }
 
-    // Verificare job existent
+    // Check if job still exists
     const job = jobStore.get(jobId);
     if (!job) {
-      throw new Error(`Job-ul ${jobId} nu mai există în store`);
+      throw new Error(`Job ${jobId} no longer exists in store`);
     }
 
-    console.log(`JobProcessor: Apel API Claude pentru job ${jobId}...`);
+    console.log(`JobProcessor: Calling Claude API for job ${jobId}...`);
 
-    // Apelare API Anthropic/Claude pentru generarea conținutului
+    // CRITICAL: Log the API request details
+    console.log(`JobProcessor: Request to API with model: claude-3-sonnet-20240229, temperature: 0.7, max_tokens: 16000`);
+    console.log(`JobProcessor: System prompt: "Expert in course design and training"`);
+    console.log(`JobProcessor: First 100 chars of prompt: ${prompt.substring(0, 100)}...`);
+
+    // Call Anthropic/Claude API to generate content
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -54,32 +57,38 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
       })
     });
 
-    console.log(`JobProcessor: Response status de la Claude API: ${response.status}`);
+    console.log(`JobProcessor: Response status from Claude API: ${response.status}`);
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`JobProcessor: Eroare API Claude: ${response.status} - ${errorText}`);
-      throw new Error(`Eroare API Claude: ${response.status}`);
+      console.error(`JobProcessor: Claude API Error: ${response.status} - ${errorText}`);
+      throw new Error(`Claude API Error: ${response.status}`);
     }
 
-    // Procesare răspuns
+    // Process response
     const result = await response.json();
-    console.log(`JobProcessor: Răspuns primit de la Claude, conține date: ${!!result}`);
+    console.log(`JobProcessor: Response received from Claude, contains data: ${!!result}`);
     console.log(`JobProcessor: Content length: ${result.content?.length || 0}`);
     
     if (!result || !result.content || result.content.length === 0) {
-      throw new Error("Răspuns gol sau invalid de la API");
+      throw new Error("Empty or invalid response from API");
     }
 
-    // Extragere conținut din răspunsul Claude
+    // Extract content from Claude response
     const content = result.content[0].text;
-    console.log(`JobProcessor: Conținut extras, lungime: ${content?.length || 0}`);
+    console.log(`JobProcessor: Content extracted, length: ${content?.length || 0}`);
+    console.log(`JobProcessor: First 100 chars of response: ${content?.substring(0, 100)}...`);
     
-    // Parsare conținut pentru a extrage secțiunile necesare
+    // Parse content to extract needed sections
     const sections = parseContentToSections(content, formData);
-    console.log(`JobProcessor: Secțiuni extrase: ${sections.length}`);
+    console.log(`JobProcessor: Sections extracted: ${sections.length}`);
+    
+    // Log each section title for debugging
+    sections.forEach((section, index) => {
+      console.log(`JobProcessor: Section ${index + 1}: ${section.type} - ${section.title}`);
+    });
 
-    // Actualizare job în store
+    // Update job in store
     jobStore.set(jobId, {
       ...job,
       status: 'completed',
@@ -90,16 +99,16 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
       completedAt: new Date().toISOString()
     });
 
-    console.log(`JobProcessor: Job ${jobId} finalizat cu succes, ${sections.length} secțiuni generate`);
+    console.log(`JobProcessor: Job ${jobId} completed successfully, ${sections.length} sections generated`);
   } catch (error) {
-    console.error(`JobProcessor: Eroare în procesarea job-ului ${jobId}:`, error);
+    console.error(`JobProcessor: Error processing job ${jobId}:`, error);
     
-    // În caz de eroare, asigură-te că jobul primește un status de eroare
-    // dar menține datele mock pentru a nu afișa un ecran gol utilizatorului
+    // In case of error, ensure the job gets an error status
+    // but keep the mock data to avoid showing an empty screen to the user
     if (jobStore.has(jobId)) {
       const job = jobStore.get(jobId);
       
-      // Dacă job-ul există dar nu are secțiuni în data, adaugă secțiuni mock
+      // If job exists but has no sections in data, add mock sections
       let updatedData = job.data;
       if (!updatedData || !updatedData.sections || updatedData.sections.length === 0) {
         updatedData = mockCourseData(formData);
@@ -108,43 +117,43 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
       jobStore.set(jobId, {
         ...job,
         status: 'error',
-        error: error.message || 'Eroare necunoscută în procesarea job-ului',
+        error: error.message || 'Unknown error processing job',
         data: updatedData,
         completedAt: new Date().toISOString()
       });
-      console.log(`JobProcessor: Job ${jobId} marcat ca error, dar cu date mock furnizate`);
+      console.log(`JobProcessor: Job ${jobId} marked as error, but with mock data provided`);
     }
   }
 }
 
-// Funcție pentru parsarea răspunsului Claude în secțiuni structurate
+// Function to parse Claude response into structured sections
 function parseContentToSections(content: string, formData: any) {
-  console.log(`ParseContent: Începere parsare conținut, lungime: ${content.length}`);
+  console.log(`ParseContent: Starting to parse content, length: ${content.length}`);
   
   try {
-    // Verifică dacă conținutul include secțiuni JSON
+    // Check if content includes JSON sections
     if (content.includes('```json')) {
-      console.log(`ParseContent: Detectat format JSON în răspuns`);
+      console.log(`ParseContent: Detected JSON format in response`);
       const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
       
       if (jsonMatch && jsonMatch[1]) {
         try {
           const jsonData = JSON.parse(jsonMatch[1]);
-          console.log(`ParseContent: JSON parsat cu succes, secțiuni: ${jsonData.sections?.length || 0}`);
+          console.log(`ParseContent: JSON parsed successfully, sections: ${jsonData.sections?.length || 0}`);
           
           if (jsonData.sections && Array.isArray(jsonData.sections)) {
             return jsonData.sections;
           }
         } catch (jsonError) {
-          console.error(`ParseContent: Eroare parsare JSON:`, jsonError);
+          console.error(`ParseContent: Error parsing JSON:`, jsonError);
         }
       }
     }
     
-    // Dacă nu găsim JSON sau parsarea eșuează, încercăm să extragem secțiunile manual
-    console.log(`ParseContent: Încercare extragere manuală a secțiunilor`);
+    // If we don't find JSON or parsing fails, try to extract sections manually
+    console.log(`ParseContent: Attempting to extract sections manually`);
     
-    // Identifică secțiunile principale folosind delimitatori (ex: ## Plan de lecție, ## Slide-uri, etc)
+    // Identify main sections using delimiters (e.g., ## Lesson Plan, ## Slides, etc)
     const lessonPlanMatch = content.match(/(?:##\s*Plan de lecție|##\s*Lesson Plan)([\s\S]*?)(?=##|$)/i);
     const slidesMatch = content.match(/(?:##\s*Slide-uri|##\s*Prezentare|##\s*Slides)([\s\S]*?)(?=##|$)/i);
     const notesMatch = content.match(/(?:##\s*Note pentru trainer|##\s*Trainer Notes)([\s\S]*?)(?=##|$)/i);
@@ -184,11 +193,11 @@ function parseContentToSections(content: string, formData: any) {
       });
     }
     
-    console.log(`ParseContent: Extrase manual ${sections.length} secțiuni`);
+    console.log(`ParseContent: Manually extracted ${sections.length} sections`);
     
-    // Dacă tot nu avem secțiuni, folosim conținutul integral ca plan de lecție
+    // If we still have no sections, use the entire content as a lesson plan
     if (sections.length === 0) {
-      console.log(`ParseContent: Nu s-au putut extrage secțiuni, folosim conținutul integral`);
+      console.log(`ParseContent: No sections could be extracted, using entire content`);
       sections.push({
         type: 'lesson-plan',
         title: formData.language === 'română' ? 'Plan de lecție' : 'Lesson Plan',
@@ -199,9 +208,9 @@ function parseContentToSections(content: string, formData: any) {
     return sections;
     
   } catch (error) {
-    console.error(`ParseContent: Eroare la parsarea conținutului:`, error);
+    console.error(`ParseContent: Error parsing content:`, error);
     
-    // Returnează cel puțin o secțiune pentru a evita erorile UI
+    // Return at least one section to avoid UI errors
     return [{
       type: 'lesson-plan',
       title: formData.language === 'română' ? 'Plan de lecție' : 'Lesson Plan',

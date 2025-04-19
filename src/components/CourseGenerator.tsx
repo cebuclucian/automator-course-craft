@@ -31,6 +31,16 @@ const CourseGenerator = () => {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationTimeout, setGenerationTimeout] = useState<number | null>(null);
 
+  // Debug user and profile state
+  useEffect(() => {
+    console.log("CourseGenerator - Rendered with user:", user?.id);
+    console.log("CourseGenerator - Profile state:", {
+      email: profile?.email,
+      generationsLeft: profile?.generationsLeft,
+      tier: profile?.subscription?.tier
+    });
+  }, [user, profile]);
+
   const [formData, setFormData] = useState<CourseFormData>(() => ({
     language: language === 'ro' ? 'română' : 'english',
     context: 'Corporativ',
@@ -41,7 +51,11 @@ const CourseGenerator = () => {
     tone: 'Profesional',
   }));
 
+  // Check if user is admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
+  if (isAdminUser) {
+    console.log("CourseGenerator - Admin user detected, bypass generation limits");
+  }
 
   useEffect(() => {
     const currentFormLang = formData.language;
@@ -50,7 +64,7 @@ const CourseGenerator = () => {
       (language !== 'ro' && currentFormLang !== 'english' && currentFormLang === 'română');
     
     if (shouldUpdateLang) {
-      console.log('Actualizare limbă formular bazată pe limba UI:', language === 'ro' ? 'română' : 'english');
+      console.log('CourseGenerator - Updating form language based on UI language:', language === 'ro' ? 'română' : 'english');
       setFormData(prev => ({
         ...prev,
         language: language === 'ro' ? 'română' : 'english'
@@ -59,7 +73,7 @@ const CourseGenerator = () => {
   }, [language]);
 
   const cleanupTimers = useCallback(() => {
-    console.log('Cleaning up timers');
+    console.log('CourseGenerator - Cleaning up timers');
     if (pollingInterval) {
       clearInterval(pollingInterval);
       setPollingInterval(null);
@@ -74,10 +88,10 @@ const CourseGenerator = () => {
   useEffect(() => {
     if (!generationJobId || pollingInterval) return;
     
-    console.log('Setting up polling for job:', generationJobId);
+    console.log('CourseGenerator - Setting up polling for job:', generationJobId);
     
     const timeout = window.setTimeout(() => {
-      console.log('Generation timed out after 90 seconds');
+      console.log('CourseGenerator - Generation timed out after 90 seconds');
       cleanupTimers();
       setLoading(false);
       setError(language === 'ro' 
@@ -89,12 +103,12 @@ const CourseGenerator = () => {
     
     const interval = window.setInterval(async () => {
       try {
-        console.log('Polling job status for:', generationJobId);
+        console.log('CourseGenerator - Polling job status for:', generationJobId);
         const statusResponse = await checkCourseGenerationStatus(generationJobId);
-        console.log('Job status response:', statusResponse);
+        console.log('CourseGenerator - Job status response:', statusResponse);
         
         if (statusResponse.status === 'completed') {
-          console.log('Job completed successfully!');
+          console.log('CourseGenerator - Job completed successfully!');
           cleanupTimers();
           setLoading(false);
           setGenerationProgress(100);
@@ -118,18 +132,18 @@ const CourseGenerator = () => {
             navigate('/account');
           }, 2000);
         } else if (statusResponse.status === 'error') {
-          console.error('Job failed:', statusResponse.error);
+          console.error('CourseGenerator - Job failed:', statusResponse.error);
           cleanupTimers();
           setLoading(false);
           setError(statusResponse.error || (language === 'ro' ? 'A apărut o eroare în timpul generării' : 'An error occurred during generation'));
         } else if (statusResponse.status === 'processing') {
-          const elapsed = (Date.now() - new Date(statusResponse.startedAt).getTime()) / 1000;
+          const elapsed = (Date.now() - new Date(statusResponse.startedAt || Date.now()).getTime()) / 1000;
           const estimatedProgress = Math.min(Math.round(elapsed / 90 * 100), 95);
           setGenerationProgress(estimatedProgress);
-          console.log(`Job still processing. Estimated progress: ${estimatedProgress}%`);
+          console.log(`CourseGenerator - Job still processing. Estimated progress: ${estimatedProgress}%`);
         }
       } catch (error) {
-        console.error('Error checking job status:', error);
+        console.error('CourseGenerator - Error checking job status:', error);
       }
     }, 3000); // Poll every 3 seconds
     
@@ -143,7 +157,7 @@ const CourseGenerator = () => {
   }, [cleanupTimers]);
 
   const handleFormDataChange = (field: keyof CourseFormData, value: string) => {
-    console.log(`Actualizare câmp formular: ${field} = ${value}`);
+    console.log(`CourseGenerator - Updating form field: ${field} = ${value}`);
     const newFormData = { ...formData, [field]: value };
     setFormData(newFormData);
     
@@ -155,6 +169,7 @@ const CourseGenerator = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("CourseGenerator - Form submit triggered");
     
     setError(null);
     setSuccess(null);
@@ -163,8 +178,13 @@ const CourseGenerator = () => {
     
     cleanupTimers();
     
+    // Debug generations left count
+    const generationsLeft = isAdminUser ? 999 : (profile?.generationsLeft || 0);
+    console.log("CourseGenerator - Generations left:", generationsLeft);
+    console.log("CourseGenerator - Is admin user:", isAdminUser);
+    
     if (!isAdminUser && (!profile || profile.generationsLeft <= 0)) {
-      console.log("User has no generations left:", profile?.generationsLeft);
+      console.log("CourseGenerator - User has no generations left:", profile?.generationsLeft);
       toast({
         title: language === 'ro' ? 'Limită atinsă' : 'Limit reached',
         description: language === 'ro' 
@@ -185,34 +205,37 @@ const CourseGenerator = () => {
     setLoading(true);
     
     try {
-      console.log("Starting course generation with form data:", formData);
-      console.log("Generation type:", generationType);
+      console.log("CourseGenerator - Starting course generation with form data:", formData);
+      console.log("CourseGenerator - Generation type:", generationType);
       
       const fullFormData = { ...formData, generationType };
+      console.log("CourseGenerator - Calling generateCourse service");
+      
       const generatedCourse = await generateCourse(fullFormData);
       
-      console.log("Course generation response received:", generatedCourse);
+      console.log("CourseGenerator - Course generation response received:", generatedCourse);
       
       if (generatedCourse) {
         const isProcessing = generatedCourse.status === 'processing';
+        console.log("CourseGenerator - Job status:", generatedCourse.status);
         
         if (generatedCourse.jobId) {
-          console.log("Setting job ID for polling:", generatedCourse.jobId);
+          console.log("CourseGenerator - Setting job ID for polling:", generatedCourse.jobId);
           setGenerationJobId(generatedCourse.jobId);
         }
         
         if (!isAdminUser) {
-          console.log("Decrementing generations left for non-admin user");
+          console.log("CourseGenerator - Decrementing generations left for non-admin user");
           const decrementSuccess = await decrementGenerationsLeft(user.id);
           
           if (decrementSuccess) {
-            console.log("Successfully decremented generations count");
+            console.log("CourseGenerator - Successfully decremented generations count");
             await refreshProfile();
           } else {
-            console.warn("Failed to decrement generations count");
+            console.warn("CourseGenerator - Failed to decrement generations count");
           }
         } else {
-          console.log("Admin user - skipping generation count decrement");
+          console.log("CourseGenerator - Admin user - skipping generation count decrement");
         }
         
         if (!isProcessing) {
@@ -247,7 +270,7 @@ const CourseGenerator = () => {
         }
       }
     } catch (error: any) {
-      console.error("Error in course generation:", error);
+      console.error("CourseGenerator - Error in course generation:", error);
       setLoading(false);
       setError(error.message || "A apărut o eroare neașteptată în timpul generării materialelor");
       toast({
@@ -331,8 +354,8 @@ const CourseGenerator = () => {
             onSubmit={handleSubmit}
             loading={loading}
             showLongGenerationWarning={showLongGenerationWarning}
-            generationsLeft={isAdminUser ? Infinity : profile?.generationsLeft}
-            isSubscriptionTierFree={!isAdminUser && user.subscription?.tier === 'Free'}
+            generationsLeft={isAdminUser ? Infinity : (profile?.generationsLeft || 0)}
+            isSubscriptionTierFree={!isAdminUser && (user.subscription?.tier === 'Free')}
           />
         </CardContent>
       </Card>

@@ -5,19 +5,19 @@ import { buildPrompt } from "../helpers/promptBuilder.ts";
 import { processJob } from "../helpers/jobProcessor.ts";
 import { mockCourseData } from "../helpers/mockData.ts";
 
-// Handler pentru pornirea unui job nou
+// Handler for starting a new job
 export async function handleStartJob(requestData, corsHeaders) {
-  console.log("CRITICAL: startJob handler apelat cu datele:", JSON.stringify(requestData));
+  console.log("CRITICAL: startJob handler called with data:", JSON.stringify(requestData));
   
   const { formData } = requestData;
   
-  // Verificare existență formData
+  // Check for formData existence
   if (!formData) {
-    console.error("CRITICAL: Date formular lipsă în cerere");
+    console.error("CRITICAL: Form data missing in request");
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: "Datele formularului lipsesc" 
+        error: "Form data is missing" 
       }),
       { 
         status: 400, 
@@ -30,24 +30,42 @@ export async function handleStartJob(requestData, corsHeaders) {
   }
 
   try {
-    // Log configurare API key
+    // Log API key configuration
     const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
-    console.log(`CRITICAL: Claude API Key configurat: ${CLAUDE_API_KEY ? 'Da' : 'Nu'}`);
+    console.log(`CRITICAL: Claude API Key configured: ${CLAUDE_API_KEY ? 'Yes' : 'No'}`);
     
-    // Generare ID job unic
+    if (!CLAUDE_API_KEY) {
+      console.error("CRITICAL: Claude API Key is missing");
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "API key configuration error" 
+        }),
+        { 
+          status: 500, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    }
+    
+    // Generate unique job ID
     const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
-    // Construire prompt - aici este utilizată limba
+    // Build prompt - using form language
     const prompt = buildPrompt(formData);
     
-    console.log(`CRITICAL: Pornire job ${jobId} pentru subiect: ${formData.subject}, durată: ${formData.duration}, limbă: ${formData.language}`);
-    console.log(`CRITICAL: Lungime prompt job ${jobId}: ${prompt.length} caractere`);
+    console.log(`CRITICAL: Starting job ${jobId} for subject: ${formData.subject}, duration: ${formData.duration}, language: ${formData.language}`);
+    console.log(`CRITICAL: Job ${jobId} prompt length: ${prompt.length} characters`);
     
-    // Creare date mock cu secțiuni adecvate pentru răspuns imediat
+    // Create mock data with appropriate sections for immediate response
     const mockData = mockCourseData(formData);
     
-    // Asigurare că mockData are secțiuni adecvate
+    // Ensure mockData has appropriate sections
     if (!mockData.sections || mockData.sections.length === 0) {
+      console.log(`CRITICAL: Job ${jobId} mock data has no sections, creating default ones`);
       mockData.sections = [
         { 
           type: 'lesson-plan', 
@@ -72,7 +90,7 @@ export async function handleStartJob(requestData, corsHeaders) {
       ];
     }
     
-    // Stocare job cu stare inițială și date mock
+    // Store job with initial state and mock data
     jobStore.set(jobId, {
       status: 'processing',
       formData,
@@ -81,40 +99,40 @@ export async function handleStartJob(requestData, corsHeaders) {
       initialDataReturned: true
     });
     
-    // Log număr de job-uri active și ID-urile lor pentru debugging
-    console.log(`CRITICAL: Job-uri active curente: ${jobStore.size}`);
-    console.log(`CRITICAL: Chei job în store: ${[...jobStore.keys()].join(', ')}`);
+    // Log number of active jobs and their IDs for debugging
+    console.log(`CRITICAL: Current active jobs: ${jobStore.size}`);
+    console.log(`CRITICAL: Job keys in store: ${[...jobStore.keys()].join(', ')}`);
 
-    // CRITICAL FIX: Verificăm explicit dacă Edge Runtime există înainte de a încerca să folosim waitUntil
+    // CRITICAL FIX: Check explicitly if Edge Runtime exists before trying to use waitUntil
     const hasEdgeRuntime = typeof EdgeRuntime !== 'undefined';
-    console.log(`CRITICAL: Edge Runtime disponibil: ${hasEdgeRuntime}`);
+    console.log(`CRITICAL: Edge Runtime available: ${hasEdgeRuntime}`);
     
-    // Utilizează waitUntil pentru a gestiona job-ul asincron
+    // Use waitUntil to handle async job
     try {
-      console.log(`CRITICAL: Încercare pornire procesare în fundal pentru job ${jobId}`);
+      console.log(`CRITICAL: Attempting to start background processing for job ${jobId}`);
       
       if (hasEdgeRuntime) {
         EdgeRuntime.waitUntil(processJob(jobId, prompt, formData));
-        console.log(`CRITICAL: Procesare în fundal începută pentru job ${jobId} folosind EdgeRuntime.waitUntil`);
+        console.log(`CRITICAL: Background processing started for job ${jobId} using EdgeRuntime.waitUntil`);
       } else {
-        // Fallback dacă EdgeRuntime nu este disponibil
-        console.log(`CRITICAL: EdgeRuntime nu este disponibil, pornire procesJob direct`);
-        // Pornim jobul dar nu așteptăm rezultatul - va rula în background
-        processJob(jobId, prompt, formData).catch(err => 
-          console.error(`CRITICAL: Eroare în procesarea job-ului ${jobId} în fundal:`, err)
-        );
+        // Fallback if EdgeRuntime isn't available
+        console.log(`CRITICAL: EdgeRuntime not available, starting processJob directly`);
+        // Start the job but don't wait for result - it will run in background
+        processJob(jobId, prompt, formData)
+          .then(() => console.log(`CRITICAL: Job ${jobId} processing complete`))
+          .catch(err => console.error(`CRITICAL: Error in background job ${jobId} processing:`, err));
       }
     } catch (error) {
-      console.error(`CRITICAL: Eroare pornire procesare în fundal pentru job ${jobId}:`, error);
-      // CRITICAL FIX: Pornim procesarea job-ului direct, chiar dacă waitUntil eșuează
-      console.log(`CRITICAL: Încercare pornire directă processJob după eșuarea waitUntil`);
-      processJob(jobId, prompt, formData).catch(err => 
-        console.error(`CRITICAL: Eroare în procesarea directă a job-ului ${jobId}:`, err)
-      );
+      console.error(`CRITICAL: Error starting background processing for job ${jobId}:`, error);
+      // CRITICAL FIX: Start job processing directly even if waitUntil fails
+      console.log(`CRITICAL: Attempting direct processJob after waitUntil failure`);
+      processJob(jobId, prompt, formData)
+        .then(() => console.log(`CRITICAL: Direct job ${jobId} processing complete`))
+        .catch(err => console.error(`CRITICAL: Error in direct job ${jobId} processing:`, err));
     }
     
-    // Returnare imediată cu ID job și date mock
-    console.log(`CRITICAL: Job ${jobId} returnează date mock imediate cu ${mockData.sections?.length || 0} secțiuni`);
+    // Return immediately with job ID and mock data
+    console.log(`CRITICAL: Job ${jobId} returns immediate mock data with ${mockData.sections?.length || 0} sections`);
     
     return new Response(
       JSON.stringify({
@@ -122,7 +140,7 @@ export async function handleStartJob(requestData, corsHeaders) {
         jobId,
         data: mockData,
         status: "processing",
-        message: "Job pornit cu succes și va continua procesarea în fundal"
+        message: "Job started successfully and will continue processing in background"
       }),
       {
         headers: {
@@ -132,11 +150,11 @@ export async function handleStartJob(requestData, corsHeaders) {
       }
     );
   } catch (error) {
-    console.error("CRITICAL: Eroare în handler startJob:", error);
+    console.error("CRITICAL: Error in startJob handler:", error);
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || "Eroare internă de server" 
+        error: error.message || "Internal server error" 
       }),
       { 
         status: 500, 
