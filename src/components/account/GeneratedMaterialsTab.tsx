@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,13 +18,13 @@ const GeneratedMaterialsTab = () => {
   const [processingCourses, setProcessingCourses] = useState<Record<string, boolean>>({});
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState<boolean>(false);
-  const [pollingIntervals, setPollingIntervals] = useState<Record<string, number>>({});
+  const [pollingIntervals, setPollingIntervals] = useState<Record<string, NodeJS.Timer>>({});
   const [hasError, setHasError] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userChecked, setUserChecked] = useState<boolean>(false);
   const [coursesData, setCoursesData] = useState<GeneratedCourse[]>([]);
   
-  // Log the user object and courses for debugging
+  // Debugging logs
   useEffect(() => {
     console.log("GeneratedMaterialsTab - Component mounted with user:", 
       user ? {
@@ -42,14 +41,13 @@ const GeneratedMaterialsTab = () => {
       console.log("GeneratedMaterialsTab - Initializing component data");
       
       try {
-        // No user, nothing to do yet
         if (!user) {
-          console.log("GeneratedMaterialsTab - No user data available, waiting for user");
+          console.log("GeneratedMaterialsTab - No user data available");
           setUserChecked(true);
+          setCoursesData([]);
           return;
         }
         
-        // Check for generatedCourses array
         if (!user.generatedCourses) {
           console.log("GeneratedMaterialsTab - No generatedCourses array in user object");
           setCoursesData([]);
@@ -57,54 +55,36 @@ const GeneratedMaterialsTab = () => {
           return;
         }
         
-        // Check if generatedCourses is actually an array
         if (!Array.isArray(user.generatedCourses)) {
           console.error("GeneratedMaterialsTab - generatedCourses is not an array:", user.generatedCourses);
           setErrorMessage("Datele despre cursuri sunt într-un format invalid. Reîncărcați pagina.");
           setHasError(true);
           setCoursesData([]);
           setUserChecked(true);
-          
-          // Try to fix the data by refreshing
-          console.log("GeneratedMaterialsTab - Attempting to fix invalid courses data by refreshing user");
           refreshUser();
           return;
         }
         
-        // If array is valid but empty, that's fine
-        if (user.generatedCourses.length === 0) {
-          console.log("GeneratedMaterialsTab - User has no generated courses");
-          setCoursesData([]);
-          setUserChecked(true);
-          return;
-        }
-        
-        // Log some stats about the courses
-        console.log(`GeneratedMaterialsTab - Found ${user.generatedCourses.length} generated courses`);
-        
-        // Filter out any invalid courses (missing required fields)
-        const validCourses = user.generatedCourses
+        // Normalize and validate course data
+        const validCourses: GeneratedCourse[] = user.generatedCourses
           .filter(course => course && typeof course === 'object' && course.id)
-          .map(course => {
-            // Ensure each course has the required fields
-            return {
-              id: course.id,
-              formData: course.formData || { 
-                subject: 'Curs fără titlu', 
-                level: 'Nivel necunoscut', 
-                audience: 'Public necunoscut',
-                duration: 'Durată necunoscută'
-              },
-              sections: Array.isArray(course.sections) ? course.sections : [],
-              status: course.status || 'completed',
-              jobId: course.jobId || null,
-              createdAt: course.createdAt || new Date().toISOString()
-            };
-          });
+          .map(course => ({
+            id: course.id,
+            createdAt: course.createdAt || new Date(),
+            expiresAt: course.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            formData: course.formData || {
+              subject: 'Curs fără titlu',
+              level: 'Nivel necunoscut' as const,
+              audience: 'Public necunoscut' as const,
+              duration: 'Durată necunoscută' as const,
+            },
+            sections: Array.isArray(course.sections) ? course.sections : [],
+            previewMode: course.previewMode ?? false,
+            status: course.status || 'completed',
+            jobId: course.jobId || course.id
+          }));
           
         console.log(`GeneratedMaterialsTab - Processed ${validCourses.length} valid courses`);
-        
-        // Set the filtered courses
         setCoursesData(validCourses);
         setUserChecked(true);
       } catch (error) {
@@ -119,21 +99,20 @@ const GeneratedMaterialsTab = () => {
     initializeComponentData();
   }, [user, refreshUser]);
 
-  // Check for processing courses and set up polling if needed
+  // Polling logic for processing courses
   useEffect(() => {
-    // Skip if data isn't ready yet
     if (!userChecked || !coursesData.length) return;
     
-    console.log("GeneratedMaterialsTab - Checking for processing courses");
+    console.log("GeneratedMaterialsTab - Setting up polling for processing courses");
     
-    // Clean up existing intervals first
+    // Cleanup existing intervals
     Object.values(pollingIntervals).forEach(intervalId => {
-      clearInterval(intervalId);
+      clearInterval(intervalId as NodeJS.Timer);
     });
     
-    const newProcessingCourses = {};
-    const newProgress = {};
-    const newIntervals = {};
+    const newProcessingCourses = {} as Record<string, boolean>;
+    const newProgress = {} as Record<string, number>;
+    const newIntervals = {} as Record<string, NodeJS.Timer>;
     
     // Find processing courses
     const processingCoursesList = coursesData.filter(course => 
@@ -146,24 +125,21 @@ const GeneratedMaterialsTab = () => {
     processingCoursesList.forEach(course => {
       if (course.jobId) {
         newProcessingCourses[course.id] = true;
-        newProgress[course.id] = 10; // Start with some progress
+        newProgress[course.id] = 10;
         
-        // Create polling function
         const pollStatus = async () => {
           try {
             console.log(`GeneratedMaterialsTab - Checking status for course ${course.id}`);
-            const status = await checkCourseGenerationStatus(course.jobId);
+            const status = await checkCourseGenerationStatus(course.jobId!);
             
             if (status.status === 'completed') {
               console.log(`GeneratedMaterialsTab - Course ${course.id} completed`);
               
-              // Clear polling
               if (newIntervals[course.id]) {
                 clearInterval(newIntervals[course.id]);
                 delete newIntervals[course.id];
               }
               
-              // Update state
               setProcessingCourses(prev => {
                 const updated = {...prev};
                 delete updated[course.id];
@@ -175,72 +151,42 @@ const GeneratedMaterialsTab = () => {
                 [course.id]: 100
               }));
               
-              // Notify success
               toast({
                 title: "Material generat",
                 description: "Materialul a fost generat cu succes",
               });
               
-              // Refresh user data
               refreshUser();
               
             } else if (status.status === 'processing') {
-              // Update progress
               setProgress(prev => ({
                 ...prev,
                 [course.id]: Math.min(95, (prev[course.id] || 0) + 5)
               }));
-            } else if (status.status === 'error') {
-              console.error(`GeneratedMaterialsTab - Error generating course ${course.id}:`, status.error);
-              
-              // Clear polling
-              if (newIntervals[course.id]) {
-                clearInterval(newIntervals[course.id]);
-                delete newIntervals[course.id];
-              }
-              
-              // Update state
-              setProcessingCourses(prev => {
-                const updated = {...prev};
-                delete updated[course.id];
-                return updated;
-              });
-              
-              // Notify error
-              toast({
-                variant: "destructive",
-                title: "Eroare",
-                description: status.error || "A apărut o eroare la generarea materialului",
-              });
             }
           } catch (error) {
             console.error(`GeneratedMaterialsTab - Error checking status for course ${course.id}:`, error);
           }
         };
         
-        // Run once immediately
         pollStatus();
         
-        // Set up interval
-        const intervalId = window.setInterval(pollStatus, 10000);
+        const intervalId = setInterval(pollStatus, 10000) as unknown as NodeJS.Timer;
         newIntervals[course.id] = intervalId;
       }
     });
     
-    // Update state
     setProcessingCourses(newProcessingCourses);
     setProgress(newProgress);
     setPollingIntervals(newIntervals);
     
-    // Clean up on unmount
     return () => {
       Object.values(newIntervals).forEach(intervalId => {
         clearInterval(intervalId);
       });
     };
-  }, [userChecked, coursesData, refreshUser, toast, pollingIntervals]);
+  }, [userChecked, coursesData, refreshUser, toast]);
 
-  // Handle refresh of materials
   const handleRefreshMaterials = useCallback(async () => {
     console.log("GeneratedMaterialsTab - Manual refresh triggered");
     setLoading(true);
@@ -248,13 +194,11 @@ const GeneratedMaterialsTab = () => {
     setHasError(false);
     
     try {
-      // Clean up any polling
       Object.values(pollingIntervals).forEach(intervalId => {
         clearInterval(intervalId);
       });
       setPollingIntervals({});
       
-      // Refresh user data
       await refreshUser();
       console.log("GeneratedMaterialsTab - Manual refresh completed");
     } catch (error) {
@@ -266,7 +210,6 @@ const GeneratedMaterialsTab = () => {
     }
   }, [refreshUser, pollingIntervals]);
   
-  // Handle component error state
   if (hasError) {
     return (
       <Card className="w-full">
@@ -294,7 +237,6 @@ const GeneratedMaterialsTab = () => {
     );
   }
 
-  // Handle loading state
   if (!userChecked || loading) {
     return (
       <Card className="w-full">
