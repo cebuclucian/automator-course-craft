@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { CreditCard } from 'lucide-react';
 
 const Footer = () => {
   const { language } = useLanguage();
@@ -36,6 +37,18 @@ const Footer = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400">
               &copy; {new Date().getFullYear()} Automator.ro. {language === 'ro' ? 'Toate drepturile rezervate.' : 'All rights reserved.'}
             </p>
+            
+            <div className="flex items-center space-x-2 mt-4">
+              <CreditCard className="h-6 w-6 text-blue-600" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {language === 'ro' ? 'Plătește 100% sigur cu:' : 'Pay 100% safe with:'}
+              </span>
+              <img 
+                src="https://stripe.com/img/v3/home/social.png" 
+                alt="Stripe Logo" 
+                className="h-8 w-auto"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -44,3 +57,4 @@ const Footer = () => {
 };
 
 export default Footer;
+
