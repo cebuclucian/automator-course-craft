@@ -7,7 +7,8 @@ import {
   decrementGenerations, 
   isAdminUser, 
   checkAndResetMonthlyGenerations, 
-  getAvailableGenerations 
+  getAvailableGenerations,
+  calculateInitialGenerations // Add the missing import here
 } from "@/services/generationsService";
 
 export const useProfileState = () => {
