@@ -5,6 +5,7 @@ import { toast } from "@/hooks/use-toast";
 import { getMockData } from "./mockDataService";
 import { isAdminUser } from "./generationsService";
 
+// Modificat pentru a folosi sistemul corect de apel API și a gestiona erorile mai bine
 export const generateCourse = async (formData: CourseFormData): Promise<any> => {
   try {
     console.log("CRITICAL: Începere funcție generateCourse cu datele:", JSON.stringify(formData));
@@ -51,92 +52,103 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     console.log("CRITICAL: Apelare Edge Function Supabase: generate-course");
     console.log("CRITICAL: Moment apelare API:", new Date().toISOString());
     
-    // Apelare edge function cu logging detaliat
+    // Apelare edge function cu logging detaliat și gestionare eșecuri
     console.log("CRITICAL: Trimitere request cu body:", JSON.stringify({ 
       formData,
       action: 'start' 
     }));
     
-    const result = await supabase.functions.invoke('generate-course', {
-      body: { 
-        formData,
-        action: 'start' 
-      }
-    });
-    
-    console.log("CRITICAL: Răspuns Edge Function primit:", JSON.stringify(result));
-    
-    if (result && typeof result === 'object' && 'error' in result && result.error) {
-      console.error("CRITICAL: Eroare de la funcția generate-course:", result.error);
-      const errorMessage = typeof result.error === 'object' && result.error !== null && 'message' in result.error 
-        ? String(result.error.message) 
-        : "Nu am putut genera cursul";
-      throw new Error(errorMessage);
-    }
-    
-    const responseData = result as { data?: { success?: boolean, error?: string, data?: any, jobId?: string, status?: string } };
-    
-    if (!responseData.data || !responseData.data.success) {
-      console.error("CRITICAL: API a returnat o eroare sau răspuns invalid:", responseData.data);
-      throw new Error(responseData.data?.error || "Nu am putut genera cursul");
-    }
-    
-    console.log("CRITICAL: Job generare curs pornit cu succes:", responseData.data);
-    
-    // Ne asigurăm că avem un jobId pentru verificarea statusului
-    const jobId = responseData.data.jobId;
-    if (!jobId) {
-      console.error("CRITICAL: Niciun job ID returnat de la API:", responseData.data);
-      throw new Error("Eroare sistem: Nu s-a putut obține un ID pentru job");
-    }
-    
-    // Folosim datele mock pentru afișare/stocare inițială în localStorage
-    const resultData = responseData.data.data || getMockData(formData);
-    
-    // Debug date răspuns
-    console.log("CRITICAL: Date răspuns generare care vor fi stocate:", resultData);
-    
-    // Stocare curs generat în localStorage
-    const automatorUser = localStorage.getItem('automatorUser');
-    if (automatorUser) {
-      try {
-        const user = JSON.parse(automatorUser);
-        const generatedCourses = user.generatedCourses || [];
-        
-        // Creare nou obiect curs cu gestionare mai bună a datelor
-        const newCourse = {
-          id: jobId,
-          createdAt: new Date().toISOString(), // Stocare ca string ISO pentru consistență
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 zile de acum
+    try {
+      const result = await supabase.functions.invoke('generate-course', {
+        body: { 
           formData,
-          sections: resultData.sections || [],
-          previewMode: formData.generationType === 'Preview',
-          status: responseData.data.status || 'processing',
-          jobId
-        };
-        
-        console.log("CRITICAL: Obiect nou curs adăugat în localStorage:", newCourse);
-        
-        // Adăugare curs nou la cursurile utilizatorului
-        user.generatedCourses = [newCourse, ...generatedCourses];
-        
-        // Salvare date actualizate utilizator în localStorage
-        localStorage.setItem('automatorUser', JSON.stringify(user));
-        
-        console.log("CRITICAL: Date utilizator actualizate stocate în localStorage cu noul curs");
-      } catch (error) {
-        console.error("CRITICAL: Eroare actualizare localStorage cu noul curs:", error);
+          action: 'start' 
+        }
+      });
+      
+      console.log("CRITICAL: Răspuns Edge Function primit:", JSON.stringify(result));
+      
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        console.error("CRITICAL: Eroare de la funcția generate-course:", result.error);
+        const errorMessage = typeof result.error === 'object' && result.error !== null && 'message' in result.error 
+          ? String(result.error.message) 
+          : "Nu am putut genera cursul";
+        throw new Error(errorMessage);
       }
+      
+      const responseData = result as { data?: { success?: boolean, error?: string, data?: any, jobId?: string, status?: string } };
+      
+      if (!responseData.data || !responseData.data.success) {
+        console.error("CRITICAL: API a returnat o eroare sau răspuns invalid:", responseData.data);
+        throw new Error(responseData.data?.error || "Nu am putut genera cursul");
+      }
+      
+      console.log("CRITICAL: Job generare curs pornit cu succes:", responseData.data);
+      
+      // Ne asigurăm că avem un jobId pentru verificarea statusului
+      const jobId = responseData.data.jobId;
+      if (!jobId) {
+        console.error("CRITICAL: Niciun job ID returnat de la API:", responseData.data);
+        throw new Error("Eroare sistem: Nu s-a putut obține un ID pentru job");
+      }
+      
+      // Folosim datele mock pentru afișare/stocare inițială în localStorage
+      const resultData = responseData.data.data || getMockData(formData);
+      
+      // Debug date răspuns
+      console.log("CRITICAL: Date răspuns generare care vor fi stocate:", resultData);
+      
+      // Stocare curs generat în localStorage
+      const automatorUser = localStorage.getItem('automatorUser');
+      if (automatorUser) {
+        try {
+          const user = JSON.parse(automatorUser);
+          const generatedCourses = user.generatedCourses || [];
+          
+          // Creare nou obiect curs cu gestionare mai bună a datelor
+          const newCourse = {
+            id: jobId,
+            createdAt: new Date().toISOString(), // Stocare ca string ISO pentru consistență
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 zile de acum
+            formData,
+            sections: resultData.sections || [],
+            previewMode: formData.generationType === 'Preview',
+            status: responseData.data.status || 'processing',
+            jobId
+          };
+          
+          console.log("CRITICAL: Obiect nou curs adăugat în localStorage:", newCourse);
+          
+          // Adăugare curs nou la cursurile utilizatorului
+          user.generatedCourses = [newCourse, ...generatedCourses];
+          
+          // Salvare date actualizate utilizator în localStorage
+          localStorage.setItem('automatorUser', JSON.stringify(user));
+          
+          console.log("CRITICAL: Date utilizator actualizate stocate în localStorage cu noul curs");
+        } catch (error) {
+          console.error("CRITICAL: Eroare actualizare localStorage cu noul curs:", error);
+        }
+      }
+      
+      // Returnare informații job inclusiv status și job ID
+      const status = responseData.data.status || 'processing';
+      
+      return {
+        ...resultData,
+        jobId,
+        status
+      };
+    } catch (error: any) {
+      console.error("CRITICAL: Eroare în apel Edge Function:", error);
+      
+      // Verificăm dacă este o eroare specifică de Edge Function sau o eroare generică
+      if (error.message && error.message.includes('FetchError') || error.message.includes('Edge function')) {
+        throw new Error("Conexiunea cu serverul a eșuat. Vă rugăm verificați conexiunea la internet și încercați din nou.");
+      }
+      
+      throw error;
     }
-    
-    // Returnare informații job inclusiv status și job ID
-    const status = responseData.data.status || 'processing';
-    
-    return {
-      ...resultData,
-      jobId,
-      status
-    };
   } catch (error: any) {
     console.error("CRITICAL: Eroare în generateCourse:", error);
     throw error;

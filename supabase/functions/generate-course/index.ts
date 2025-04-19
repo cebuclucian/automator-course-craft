@@ -41,14 +41,40 @@ addEventListener('beforeunload', (ev) => {
   clearInterval(cleanupInterval);
 });
 
+// Endpoint de test adăugat pentru verificarea conectivității
+async function handleTestConnection() {
+  return new Response(
+    JSON.stringify({ 
+      status: 'ok', 
+      timestamp: Date.now(),
+      apiKeyConfigured: !!CLAUDE_API_KEY,
+      jobStoreSize: jobStore.size
+    }), 
+    { 
+      headers: { 
+        ...corsHeaders,
+        'Content-Type': 'application/json' 
+      } 
+    }
+  );
+}
+
 serve(async (req) => {
   // Măsurare timp de procesare cerere pentru debugging
   const requestStartTime = Date.now();
-  console.log(`generate-course - Cerere primită la ${new Date().toISOString()}: ${req.method} ${new URL(req.url).pathname}`);
+  const url = new URL(req.url);
+  const pathname = url.pathname;
+  
+  console.log(`generate-course - Cerere primită la ${new Date().toISOString()}: ${req.method} ${pathname}`);
   
   // Gestionare cereri preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Endpoint de test pentru verificarea conectivității
+  if (pathname.endsWith('/test-connection')) {
+    return await handleTestConnection();
   }
 
   try {

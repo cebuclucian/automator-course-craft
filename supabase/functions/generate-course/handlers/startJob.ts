@@ -1,13 +1,20 @@
 
 import { jobStore } from "../index.ts";
 import { mockCourseData } from "../helpers/mockData.ts";
-import { v4 as uuidv4 } from "https://deno.land/std@0.167.0/uuid/mod.ts";
+
+// Înlocuim importul de uuidv4 cu metoda crypto.randomUUID() nativă din Deno
+// Eliminăm importul problematic: import { v4 as uuidv4 } from "https://deno.land/std@0.167.0/uuid/mod.ts";
 
 // Importăm processJob, dar nu apelăm direct funcția async pentru a evita timeout-ul Edge Function
 import { processJob } from "../helpers/jobProcessor.ts";
 
+// Funcție helper pentru generarea UUID-urilor
+const generateUUID = () => crypto.randomUUID();
+
 export const handleStartJob = async (requestData: any, headers: Record<string, string>) => {
   try {
+    console.log("StartJob - Începere procesare cerere:", new Date().toISOString());
+    
     // Verificare date formular
     const formData = requestData.formData;
     
@@ -38,7 +45,7 @@ export const handleStartJob = async (requestData: any, headers: Record<string, s
       // Generăm date mock dacă nu avem cheie API
       console.log("StartJob - Generare date mock pentru formular:", JSON.stringify(formData));
       const mockData = mockCourseData(formData);
-      const mockJobId = `mock-${Date.now()}-${uuidv4()}`;
+      const mockJobId = `mock-${Date.now()}-${generateUUID()}`;
       
       jobStore.set(mockJobId, {
         status: 'completed',
@@ -66,8 +73,8 @@ export const handleStartJob = async (requestData: any, headers: Record<string, s
       );
     }
     
-    // Generare ID unic pentru job
-    const jobId = `job-${Date.now()}-${uuidv4().substring(0, 8)}`;
+    // Generare ID unic pentru job folosind noua metodă
+    const jobId = `job-${Date.now()}-${generateUUID().substring(0, 8)}`;
     console.log(`StartJob - Job ID generat: ${jobId}`);
     
     // Construire prompt pentru API Claude
@@ -135,6 +142,7 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
     
     try {
       // Inițiere procesare job în mod asincron folosind structura Edge Function
+      console.log(`StartJob - Începere procesare asincronă pentru job ${jobId}`);
       EdgeRuntime.waitUntil(processJob(jobId, prompt, formData));
       console.log(`StartJob - Job ${jobId} a fost trimis pentru procesare asincronă`);
     } catch (asyncError) {
@@ -172,7 +180,7 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
       }
     );
   } catch (error) {
-    console.error("StartJob - Eroare:", error);
+    console.error("StartJob - Eroare generală:", error);
     return new Response(
       JSON.stringify({
         success: false,

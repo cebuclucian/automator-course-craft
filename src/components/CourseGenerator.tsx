@@ -12,8 +12,9 @@ import CourseGeneratorForm from './course-generator/CourseGeneratorForm';
 import CourseGeneratorAuth from './course-generator/CourseGeneratorAuth';
 import ToneExplanations from './ToneExplanations';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 
 const CourseGenerator = () => {
   const { user, refreshUser } = useAuth();
@@ -30,6 +31,8 @@ const CourseGenerator = () => {
   const [pollingInterval, setPollingInterval] = useState<number | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generationTimeout, setGenerationTimeout] = useState<number | null>(null);
+  const [technicalDetails, setTechnicalDetails] = useState<string | null>(null);
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
   // Debug user and profile state
   useEffect(() => {
@@ -70,7 +73,7 @@ const CourseGenerator = () => {
         language: language === 'ro' ? 'română' : 'english'
       }));
     }
-  }, [language]);
+  }, [language, formData.language]);
 
   const cleanupTimers = useCallback(() => {
     console.log('CourseGenerator - Cleaning up timers');
@@ -111,6 +114,32 @@ const CourseGenerator = () => {
     
     return () => clearTimeout(safetyTimeout);
   }, [loading, generationJobId, cleanupTimers, toast, navigate, language]);
+
+  // Verificăm starea de conectare API înainte de generare
+  const checkApiConnection = async () => {
+    try {
+      console.log('CourseGenerator - Verificare conexiune API Claude');
+      
+      const { data: response } = await supabase.functions.invoke('generate-course', {
+        body: { action: 'test-connection' }
+      });
+      
+      console.log('CourseGenerator - Răspuns conexiune API:', response);
+      
+      if (response && response.status === 'ok') {
+        console.log('CourseGenerator - Conexiune API funcțională');
+        return true;
+      } else {
+        console.error('CourseGenerator - Conexiune API eșuată');
+        setTechnicalDetails(JSON.stringify(response, null, 2));
+        return false;
+      }
+    } catch (error) {
+      console.error('CourseGenerator - Eroare verificare conexiune API:', error);
+      setTechnicalDetails(JSON.stringify(error, null, 2));
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (!generationJobId || pollingInterval) return;
@@ -163,15 +192,29 @@ const CourseGenerator = () => {
           cleanupTimers();
           setLoading(false);
           setError(statusResponse.error || (language === 'ro' ? 'A apărut o eroare în timpul generării' : 'An error occurred during generation'));
+          
+          // Stocare detalii tehnice pentru debugging
+          if (statusResponse.errorDetails) {
+            setTechnicalDetails(JSON.stringify(statusResponse.errorDetails, null, 2));
+          }
         } else if (statusResponse.status === 'processing') {
           const elapsed = (Date.now() - new Date(statusResponse.startedAt || Date.now()).getTime()) / 1000;
           const estimatedProgress = Math.min(Math.round(elapsed / 90 * 100), 95);
           setGenerationProgress(estimatedProgress);
           console.log(`CourseGenerator - Job still processing. Estimated progress: ${estimatedProgress}%`);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('CourseGenerator - Error checking job status:', error);
+        
+        // Salvare detalii pentru debugging
+        setTechnicalDetails(JSON.stringify({
+          errorMessage: error.message,
+          errorStack: error.stack,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+        
         // Măsură de siguranță - după 3 erori consecutive, anulăm polling-ul
+        setPollingErrorCount(prev => prev + 1);
         if (pollingErrorCount >= 3) {
           console.log('CourseGenerator - Too many polling errors, stopping polling');
           cleanupTimers();
@@ -186,7 +229,7 @@ const CourseGenerator = () => {
     setPollingInterval(interval);
     
     return () => cleanupTimers();
-  }, [generationJobId, language, navigate, toast, cleanupTimers, refreshUser]);
+  }, [generationJobId, language, navigate, toast, cleanupTimers, refreshUser, pollingErrorCount]);
   
   // Contor pentru erorile de polling
   const [pollingErrorCount, setPollingErrorCount] = useState(0);
@@ -215,8 +258,19 @@ const CourseGenerator = () => {
     setGenerationProgress(0);
     setGenerationJobId(null);
     setPollingErrorCount(0);
+    setTechnicalDetails(null);
+    setShowTechnicalDetails(false);
     
     cleanupTimers();
+    
+    // Verifică conexiunea API înainte de a continua
+    const apiConnected = await checkApiConnection();
+    if (!apiConnected) {
+      setError(language === 'ro' 
+        ? 'Nu s-a putut conecta la API. Verificați conexiunea și încercați din nou.' 
+        : 'Could not connect to API. Check your connection and try again.');
+      return;
+    }
     
     // Debug generations left count
     const generationsLeft = isAdminUser ? 999 : (profile?.generationsLeft || 0);
@@ -312,13 +366,34 @@ const CourseGenerator = () => {
     } catch (error: any) {
       console.error("CourseGenerator - Error in course generation:", error);
       setLoading(false);
-      setError(error.message || "A apărut o eroare neașteptată în timpul generării materialelor");
+      setError(error.message || (language === 'ro' ? "A apărut o eroare neașteptată în timpul generării materialelor" : "An unexpected error occurred during material generation"));
+      
+      // Salvare detalii tehnice pentru debugging
+      setTechnicalDetails(JSON.stringify({
+        errorMessage: error.message,
+        errorDetails: error.details || null,
+        errorResponse: error.response || null,
+        timestamp: new Date().toISOString()
+      }, null, 2));
+      
       toast({
         title: language === 'ro' ? 'Eroare la generare' : 'Generation error',
-        description: error.message || "A apărut o eroare neașteptată",
+        description: error.message || (language === 'ro' ? "A apărut o eroare neașteptată" : "An unexpected error occurred"),
         variant: 'destructive'
       });
     }
+  };
+
+  const toggleTechnicalDetails = () => {
+    setShowTechnicalDetails(prev => !prev);
+  };
+  
+  // Funcție pentru a reîncerca generarea în caz de eroare
+  const handleRetry = () => {
+    setError(null);
+    setTechnicalDetails(null);
+    setShowTechnicalDetails(false);
+    handleSubmit(new Event('submit') as any);
   };
 
   if (!user) {
@@ -343,7 +418,30 @@ const CourseGenerator = () => {
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>{language === 'ro' ? 'Eroare' : 'Error'}</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="flex flex-col gap-2">
+            <p>{error}</p>
+            {technicalDetails && (
+              <div className="mt-2">
+                <Button variant="outline" size="sm" onClick={toggleTechnicalDetails} className="flex items-center gap-1 text-xs">
+                  <Info className="h-3 w-3" />
+                  {showTechnicalDetails 
+                    ? (language === 'ro' ? 'Ascunde detalii tehnice' : 'Hide technical details')
+                    : (language === 'ro' ? 'Arată detalii tehnice' : 'Show technical details')
+                  }
+                </Button>
+                
+                {showTechnicalDetails && (
+                  <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-60">
+                    {technicalDetails}
+                  </pre>
+                )}
+              </div>
+            )}
+            
+            <Button variant="outline" size="sm" onClick={handleRetry} className="self-start mt-2">
+              {language === 'ro' ? 'Încearcă din nou' : 'Try again'}
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
       
