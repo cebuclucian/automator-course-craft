@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,14 @@ import { Link } from 'react-router-dom';
 import GeneratedMaterialsTab from './account/GeneratedMaterialsTab';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RefreshCw } from 'lucide-react';
+import { Subscription } from '@/types';
+
+// Type guard to check if subscription is a paid subscription
+function isPaidSubscription(
+  sub: Subscription | { tier: "Free"; active: false }
+): sub is Subscription {
+  return sub.tier !== "Free";
+}
 
 const AccountDashboard = () => {
   const { user, refreshUser } = useAuth();
@@ -75,7 +82,11 @@ const AccountDashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Expiră</p>
-                <p className="font-medium">{formatDate(subscription.expiresAt)}</p>
+                <p className="font-medium">
+                  {isPaidSubscription(subscription) 
+                    ? formatDate(subscription.expiresAt)
+                    : "Fără dată de expirare (plan gratuit)"}
+                </p>
               </div>
               <Button onClick={() => refreshUser()} className="w-full mt-4 flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
