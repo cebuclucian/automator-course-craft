@@ -1,4 +1,3 @@
-
 import React, { memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -18,10 +17,14 @@ interface CourseGeneratorFormProps {
   showLongGenerationWarning: boolean;
   generationsLeft?: number;
   isSubscriptionTierFree?: boolean;
+  jobId?: string | null;
+  generationProgress: number;
+  milestone: string | null;
+  error: string | null;
+  statusMessage: string | null;
 }
 
-// Folosim memo pentru a preveni rerandări inutile ale formularului
-const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = memo(({
+const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
   formData,
   onFormDataChange,
   onSubmit,
@@ -29,20 +32,34 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = memo(({
   showLongGenerationWarning,
   generationsLeft,
   isSubscriptionTierFree,
+  jobId,
+  generationProgress,
+  milestone,
+  error,
+  statusMessage
 }) => {
   const { t, language } = useLanguage();
-  
-  const handleDurationChange = (value: string) => {
-    onFormDataChange('duration', value);
-  };
-
-  // Pentru a ajuta la debug-ul rerandărilor
-  console.log("CourseGeneratorForm rendered with form language:", formData.language);
-
   const hasUnlimitedGenerations = generationsLeft === Infinity;
+
+  console.log("CourseGeneratorForm rendered with progress:", { 
+    generationProgress, 
+    milestone, 
+    jobId,
+    loading 
+  });
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      {(loading || jobId) && (
+        <GenerationProgress
+          generationProgress={generationProgress}
+          milestone={milestone}
+          error={error}
+          statusMessage={statusMessage}
+          jobId={jobId}
+        />
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="language">{t('form.language')}</Label>
         <Select 
@@ -268,9 +285,8 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = memo(({
       </div>
     </form>
   );
-});
+};
 
-// Asigurați-vă că numele afișat în DevTools/React este corect
 CourseGeneratorForm.displayName = 'CourseGeneratorForm';
 
 export default CourseGeneratorForm;
