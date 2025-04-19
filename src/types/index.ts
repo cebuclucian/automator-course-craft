@@ -60,6 +60,7 @@ export interface User {
   subscription?: Subscription;
   generatedCourses?: GeneratedCourse[];
   generationsLeft?: number;
+  lastGenerationDate?: string | Date; // Added missing property
 }
 
 export interface Subscription {

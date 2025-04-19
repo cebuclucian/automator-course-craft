@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { User } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +7,7 @@ import {
   isAdminUser, 
   checkAndResetMonthlyGenerations, 
   getAvailableGenerations,
-  calculateInitialGenerations // Add the missing import here
+  calculateInitialGenerations 
 } from "@/services/generationsService";
 
 export const useProfileState = () => {
@@ -22,12 +21,19 @@ export const useProfileState = () => {
       setIsLoading(true);
       setError(null);
 
+      // Convert expiresAt to string if it's a Date object
+      const subscriptionEndDate = data.subscription?.expiresAt 
+        ? (data.subscription.expiresAt instanceof Date 
+            ? data.subscription.expiresAt.toISOString() 
+            : data.subscription.expiresAt)
+        : undefined;
+
       const { data: updatedProfile, error: updateError } = await supabase
         .from('subscribers')
         .update({
           email: data.email,
           subscription_tier: data.subscription?.tier,
-          subscription_end: data.subscription?.expiresAt?.toISOString(),
+          subscription_end: subscriptionEndDate,
           subscribed: data.subscription?.active
         })
         .eq('user_id', profile?.id)
@@ -70,10 +76,8 @@ export const useProfileState = () => {
   };
 
   const decrementGenerationsLeft = async (userId: string): Promise<boolean> => {
-    // Verifică dacă utilizatorul este admin
     const isAdmin = await isAdminUser(userId);
     
-    // Pentru admin, returnăm direct true fără a decrementa
     if (isAdmin) {
       return true;
     }
@@ -81,7 +85,6 @@ export const useProfileState = () => {
     const success = await decrementGenerations(userId);
     
     if (success && profile && profile.id === userId) {
-      // Obținem direct din baza de date numărul actualizat de generări
       const updatedGenerations = await getAvailableGenerations(userId);
       
       if (updatedGenerations !== null) {
@@ -90,7 +93,6 @@ export const useProfileState = () => {
           generationsLeft: updatedGenerations
         });
       } else {
-        // Dacă nu se poate obține valoarea actualizată, decrementăm local
         setProfile({
           ...profile,
           generationsLeft: Math.max(0, (profile.generationsLeft || 0) - 1)
@@ -109,7 +111,6 @@ export const useProfileState = () => {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session?.user) return null;
 
-      // Verificăm resetarea lunară a generărilor
       await checkAndResetMonthlyGenerations(session.session.user.id);
 
       let subscriberData;
@@ -130,7 +131,7 @@ export const useProfileState = () => {
             email: session.session.user.email,
             subscription_tier: 'Free',
             subscribed: false,
-            generations_left: 1 // Inițializăm cu 1 generare pentru contul gratuit
+            generations_left: 1
           })
           .select()
           .single();
@@ -140,18 +141,14 @@ export const useProfileState = () => {
         subscriberData = newSubscriber;
       }
 
-      // Verifică dacă utilizatorul este admin@automator.ro
       const isAdmin = subscriberData.email === 'admin@automator.ro';
       
-      // Numărul de generări disponibile
       const generationsLeft = isAdmin ? 
-        999999 : // Valoare foarte mare pentru admin
+        999999 : 
         (subscriberData.generations_left ?? calculateInitialGenerations(subscriberData.subscription_tier || 'Free'));
       
-      // Subscription tier pentru admin - întotdeauna Enterprise
       const subscriptionTier = isAdmin ? 'Enterprise' : (subscriberData.subscription_tier as 'Free' | 'Basic' | 'Pro' | 'Enterprise');
       
-      // Status abonament pentru admin - întotdeauna activ
       const isSubscribed = isAdmin ? true : !!subscriberData.subscribed;
 
       const mappedProfile: User = {
@@ -160,7 +157,7 @@ export const useProfileState = () => {
         name: session.session.user.user_metadata?.name || subscriberData.email?.split('@')[0] || '',
         subscription: {
           tier: subscriptionTier,
-          expiresAt: subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : new Date(2099, 11, 31), // Dată foarte îndepărtată pentru admin
+          expiresAt: subscriberData.subscription_end ? new Date(subscriberData.subscription_end) : new Date(2099, 11, 31),
           active: isSubscribed
         },
         generationsLeft: generationsLeft,
@@ -192,4 +189,3 @@ export const useProfileState = () => {
     error
   };
 };
-
