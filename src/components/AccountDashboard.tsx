@@ -33,7 +33,7 @@ const AccountDashboard = () => {
     }
   };
 
-  // Verifică dacă obiectul user este complet invalidat
+  // If user is completely invalid
   if (!user) {
     console.error("AccountDashboard - user object is null or undefined");
     return (
@@ -51,8 +51,34 @@ const AccountDashboard = () => {
     );
   }
 
-  // Asigură-te că avem un obiect subscription chiar dacă e gol
+  // Ensure subscription exists, even if empty
   const subscription = user.subscription || { tier: 'Free', active: false };
+
+  // Validate generated courses array
+  if (!Array.isArray(user.generatedCourses)) {
+    console.error("AccountDashboard - Generated courses data is invalid:", user.generatedCourses);
+    try {
+      // Try to clear corrupted data
+      localStorage.removeItem('automatorUser');
+      // Force refresh user data
+      refreshUser();
+    } catch (e) {
+      console.error("Error clearing corrupted user data:", e);
+    }
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <Alert>
+          <AlertDescription>
+            Date invalide pentru materialele generate. Am încercat să reparăm automat. Vă rugăm să reîncărcați pagina.
+          </AlertDescription>
+        </Alert>
+        <Button onClick={() => window.location.reload()} className="mt-4 flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Reîncărcați pagina
+        </Button>
+      </div>
+    );
+  }
   
   return (
     <div className="container mx-auto px-4 py-10">
