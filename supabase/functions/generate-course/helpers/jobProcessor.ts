@@ -4,196 +4,167 @@ import { mockCourseData } from "./mockData.ts";
 const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
-const JOB_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 ore
+const JOB_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
+const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
+
+const cleanupJobs = () => {
+  console.log("JobProcessor: Starting job cleanup");
+  const now = Date.now();
+  let cleanedCount = 0;
+
+  jobStore.forEach((job, jobId) => {
+    if (!job.startedAt) {
+      console.warn(`JobProcessor: Job ${jobId} has no startedAt timestamp`);
+      return;
+    }
+
+    const jobAge = now - new Date(job.startedAt).getTime();
+    if (jobAge > JOB_EXPIRATION_TIME) {
+      console.log(`JobProcessor: Removing expired job ${jobId} (age: ${jobAge}ms)`);
+      jobStore.delete(jobId);
+      cleanedCount++;
+    }
+  });
+
+  if (cleanedCount > 0) {
+    console.log(`JobProcessor: Cleaned up ${cleanedCount} expired jobs`);
+  }
+};
+
+const cleanup = setInterval(cleanupJobs, CLEANUP_INTERVAL);
+
+addEventListener('beforeunload', () => {
+  clearInterval(cleanup);
+});
 
 export async function processJob(jobId: string, prompt: string, formData: any) {
   console.log(`JobProcessor: Starting processing job ${jobId}`);
   
-  // Verificare existență job în store
-  if (!jobStore.has(jobId)) {
-    console.error(`JobProcessor: Job ${jobId} nu există în store`);
-    return;
-  }
-
   try {
-    // Verificare și management job expirat
+    // Job existence and expiration check
     const job = jobStore.get(jobId);
+    if (!job) {
+      throw new Error(`Job ${jobId} not found in store`);
+    }
+
     const currentTime = Date.now();
     const jobCreatedTime = new Date(job.startedAt).getTime();
     
     if (currentTime - jobCreatedTime > JOB_EXPIRATION_TIME) {
-      console.warn(`JobProcessor: Job ${jobId} a expirat`);
+      console.warn(`JobProcessor: Job ${jobId} has expired`);
       jobStore.delete(jobId);
-      return;
+      throw new Error(`Job ${jobId} has expired`);
     }
 
-    console.log(`JobProcessor: CLAUDE_API_KEY is ${CLAUDE_API_KEY ? 'configured' : 'missing'}`);
-  
-    if (!jobStore.has(jobId)) {
-      console.error(`JobProcessor: Job ${jobId} doesn't exist in store`);
-      return;
+    // API key validation
+    if (!CLAUDE_API_KEY) {
+      throw new Error("Claude API key is missing from environment variables");
     }
 
-    try {
-      console.log(`JobProcessor: Sending request to Claude API for job ${jobId}`);
-      console.log(`JobProcessor: Prompt length: ${prompt.length} characters`);
-      
-      // Verificare cheie API
-      if (!CLAUDE_API_KEY) {
-        throw new Error("Claude API key is missing from environment variables");
-      }
+    console.log(`JobProcessor: Calling Claude API for job ${jobId}`);
+    
+    // API call implementation with retries
+    let response = null;
+    let result = null;
+    let retries = 0;
+    
+    while (retries <= MAX_RETRIES) {
+      try {
+        response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': CLAUDE_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-3-sonnet-20240229',
+            max_tokens: 16000,
+            temperature: 0.7,
+            system: "You are an expert in course design and training. You will generate complete course materials based on the provided information.",
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          })
+        });
 
-      // Verificare dacă job-ul mai există
-      const job = jobStore.get(jobId);
-      if (!job) {
-        throw new Error(`Job ${jobId} no longer exists in store`);
-      }
-
-      console.log(`JobProcessor: Calling Claude API for job ${jobId}...`);
-      
-      // Jurnalizare detalii cerere API
-      console.log(`JobProcessor: Request to API with model: claude-3-sonnet-20240229, temperature: 0.7, max_tokens: 16000`);
-      console.log(`JobProcessor: System prompt: "Expert in course design and training"`);
-      
-      // Implementare strategie de reîncercare pentru apelul API
-      let response = null;
-      let result = null;
-      let retries = 0;
-      
-      while (retries <= MAX_RETRIES) {
-        try {
-          // Apelare API Claude cu versiunea corectă și formatul actualizat
-          response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': CLAUDE_API_KEY,
-              'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-              model: 'claude-3-sonnet-20240229',
-              max_tokens: 16000,
-              temperature: 0.7,
-              system: "Ești un expert în design de cursuri și training. Vei genera materiale de curs complete bazate pe informațiile furnizate.",
-              messages: [
-                {
-                  role: 'user',
-                  content: prompt
-                }
-              ]
-            })
-          });
-
-          console.log(`JobProcessor: Response status from Claude API: ${response.status}`);
+        console.log(`JobProcessor: Response status from Claude API: ${response.status}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`JobProcessor: Claude API Error: ${response.status} - ${errorText}`);
           
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`JobProcessor: Claude API Error: ${response.status} - ${errorText}`);
-            
-            if (retries < MAX_RETRIES) {
-              retries++;
-              console.log(`JobProcessor: Retrying API call (${retries}/${MAX_RETRIES}) after ${RETRY_DELAY_MS}ms delay...`);
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-              continue;
-            }
-            
-            throw new Error(`Claude API Error: ${response.status}`);
-          }
-
-          // Procesare răspuns
-          result = await response.json();
-          console.log(`JobProcessor: Response received from Claude, contains data: ${!!result}`);
-          
-          if (!result || !result.content || result.content.length === 0) {
-            if (retries < MAX_RETRIES) {
-              retries++;
-              console.log(`JobProcessor: Empty response, retrying (${retries}/${MAX_RETRIES})...`);
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-              continue;
-            }
-            throw new Error("Empty or invalid response from API");
-          }
-          
-          // Am primit un răspuns valid, ieșim din bucla de reîncercări
-          break;
-        } catch (apiError) {
-          console.error(`JobProcessor: API error on try ${retries}:`, apiError);
           if (retries < MAX_RETRIES) {
             retries++;
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-          } else {
-            throw apiError; // Reîncercările au eșuat, propagăm eroarea
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * retries));
+            continue;
           }
+          throw new Error(`Claude API Error: ${response.status}`);
         }
-      }
 
-      // Extragere conținut din răspunsul Claude
-      const content = result.content[0].text;
-      console.log(`JobProcessor: Content extracted, length: ${content?.length || 0}`);
-      console.log(`JobProcessor: First 100 chars of response: ${content?.substring(0, 100)}...`);
-      
-      // Procesare conținut pentru extragerea secțiunilor necesare
-      const sections = parseContentToSections(content, formData);
-      console.log(`JobProcessor: Sections extracted: ${sections.length}`);
-      
-      // Jurnalizare titluri secțiuni pentru debugging
-      sections.forEach((section, index) => {
-        console.log(`JobProcessor: Section ${index + 1}: ${section.type} - ${section.title}`);
-      });
-
-      // Pregătire rezultat final
-      const finalResult = {
-        sections: sections
-      };
-      console.log("JobProcessor: Final parsed result to be saved:", JSON.stringify(finalResult));
-
-      // Actualizare job în store
-      jobStore.set(jobId, {
-        ...job,
-        status: 'completed',
-        data: finalResult,
-        completedAt: new Date().toISOString()
-      });
-
-      console.log(`JobProcessor: Job ${jobId} completed successfully, ${sections.length} sections generated`);
-    } catch (error) {
-      console.error(`JobProcessor: Error processing job ${jobId}:`, error);
-      
-      // În caz de eroare, asigurăm că job-ul primește un status de eroare
-      // dar păstrăm datele mock pentru a evita afișarea unui ecran gol utilizatorului
-      if (jobStore.has(jobId)) {
-        const job = jobStore.get(jobId);
+        result = await response.json();
+        console.log(`JobProcessor: Response received from Claude for job ${jobId}`);
         
-        // Dacă job-ul există dar nu are secțiuni în date, adăugăm secțiuni mock
-        let updatedData = job.data;
-        if (!updatedData || !updatedData.sections || updatedData.sections.length === 0) {
-          updatedData = mockCourseData(formData);
+        if (!result || !result.content || result.content.length === 0) {
+          if (retries < MAX_RETRIES) {
+            retries++;
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * retries));
+            continue;
+          }
+          throw new Error("Empty or invalid response from API");
         }
         
-        jobStore.set(jobId, {
-          ...job,
-          status: 'error',
-          error: error.message || 'Unknown error processing job',
-          data: updatedData,
-          completedAt: new Date().toISOString()
-        });
-        console.log(`JobProcessor: Job ${jobId} marked as error, but with mock data provided`);
+        break;
+      } catch (apiError) {
+        console.error(`JobProcessor: API error on try ${retries}:`, apiError);
+        if (retries < MAX_RETRIES) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * retries));
+        } else {
+          throw apiError;
+        }
       }
     }
-  } catch (error) {
-    console.error(`JobProcessor: Eroare procesare job ${jobId}:`, error);
+
+    // Extract and process content
+    const content = result.content[0].text;
+    console.log(`JobProcessor: Content extracted for job ${jobId}, length: ${content?.length || 0}`);
     
-    // Management erori îmbunătățit
+    const sections = parseContentToSections(content, formData);
+    console.log(`JobProcessor: ${sections.length} sections extracted for job ${jobId}`);
+
+    // Update job with success status
     jobStore.set(jobId, {
-      ...jobStore.get(jobId),
-      status: 'error',
-      error: error.message || 'Eroare necunoscută',
+      ...job,
+      status: 'completed',
+      data: { sections },
       completedAt: new Date().toISOString()
     });
+
+    console.log(`JobProcessor: Job ${jobId} completed successfully`);
+  } catch (error) {
+    console.error(`JobProcessor: Error processing job ${jobId}:`, error);
+    
+    const job = jobStore.get(jobId);
+    if (job) {
+      // Provide mock data on error to avoid blank screens
+      const mockData = mockCourseData(formData);
+      jobStore.set(jobId, {
+        ...job,
+        status: 'error',
+        error: error.message || 'Unknown error',
+        data: mockData,
+        completedAt: new Date().toISOString()
+      });
+    }
+    
+    throw error;
   }
 }
 
-// Funcție pentru procesarea răspunsului Claude în secțiuni structurate
 function parseContentToSections(content: string, formData: any) {
   console.log(`ParseContent: Starting to parse content, length: ${content.length}`);
   
