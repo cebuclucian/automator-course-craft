@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, Loader2 } from 'lucide-react';
@@ -246,7 +247,7 @@ const PackagesSection = () => {
               }`}
             >
               {pkg.highlight && (
-                <div className="bg-automator-500 text-white text-center py-2 text-sm font-medium dark:bg-automator-600">
+                <div className="bg-automator-500 text-white text-center py-2 text-sm font-medium dark:bg-automator-600 light:bg-automator-100 light:text-automator-600">
                   {language === 'ro' ? 'Cel mai popular' : 'Most Popular'}
                 </div>
               )}
@@ -268,7 +269,7 @@ const PackagesSection = () => {
                 <Button 
                   className={`w-full ${
                     pkg.highlight 
-                      ? 'bg-automator-500 hover:bg-automator-600 text-white dark:bg-automator-600' 
+                      ? 'bg-automator-500 hover:bg-automator-600 text-white dark:bg-automator-600 light:bg-automator-100 light:text-automator-600 light:hover:bg-automator-200' 
                       : ''
                   }`}
                   variant={pkg.highlight ? 'default' : 'outline'}
