@@ -59,6 +59,108 @@ async function handleTestConnection() {
   );
 }
 
+// Endpoint minimal pentru testarea API Claude
+async function handleTestClaude() {
+  try {
+    if (!CLAUDE_API_KEY) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "API Key Claude nu este configurată"
+        }),
+        {
+          status: 400,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+    
+    console.log("TestClaude - Testare conectare API Claude");
+    
+    // Prompt minimal pentru testare
+    const prompt = "Salut! Acesta este un test de conectivitate. Te rog să răspunzi cu 'Test reușit!'";
+    
+    // Apelare directă API Claude cu prompt minimal
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-sonnet-20240229',
+        max_tokens: 1000,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      })
+    });
+    
+    // Verificare răspuns
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("TestClaude - Eroare API:", response.status, errorData);
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `API Claude a returnat status ${response.status}`,
+          details: errorData
+        }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+    
+    const data = await response.json();
+    console.log("TestClaude - Răspuns API primit");
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Testare API Claude reușită",
+        responseContent: data.content?.[0]?.text || "Răspuns gol",
+        responseData: data
+      }),
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  } catch (error) {
+    console.error("TestClaude - Eroare:", error);
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `Eroare la testarea API Claude: ${error.message || "Eroare necunoscută"}`,
+        stack: error.stack
+      }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }
+}
+
 serve(async (req) => {
   // Măsurare timp de procesare cerere pentru debugging
   const requestStartTime = Date.now();
@@ -75,6 +177,11 @@ serve(async (req) => {
   // Endpoint de test pentru verificarea conectivității
   if (pathname.endsWith('/test-connection')) {
     return await handleTestConnection();
+  }
+  
+  // Endpoint de test pentru API Claude
+  if (pathname.endsWith('/test-claude')) {
+    return await handleTestClaude();
   }
 
   try {

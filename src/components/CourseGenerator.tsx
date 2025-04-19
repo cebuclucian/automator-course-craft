@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 const CourseGenerator = () => {
   const { user, refreshUser } = useAuth();
@@ -33,6 +34,8 @@ const CourseGenerator = () => {
   const [generationTimeout, setGenerationTimeout] = useState<number | null>(null);
   const [technicalDetails, setTechnicalDetails] = useState<string | null>(null);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
+  // Define pollingErrorCount state before it's used
+  const [pollingErrorCount, setPollingErrorCount] = useState(0);
 
   // Debug user and profile state
   useEffect(() => {
@@ -230,9 +233,6 @@ const CourseGenerator = () => {
     
     return () => cleanupTimers();
   }, [generationJobId, language, navigate, toast, cleanupTimers, refreshUser, pollingErrorCount]);
-  
-  // Contor pentru erorile de polling
-  const [pollingErrorCount, setPollingErrorCount] = useState(0);
   
   useEffect(() => {
     return () => cleanupTimers();

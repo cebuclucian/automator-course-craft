@@ -2,14 +2,11 @@
 import { jobStore } from "../index.ts";
 import { mockCourseData } from "../helpers/mockData.ts";
 
-// Înlocuim importul de uuidv4 cu metoda crypto.randomUUID() nativă din Deno
-// Eliminăm importul problematic: import { v4 as uuidv4 } from "https://deno.land/std@0.167.0/uuid/mod.ts";
+// Implementăm generarea UUID folosind API-ul nativ crypto
+const generateUUID = () => crypto.randomUUID();
 
 // Importăm processJob, dar nu apelăm direct funcția async pentru a evita timeout-ul Edge Function
 import { processJob } from "../helpers/jobProcessor.ts";
-
-// Funcție helper pentru generarea UUID-urilor
-const generateUUID = () => crypto.randomUUID();
 
 export const handleStartJob = async (requestData: any, headers: Record<string, string>) => {
   try {
@@ -39,6 +36,8 @@ export const handleStartJob = async (requestData: any, headers: Record<string, s
     
     // Verificare Claude API Key
     const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
+    console.log("StartJob - CLAUDE_API_KEY este configurată:", !!CLAUDE_API_KEY);
+    
     if (!CLAUDE_API_KEY) {
       console.error("StartJob - Claude API Key is not set");
       
@@ -73,7 +72,7 @@ export const handleStartJob = async (requestData: any, headers: Record<string, s
       );
     }
     
-    // Generare ID unic pentru job folosind noua metodă
+    // Generare ID unic pentru job folosind metoda crypto.randomUUID()
     const jobId = `job-${Date.now()}-${generateUUID().substring(0, 8)}`;
     console.log(`StartJob - Job ID generat: ${jobId}`);
     
