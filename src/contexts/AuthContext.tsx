@@ -51,29 +51,64 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Effect to update user data when refreshed
   useEffect(() => {
+    let isMounted = true;
+    let initTimeout: NodeJS.Timeout | null = null;
+    
     const initializeUser = async () => {
       try {
+        console.log("AuthContext - Initializing user...");
+        setIsLoading(true);
+        
+        // Safety timeout to prevent infinite loading
+        initTimeout = setTimeout(() => {
+          if (isMounted && isLoading) {
+            console.warn("AuthContext - Initialization timeout, setting isLoading to false");
+            setIsLoading(false);
+          }
+        }, 5000);
+        
         await refreshUser();
+        
         // After refresh, check if user data exists in localStorage
-        const storedUser = localStorage.getItem('automatorUser');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
+        if (isMounted) {
+          const storedUser = localStorage.getItem('automatorUser');
+          if (storedUser) {
+            try {
+              const parsedUser = JSON.parse(storedUser);
+              console.log("AuthContext - User loaded from localStorage:", 
+                parsedUser.email || "No email");
+              setUser(parsedUser);
+            } catch (e) {
+              console.error("AuthContext - Error parsing stored user:", e);
+              // Clear corrupted user data
+              localStorage.removeItem('automatorUser');
+            }
+          } else {
+            console.log("AuthContext - No stored user found in localStorage");
+          }
         }
       } catch (err) {
-        console.error("Error initializing user:", err);
+        console.error("AuthContext - Error initializing user:", err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+          if (initTimeout) clearTimeout(initTimeout);
+        }
       }
     };
 
     initializeUser();
+    
+    return () => {
+      isMounted = false;
+      if (initTimeout) clearTimeout(initTimeout);
+    };
   }, [refreshUser]);
   
   // Add debugging to track user state changes
   useEffect(() => {
-    console.log("AuthContext - User state changed:", user);
+    console.log("AuthContext - User state changed:", user ? user.email : "null");
     console.log("AuthContext - Is loading:", isLoading);
-    console.log("AuthContext - Generated courses count:", user?.generatedCourses?.length || 0);
   }, [user, isLoading]);
 
   return (
@@ -89,15 +124,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isLoading,
         error,
         refreshUser: async () => {
-          const success = await refreshUser();
-          if (success) {
-            // After refresh, update user state from localStorage
-            const storedUser = localStorage.getItem('automatorUser');
-            if (storedUser) {
-              setUser(JSON.parse(storedUser));
+          try {
+            const success = await refreshUser();
+            if (success) {
+              // After refresh, update user state from localStorage
+              const storedUser = localStorage.getItem('automatorUser');
+              if (storedUser) {
+                setUser(JSON.parse(storedUser));
+              }
             }
+            return success;
+          } catch (error) {
+            console.error("AuthContext - Error in refreshUser:", error);
+            return false;
           }
-          return success;
         }
       }}
     >
