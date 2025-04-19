@@ -49,6 +49,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   
   const { refreshUser } = useUserRefresh();
 
+  // Add safety timeout to prevent infinite loading state
+  useEffect(() => {
+    if (isLoading) {
+      const safetyTimeout = setTimeout(() => {
+        setIsLoading(false);
+        console.log("AuthContext - Safety timeout triggered, forcing loading state to complete");
+      }, 5000); // 5 second maximum timeout
+      
+      return () => clearTimeout(safetyTimeout);
+    }
+  }, [isLoading]);
+
   // Effect to update user data when refreshed
   useEffect(() => {
     let isMounted = true;
@@ -59,7 +71,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log("AuthContext - Initializing user...");
         setIsLoading(true);
         
-        // Safety timeout to prevent infinite loading
+        // Safety timeout to prevent infinite loading - already covered by the effect above
         initTimeout = setTimeout(() => {
           if (isMounted && isLoading) {
             console.warn("AuthContext - Initialization timeout, setting isLoading to false");
@@ -89,6 +101,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch (err) {
         console.error("AuthContext - Error initializing user:", err);
+        // Handle auth errors by resetting state
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -103,13 +119,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       isMounted = false;
       if (initTimeout) clearTimeout(initTimeout);
     };
-  }, [refreshUser]);
+  }, [refreshUser, isLoading]);
   
   // Add debugging to track user state changes
   useEffect(() => {
     console.log("AuthContext - User state changed:", user ? user.email : "null");
     console.log("AuthContext - Is loading:", isLoading);
   }, [user, isLoading]);
+
+  // Handle auth errors centrally
+  const handleAuthError = (error: any) => {
+    console.error("AuthContext - Authentication error:", error);
+    setIsLoading(false);
+    setError(error instanceof Error ? error.message : "Unknown authentication error");
+  };
 
   return (
     <AuthContext.Provider
@@ -130,13 +153,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               // After refresh, update user state from localStorage
               const storedUser = localStorage.getItem('automatorUser');
               if (storedUser) {
-                setUser(JSON.parse(storedUser));
+                try {
+                  const parsedUser = JSON.parse(storedUser);
+                  setUser(parsedUser);
+                } catch (e) {
+                  console.error("AuthContext - Error parsing user data after refresh:", e);
+                  return false;
+                }
               }
             }
             return success;
           } catch (error) {
             console.error("AuthContext - Error in refreshUser:", error);
+            handleAuthError(error);
             return false;
+          } finally {
+            // Ensure loading state is turned off
+            setIsLoading(false);
           }
         }
       }}

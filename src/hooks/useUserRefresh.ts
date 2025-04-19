@@ -9,8 +9,15 @@ export const useUserRefresh = () => {
   const { toast } = useToast();
 
   const refreshUser = useCallback(async () => {
+    // Safety timeout to prevent hanging
+    const refreshTimeout = setTimeout(() => {
+      setIsRefreshing(false);
+      console.warn("useUserRefresh - Refresh timeout triggered after 8 seconds");
+    }, 8000);
+    
     if (isRefreshing) {
       console.log("useUserRefresh: Already refreshing, skipping");
+      clearTimeout(refreshTimeout);
       return false;
     }
     
@@ -22,11 +29,13 @@ export const useUserRefresh = () => {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) {
         console.error("useUserRefresh: Error getting session:", sessionError);
+        clearTimeout(refreshTimeout);
         return false;
       }
       
       if (!sessionData?.session) {
         console.log("useUserRefresh: No active session found");
+        clearTimeout(refreshTimeout);
         return false;
       }
       
@@ -41,6 +50,7 @@ export const useUserRefresh = () => {
         
       if (subscriberError) {
         console.error("useUserRefresh: Error getting subscriber data:", subscriberError);
+        clearTimeout(refreshTimeout);
         return false;
       }
       
@@ -168,11 +178,13 @@ export const useUserRefresh = () => {
         console.error("useUserRefresh: Error triggering event:", eventError);
       }
       
+      clearTimeout(refreshTimeout);
       return true;
     } catch (error) {
       console.error("useUserRefresh: Error refreshing user data:", error);
       return false;
     } finally {
+      clearTimeout(refreshTimeout);
       setIsRefreshing(false);
     }
   }, [isRefreshing, toast]);

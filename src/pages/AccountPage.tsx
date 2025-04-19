@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import AccountDashboard from '@/components/AccountDashboard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +16,18 @@ const AccountPage = () => {
   const [loadAttempts, setLoadAttempts] = useState(0);
   const [isFixingData, setIsFixingData] = useState(false);
   const { toast } = useToast();
+  
+  // Add safety timeout to prevent infinite loading
+  useEffect(() => {
+    if (localLoading) {
+      const safetyTimeout = setTimeout(() => {
+        console.log("AccountPage - Safety timeout triggered, forcing loading state to complete");
+        setLocalLoading(false);
+      }, 7000); // 7 second maximum timeout
+      
+      return () => clearTimeout(safetyTimeout);
+    }
+  }, [localLoading]);
   
   // Logging for debugging
   useEffect(() => {
@@ -64,6 +77,9 @@ const AccountPage = () => {
             refreshUser().then(() => {
               setIsFixingData(false);
               console.log("AccountPage - User data refreshed after fixing corrupted data");
+            }).catch(e => {
+              console.error("AccountPage - Error refreshing user after fix:", e);
+              setIsFixingData(false);
             });
           }
         } catch (e) {
@@ -74,7 +90,9 @@ const AccountPage = () => {
           console.log("AccountPage - Removed corrupted automatorUser from localStorage");
           
           // Force refresh
-          refreshUser();
+          refreshUser().catch(e => {
+            console.error("AccountPage - Error refreshing after clearing localStorage:", e);
+          });
         }
       }
     } catch (e) {
@@ -85,7 +103,7 @@ const AccountPage = () => {
   // Load user data only once when the account page initially loads
   useEffect(() => {
     let isMounted = true;
-    let loadTimeout;
+    let loadTimeout: NodeJS.Timeout | null = null;
     
     const loadUserData = async () => {
       if (!isMounted) return;
@@ -155,7 +173,7 @@ const AccountPage = () => {
         });
       } finally {
         if (isMounted) {
-          clearTimeout(loadTimeout);
+          if (loadTimeout) clearTimeout(loadTimeout);
           setLocalLoading(false);
         }
       }
@@ -172,9 +190,9 @@ const AccountPage = () => {
     
     return () => {
       isMounted = false;
-      clearTimeout(loadTimeout);
+      if (loadTimeout) clearTimeout(loadTimeout);
     };
-  }, [refreshUser, authLoading, toast, loadAttempts, user?.id, isFixingData, localLoading]);
+  }, [refreshUser, authLoading, toast, loadAttempts, user?.id, isFixingData]);
 
   const handleRetry = useCallback(() => {
     console.log("AccountPage - Manual retry triggered");
@@ -196,6 +214,18 @@ const AccountPage = () => {
   if (authLoading || localLoading || isFixingData) {
     return (
       <div className="container mx-auto px-4 py-10">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Contul meu</h1>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="flex items-center gap-1"
+            onClick={handleRetry}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Reîmprospătare
+          </Button>
+        </div>
         <div className="flex flex-col md:flex-row gap-8">
           <div className="w-full md:w-64 space-y-6">
             <Skeleton className="h-40 w-full" />

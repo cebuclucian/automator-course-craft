@@ -8,9 +8,11 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 const GeneratePage = () => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { profile, refreshProfile } = useUserProfile();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -19,15 +21,32 @@ const GeneratePage = () => {
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [hasAttemptedProfileLoad, setHasAttemptedProfileLoad] = useState(false);
   const [profileLoadComplete, setProfileLoadComplete] = useState(false);
+  const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // Verifică dacă utilizatorul este admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
 
+  // Add safety timeout to prevent infinite loading
+  useEffect(() => {
+    if (isLoading) {
+      const safetyTimeout = setTimeout(() => {
+        console.log("GeneratePage - Safety timeout triggered, forcing loading state to complete");
+        setIsLoading(false);
+        setProfileLoadComplete(true); // Force this to true to prevent being stuck
+      }, 7000); // 7 second maximum timeout
+      
+      setLoadTimeout(safetyTimeout);
+      return () => clearTimeout(safetyTimeout);
+    }
+  }, [isLoading]);
+
   useEffect(() => {
     console.log("GeneratePage mounted, user:", user?.id, "profile:", profile?.id);
+    console.log("GeneratePage auth loading state:", authLoading);
+    console.log("GeneratePage local loading state:", isLoading);
     
     // Adăugăm un flag pentru a preveni încărcările multiple ale profilului
-    if (!hasAttemptedProfileLoad && !profileLoadComplete) {
+    if (!hasAttemptedProfileLoad && !profileLoadComplete && !authLoading) {
       console.log("First profile load attempt");
       
       async function loadProfileData() {
@@ -52,12 +71,13 @@ const GeneratePage = () => {
           setHasAttemptedProfileLoad(true);
         } finally {
           setIsLoading(false);
+          if (loadTimeout) clearTimeout(loadTimeout);
         }
       }
       
       loadProfileData();
     }
-  }, [user, refreshProfile, language, hasAttemptedProfileLoad, profileLoadComplete, profile]);
+  }, [user, refreshProfile, language, hasAttemptedProfileLoad, profileLoadComplete, profile, authLoading, loadTimeout]);
 
   useEffect(() => {
     // Verificăm limitele de generare doar după ce profilul a fost încărcat
@@ -85,7 +105,12 @@ const GeneratePage = () => {
     }
   }, [user, profile, navigate, toast, language, isAdminUser, isLoading, profileLoadComplete]);
 
-  if (isLoading && !profileLoadComplete) {
+  // Add manual refresh ability for users
+  const handleManualRefresh = () => {
+    window.location.reload();
+  };
+
+  if ((isLoading || authLoading) && !profileLoadComplete) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
@@ -102,9 +127,31 @@ const GeneratePage = () => {
   if (loadingError) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="mb-4">
           <AlertDescription>{loadingError}</AlertDescription>
         </Alert>
+        <Button onClick={handleManualRefresh} className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          {language === 'ro' ? 'Reîncarcă pagina' : 'Reload page'}
+        </Button>
+      </div>
+    );
+  }
+
+  // If we still have no user after loading is complete, show a message
+  if (!user && !isLoading && !authLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert className="mb-4">
+          <AlertDescription>
+            {language === 'ro' 
+              ? 'Trebuie să te autentifici pentru a genera materiale.' 
+              : 'You need to log in to generate materials.'}
+          </AlertDescription>
+        </Alert>
+        <Button onClick={() => navigate('/')} className="flex items-center gap-2">
+          {language === 'ro' ? 'Înapoi la pagina principală' : 'Back to home page'}
+        </Button>
       </div>
     );
   }
