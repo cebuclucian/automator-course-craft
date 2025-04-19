@@ -2,9 +2,13 @@
 import React from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { ClipboardCheck, Settings, Download } from 'lucide-react';
+import { useScrollReveal } from '@/hooks/use-scroll-reveal';
 
 const HowItWorksSection = () => {
   const { t, language } = useLanguage();
+  const step1Reveal = useScrollReveal();
+  const step2Reveal = useScrollReveal();
+  const step3Reveal = useScrollReveal();
 
   const steps = {
     ro: [
@@ -51,20 +55,32 @@ const HowItWorksSection = () => {
         <h2 className="text-3xl font-bold text-center mb-12">{t('how.title')}</h2>
         
         <div className="flex flex-col md:flex-row justify-between items-start gap-8">
-          {currentSteps.map((step, index) => (
-            <div key={index} className="flex-1 bg-white dark:bg-gray-900 p-8 rounded-lg shadow-md text-center animate-fade-in hover:shadow-lg transition-all duration-300">
-              <div className="flex justify-center mb-4 transform hover:scale-110 transition-transform duration-200">
-                {step.icon}
+          {currentSteps.map((step, index) => {
+            const reveal = index === 0 ? step1Reveal : index === 1 ? step2Reveal : step3Reveal;
+            
+            return (
+              <div
+                key={index}
+                ref={reveal.ref}
+                className={`flex-1 bg-white dark:bg-gray-900 p-8 rounded-lg shadow-md text-center transform transition-all duration-700 ${
+                  reveal.isVisible 
+                    ? 'opacity-100 translate-y-0' 
+                    : 'opacity-0 translate-y-10'
+                }`}
+              >
+                <div className="flex justify-center mb-4 transform hover:scale-110 transition-transform duration-200">
+                  {step.icon}
+                </div>
+                <h3 className="text-xl font-semibold mb-4">{step.title}</h3>
+                <p className="text-gray-600 dark:text-gray-400">{step.description}</p>
+                <div className="mt-6 flex justify-center">
+                  <span className="bg-automator-100 dark:bg-automator-900 text-automator-800 dark:text-automator-200 text-xl font-bold h-10 w-10 rounded-full flex items-center justify-center transform hover:rotate-12 transition-transform duration-200">
+                    {index + 1}
+                  </span>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-4">{step.title}</h3>
-              <p className="text-gray-600 dark:text-gray-400">{step.description}</p>
-              <div className="mt-6 flex justify-center">
-                <span className="bg-automator-100 dark:bg-automator-900 text-automator-800 dark:text-automator-200 text-xl font-bold h-10 w-10 rounded-full flex items-center justify-center transform hover:rotate-12 transition-transform duration-200">
-                  {index + 1}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
