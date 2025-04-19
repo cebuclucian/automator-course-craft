@@ -85,6 +85,33 @@ const CourseGenerator = () => {
     }
   }, [pollingInterval, generationTimeout]);
 
+  // Fix pentru problema de loop infinit - adăugăm safety mechanism
+  useEffect(() => {
+    // Safety timeout pentru cazul în care polling-ul nu se termină niciodată
+    const safetyTimeout = setTimeout(() => {
+      if (loading && generationJobId) {
+        console.log('CourseGenerator - Safety timeout triggered after 120 seconds, forcing completion');
+        cleanupTimers();
+        setLoading(false);
+        setGenerationProgress(100);
+        
+        // Forțăm navigarea la pagina de cont pentru a evita blocajul
+        toast({
+          title: language === 'ro' ? 'Procesare finalizată' : 'Processing completed',
+          description: language === 'ro' 
+            ? 'Generarea a durat mai mult decât de obicei. Verificați materialele în contul dvs.' 
+            : 'Generation took longer than usual. Check materials in your account.',
+        });
+        
+        setTimeout(() => {
+          navigate('/account');
+        }, 2000);
+      }
+    }, 120000); // 120 secunde timeout maxim
+    
+    return () => clearTimeout(safetyTimeout);
+  }, [loading, generationJobId, cleanupTimers, toast, navigate, language]);
+
   useEffect(() => {
     if (!generationJobId || pollingInterval) return;
     
@@ -144,6 +171,15 @@ const CourseGenerator = () => {
         }
       } catch (error) {
         console.error('CourseGenerator - Error checking job status:', error);
+        // Măsură de siguranță - după 3 erori consecutive, anulăm polling-ul
+        if (pollingErrorCount >= 3) {
+          console.log('CourseGenerator - Too many polling errors, stopping polling');
+          cleanupTimers();
+          setLoading(false);
+          setError(language === 'ro' 
+            ? 'Nu s-a putut verifica statusul generării. Verificați materialele în contul dvs.' 
+            : 'Could not check generation status. Please check materials in your account.');
+        }
       }
     }, 3000); // Poll every 3 seconds
     
@@ -151,7 +187,10 @@ const CourseGenerator = () => {
     
     return () => cleanupTimers();
   }, [generationJobId, language, navigate, toast, cleanupTimers, refreshUser]);
-
+  
+  // Contor pentru erorile de polling
+  const [pollingErrorCount, setPollingErrorCount] = useState(0);
+  
   useEffect(() => {
     return () => cleanupTimers();
   }, [cleanupTimers]);
@@ -175,6 +214,7 @@ const CourseGenerator = () => {
     setSuccess(null);
     setGenerationProgress(0);
     setGenerationJobId(null);
+    setPollingErrorCount(0);
     
     cleanupTimers();
     

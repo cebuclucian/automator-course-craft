@@ -1,3 +1,4 @@
+
 import { jobStore } from "../index.ts";
 import { mockCourseData } from "./mockData.ts";
 
@@ -30,7 +31,7 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
 
     console.log(`JobProcessor: Calling Claude API for job ${jobId}...`);
     
-    // CRITICAL: Log the API request details
+    // Log the API request details
     console.log(`JobProcessor: Request to API with model: claude-3-sonnet-20240229, temperature: 0.7, max_tokens: 16000`);
     console.log(`JobProcessor: System prompt: "Expert in course design and training"`);
     
