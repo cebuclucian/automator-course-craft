@@ -80,7 +80,7 @@ const ContactSection = () => {
                   <h4 className="font-semibold">
                     {language === 'ro' ? 'Telefon' : 'Phone'}
                   </h4>
-                  <p className="text-gray-600 dark:text-gray-400">+40 700 000 000</p>
+                  <p className="text-gray-600 dark:text-gray-400">+40 734 205 111</p>
                 </div>
               </div>
               <div className="flex items-start">
@@ -91,8 +91,8 @@ const ContactSection = () => {
                   </h4>
                   <p className="text-gray-600 dark:text-gray-400">
                     {language === 'ro' 
-                      ? 'Strada Exemplu, Nr. 1, București, România' 
-                      : 'Example Street, No. 1, Bucharest, Romania'}
+                      ? 'Săcălaz 818, județ Timiș, România' 
+                      : 'Săcălaz 818, Timiș County, Romania'}
                   </p>
                 </div>
               </div>
@@ -121,3 +121,4 @@ const ContactSection = () => {
 };
 
 export default ContactSection;
+
