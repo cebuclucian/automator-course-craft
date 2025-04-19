@@ -26,7 +26,7 @@ const GeneratePage = () => {
   
   // Debugging state
   const [showDebugDialog, setShowDebugDialog] = useState(false);
-  const [debugInfo, setDebugInfo<{ [key: string]: any }>({})] = useState({});
+  const [debugInfo, setDebugInfo] = useState<{ [key: string]: any }>({});
   const [debugLoading, setDebugLoading] = useState(false);
 
   // Verifică dacă utilizatorul este admin
