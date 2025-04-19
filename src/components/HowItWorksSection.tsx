@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { ClipboardCheck, Settings, Download } from 'lucide-react';
@@ -27,7 +28,7 @@ const HowItWorksSection = () => {
       {
         icon: <ClipboardCheck className="h-12 w-12 text-automator-600" />,
         title: 'Fill out the form',
-        description: 'Define the language, subject, level, target audience, and course duration. Add your preferences for tone and context (corporate or academic).'
+        description: 'Define the language, subject, level, target audience, and course duration. Add your preferences for tone and context.'
       },
       {
         icon: <Settings className="h-12 w-12 text-automator-600" />,
