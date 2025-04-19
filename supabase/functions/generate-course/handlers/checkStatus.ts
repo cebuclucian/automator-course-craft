@@ -49,12 +49,40 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
     
     console.log(`CheckStatus - Status curent pentru job ${jobId}: ${jobData.status}`);
     
+    // Calculăm timpul scurs și estimăm progresul
+    const startTime = jobData.startedAt ? new Date(jobData.startedAt).getTime() : Date.now();
+    const currentTime = Date.now();
+    const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
+    
+    // Estimare procentaj progres bazat pe milestone și timp scurs
+    let progressPercent = 10; // Default initial progress
+    
+    if (jobData.status === 'completed') {
+      progressPercent = 100;
+    } else if (jobData.status === 'error') {
+      progressPercent = 100;
+    } else if (jobData.status === 'processing') {
+      // Progres bazat pe milestone
+      if (jobData.milestone === 'api_call_started') {
+        progressPercent = 20;
+      } else if (jobData.milestone === 'api_response_received') {
+        progressPercent = 50;
+      } else if (jobData.milestone === 'processing_content') {
+        progressPercent = 75;
+      } else {
+        // Estimare liniară bazată pe timp (până la 90% max pentru processing)
+        progressPercent = Math.min(10 + Math.floor(elapsedSeconds / 5), 90);
+      }
+    }
+    
     // Construirea răspunsului în funcție de status
     const response = {
       success: true,
       jobId: jobId,
       status: jobData.status,
-      startedAt: jobData.startedAt
+      startedAt: jobData.startedAt,
+      progressPercent,
+      elapsedSeconds
     };
     
     // Dacă job-ul este finalizat, includem și datele generate
@@ -75,13 +103,15 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
       );
     }
     
-    // Dacă job-ul a eșuat, includem eroarea
+    // Dacă job-ul a eșuat, includem eroarea și datele de rezervă (fallback)
     if (jobData.status === 'error') {
-      console.log(`CheckStatus - Job ${jobId} a eșuat, returnare eroare`);
+      console.log(`CheckStatus - Job ${jobId} a eșuat, returnare eroare și date fallback`);
       return new Response(
         JSON.stringify({
           ...response,
-          error: jobData.error
+          error: jobData.error,
+          data: jobData.data, // Includem datele de rezervă în caz de eroare
+          completedAt: jobData.completedAt
         }),
         {
           headers: {
@@ -90,6 +120,15 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
           }
         }
       );
+    }
+    
+    // Adăugăm milestone și ultimul update pentru job-uri în procesare
+    if (jobData.milestone) {
+      response.milestone = jobData.milestone;
+    }
+    
+    if (jobData.lastUpdated) {
+      response.lastUpdated = jobData.lastUpdated;
     }
     
     // Răspuns standard pentru job-uri în procesare

@@ -1,3 +1,4 @@
+
 import { jobStore } from "../index.ts";
 import { mockCourseData } from "./mockData.ts";
 
@@ -38,7 +39,7 @@ addEventListener('beforeunload', () => {
 });
 
 export async function processJob(jobId: string, prompt: string, formData: any) {
-  console.log(`JobProcessor: Starting processing job ${jobId}`);
+  console.log(`JobProcessor: Starting processing job ${jobId} at ${new Date().toISOString()}`);
   
   try {
     // Job existence and expiration check
@@ -52,6 +53,12 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
     
     if (currentTime - jobCreatedTime > JOB_EXPIRATION_TIME) {
       console.warn(`JobProcessor: Job ${jobId} has expired`);
+      jobStore.set(jobId, {
+        ...job,
+        status: 'error',
+        error: `Job expired after ${JOB_EXPIRATION_TIME/1000/60} minutes`,
+        completedAt: new Date().toISOString()
+      });
       jobStore.delete(jobId);
       throw new Error(`Job ${jobId} has expired`);
     }
@@ -61,6 +68,13 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
       throw new Error("Claude API key is missing from environment variables");
     }
 
+    // Update job status to indicate active processing
+    jobStore.set(jobId, {
+      ...job,
+      status: 'processing',
+      processingStartedAt: new Date().toISOString()
+    });
+
     console.log(`JobProcessor: Calling Claude API for job ${jobId}`);
     
     // API call implementation with retries
@@ -68,8 +82,17 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
     let result = null;
     let retries = 0;
     
+    // Update job progress milestone
+    jobStore.set(jobId, {
+      ...jobStore.get(jobId),
+      milestone: 'api_call_started',
+      lastUpdated: new Date().toISOString()
+    });
+    
     while (retries <= MAX_RETRIES) {
       try {
+        console.log(`JobProcessor: Attempt ${retries + 1} of ${MAX_RETRIES + 1} for job ${jobId}`);
+        
         response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -91,27 +114,55 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
           })
         });
 
-        console.log(`JobProcessor: Response status from Claude API: ${response.status}`);
+        console.log(`JobProcessor: Response status from Claude API: ${response.status} for job ${jobId}`);
         
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`JobProcessor: Claude API Error: ${response.status} - ${errorText}`);
+          console.error(`JobProcessor: Claude API Error for job ${jobId}: ${response.status} - ${errorText}`);
+          
+          // Update job with API error details
+          jobStore.set(jobId, {
+            ...jobStore.get(jobId),
+            lastApiStatus: response.status,
+            lastApiError: errorText,
+            lastUpdated: new Date().toISOString()
+          });
           
           if (retries < MAX_RETRIES) {
             retries++;
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * retries));
+            const delay = RETRY_DELAY_MS * retries;
+            console.log(`JobProcessor: Retrying job ${jobId} in ${delay}ms (attempt ${retries} of ${MAX_RETRIES})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
-          throw new Error(`Claude API Error: ${response.status}`);
+          throw new Error(`Claude API Error: ${response.status} - ${errorText.substring(0, 200)}`);
         }
+
+        // Update job progress milestone
+        jobStore.set(jobId, {
+          ...jobStore.get(jobId),
+          milestone: 'api_response_received',
+          lastUpdated: new Date().toISOString()
+        });
 
         result = await response.json();
         console.log(`JobProcessor: Response received from Claude for job ${jobId}`);
         
         if (!result || !result.content || result.content.length === 0) {
+          console.error(`JobProcessor: Empty or invalid response from API for job ${jobId}:`, result);
+          
+          // Update job with empty response error
+          jobStore.set(jobId, {
+            ...jobStore.get(jobId),
+            lastApiResponseEmpty: true,
+            lastUpdated: new Date().toISOString()
+          });
+          
           if (retries < MAX_RETRIES) {
             retries++;
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * retries));
+            const delay = RETRY_DELAY_MS * retries;
+            console.log(`JobProcessor: Retrying job ${jobId} due to empty response in ${delay}ms (attempt ${retries} of ${MAX_RETRIES})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
           throw new Error("Empty or invalid response from API");
@@ -119,15 +170,32 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
         
         break;
       } catch (apiError) {
-        console.error(`JobProcessor: API error on try ${retries}:`, apiError);
+        console.error(`JobProcessor: API error on try ${retries} for job ${jobId}:`, apiError);
+        
+        // Update job with API error
+        jobStore.set(jobId, {
+          ...jobStore.get(jobId),
+          lastApiError: apiError.message || "Unknown API error",
+          lastUpdated: new Date().toISOString()
+        });
+        
         if (retries < MAX_RETRIES) {
           retries++;
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * retries));
+          const delay = RETRY_DELAY_MS * retries;
+          console.log(`JobProcessor: Retrying after API error for job ${jobId} in ${delay}ms (attempt ${retries} of ${MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         } else {
           throw apiError;
         }
       }
     }
+
+    // Update job progress milestone
+    jobStore.set(jobId, {
+      ...jobStore.get(jobId),
+      milestone: 'processing_content',
+      lastUpdated: new Date().toISOString()
+    });
 
     // Extract and process content
     const content = result.content[0].text;
@@ -141,10 +209,12 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
       ...job,
       status: 'completed',
       data: { sections },
-      completedAt: new Date().toISOString()
+      completedAt: new Date().toISOString(),
+      milestone: 'completed',
+      lastUpdated: new Date().toISOString()
     });
 
-    console.log(`JobProcessor: Job ${jobId} completed successfully`);
+    console.log(`JobProcessor: Job ${jobId} completed successfully at ${new Date().toISOString()}`);
   } catch (error) {
     console.error(`JobProcessor: Error processing job ${jobId}:`, error);
     
@@ -156,9 +226,13 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
         ...job,
         status: 'error',
         error: error.message || 'Unknown error',
-        data: mockData,
-        completedAt: new Date().toISOString()
+        data: mockData, // Always provide fallback data
+        completedAt: new Date().toISOString(),
+        milestone: 'error',
+        lastUpdated: new Date().toISOString()
       });
+      
+      console.log(`JobProcessor: Job ${jobId} marked as error, fallback content provided`);
     }
     
     throw error;

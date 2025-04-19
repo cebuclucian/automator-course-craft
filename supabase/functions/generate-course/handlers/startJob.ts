@@ -140,27 +140,57 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
     console.log(`StartJob - Job înregistrat în store cu statusul "processing"`);
     
     try {
-      // Inițiere procesare job în mod asincron folosind structura Edge Function
-      console.log(`StartJob - Începere procesare asincronă pentru job ${jobId}`);
-      EdgeRuntime.waitUntil(processJob(jobId, prompt, formData));
-      console.log(`StartJob - Job ${jobId} a fost trimis pentru procesare asincronă`);
+      // Inițiere procesare job în mod asincron folosind EdgeRuntime.waitUntil
+      console.log(`StartJob - Începere procesare asincronă pentru job ${jobId} folosind EdgeRuntime.waitUntil()`);
+      
+      // Folosim explicit EdgeRuntime.waitUntil pentru a asigura că procesarea continuă în background
+      EdgeRuntime.waitUntil((async () => {
+        try {
+          console.log(`StartJob [Background] - Procesare job ${jobId} începută în background la ${new Date().toISOString()}`);
+          await processJob(jobId, prompt, formData);
+          console.log(`StartJob [Background] - Procesare job ${jobId} finalizată cu succes în background la ${new Date().toISOString()}`);
+        } catch (backgroundError) {
+          console.error(`StartJob [Background] - Eroare în procesarea background pentru job ${jobId}:`, backgroundError);
+          
+          // Actualizare status job în caz de eroare
+          const job = jobStore.get(jobId);
+          if (job) {
+            jobStore.set(jobId, {
+              ...job,
+              status: 'error',
+              error: backgroundError.message || "Eroare necunoscută în procesarea background",
+              completedAt: new Date().toISOString()
+            });
+          }
+        }
+      })());
+      
+      console.log(`StartJob - Job ${jobId} trimis pentru procesare asincronă`);
     } catch (asyncError) {
       console.error(`StartJob - Eroare la pornirea procesării asincrone pentru job ${jobId}:`, asyncError);
       
-      // Încercăm metoda alternativă - procesare directă
+      // Încercăm metoda alternativă, dar fără a aștepta rezultatul
       console.log(`StartJob - Încercare alternativă de procesare pentru job ${jobId}`);
-      processJob(jobId, prompt, formData).catch(error => {
-        console.error(`StartJob - Eroare și la procesarea directă pentru job ${jobId}:`, error);
-        
-        // Actualizare status job în caz de eroare
-        jobStore.set(jobId, {
-          status: 'error',
-          formData,
-          startedAt: (jobStore.get(jobId)?.startedAt || new Date().toISOString()),
-          completedAt: new Date().toISOString(),
-          error: error.message || "Eroare necunoscută la procesarea job-ului"
-        });
-      });
+      
+      // Folosim IIFE pattern pentru a evita await direct
+      EdgeRuntime.waitUntil((async () => {
+        try {
+          await processJob(jobId, prompt, formData);
+        } catch (error) {
+          console.error(`StartJob - Eroare și la procesarea directă pentru job ${jobId}:`, error);
+          
+          // Actualizare status job în caz de eroare
+          const job = jobStore.get(jobId);
+          if (job) {
+            jobStore.set(jobId, {
+              ...job,
+              status: 'error',
+              error: error.message || "Eroare necunoscută la procesarea job-ului",
+              completedAt: new Date().toISOString()
+            });
+          }
+        }
+      })());
     }
     
     // Returnare răspuns imediat

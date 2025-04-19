@@ -11,3 +11,4 @@ verify_jwt = false
 
 [functions.generate-course.public-debug]
 verify_jwt = false
+
