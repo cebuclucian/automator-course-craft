@@ -32,7 +32,7 @@ export const testEdgeFunctionConnection = async (): Promise<any> => {
       // Continue with direct fetch
     }
     
-    // Try with Direct fetch as a fallback
+    // Try with Direct fetch as a fallback - with EVERY possible auth header combination
     console.log("courseGeneration.ts - Attempting direct fetch with multiple auth headers");
     
     const response = await fetch(testUrl, {
@@ -41,8 +41,13 @@ export const testEdgeFunctionConnection = async (): Promise<any> => {
         'Content-Type': 'application/json',
         'Origin': window.location.origin,
         'Authorization': `Bearer ${ANON_KEY}`,
+        'authorization': `Bearer ${ANON_KEY}`,
         'apikey': ANON_KEY,
-        'anon-key': ANON_KEY
+        'Apikey': ANON_KEY,
+        'api-key': ANON_KEY,
+        'Api-Key': ANON_KEY,
+        'anon-key': ANON_KEY,
+        'Anon-Key': ANON_KEY
       }
     });
     
@@ -85,13 +90,36 @@ export const testClaudeAPI = async (): Promise<any> => {
     
     console.log(`courseGeneration.ts - Calling Claude API test endpoint: ${testUrl}`);
     
+    // First, try the SDK approach
+    try {
+      console.log("courseGeneration.ts - Attempting Claude test via Supabase SDK");
+      const { data: sdkData, error: sdkError } = await supabase.functions.invoke('generate-course/test-claude');
+      
+      if (!sdkError) {
+        console.log("courseGeneration.ts - Claude test via SDK succeeded:", sdkData);
+        return sdkData;
+      } else {
+        console.error("courseGeneration.ts - Claude test via SDK error:", sdkError);
+        // We'll continue with direct fetch below
+      }
+    } catch (sdkErr) {
+      console.error("courseGeneration.ts - Claude test via SDK exception:", sdkErr);
+      // Continue with direct fetch
+    }
+    
     const response = await fetch(testUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Origin': window.location.origin,
         'Authorization': `Bearer ${ANON_KEY}`,
-        'apikey': ANON_KEY
+        'authorization': `Bearer ${ANON_KEY}`,
+        'apikey': ANON_KEY,
+        'Apikey': ANON_KEY,
+        'api-key': ANON_KEY,
+        'Api-Key': ANON_KEY,
+        'anon-key': ANON_KEY,
+        'Anon-Key': ANON_KEY
       }
     });
     
@@ -133,13 +161,37 @@ export const runFullDiagnosis = async (): Promise<any> => {
     
     console.log(`courseGeneration.ts - Apelare endpoint diagnoză completă: ${diagnosisUrl}`);
     
+    // First, try the SDK approach
+    try {
+      console.log("courseGeneration.ts - Attempting diagnosis via Supabase SDK");
+      const { data: sdkData, error: sdkError } = await supabase.functions.invoke('generate-course/full-diagnosis');
+      
+      if (!sdkError) {
+        console.log("courseGeneration.ts - Diagnosis via SDK succeeded:", sdkData);
+        return sdkData;
+      } else {
+        console.error("courseGeneration.ts - Diagnosis via SDK error:", sdkError);
+        // We'll continue with direct fetch below
+      }
+    } catch (sdkErr) {
+      console.error("courseGeneration.ts - Diagnosis via SDK exception:", sdkErr);
+      // Continue with direct fetch
+    }
+    
+    // Try with direct fetch with all possible auth headers
     const response = await fetch(diagnosisUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Origin': window.location.origin,
         'Authorization': `Bearer ${ANON_KEY}`,
-        'apikey': ANON_KEY
+        'authorization': `Bearer ${ANON_KEY}`,
+        'apikey': ANON_KEY,
+        'Apikey': ANON_KEY,
+        'api-key': ANON_KEY,
+        'Api-Key': ANON_KEY,
+        'anon-key': ANON_KEY,
+        'Anon-Key': ANON_KEY
       }
     });
     
@@ -173,6 +225,62 @@ export const runFullDiagnosis = async (): Promise<any> => {
     return data;
   } catch (error) {
     console.error("courseGeneration.ts - Eroare la rularea diagnosticării complete:", error);
+    throw error;
+  }
+};
+
+// Function to test auth-debug endpoint
+export const testAuthDebug = async (): Promise<any> => {
+  try {
+    console.log("courseGeneration.ts - Testing auth-debug endpoint");
+    
+    const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0dHp4cHlua3l6Y3J5dHl1ZGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ2MTcwNjcsImV4cCI6MjA2MDE5MzA2N30._NHAy4AFExT03NettnTE4J8SdodAh8nQb_78U1dzKj4";
+    const authDebugUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course/auth-debug`;
+    
+    console.log(`courseGeneration.ts - Calling auth-debug endpoint: ${authDebugUrl}`);
+    
+    // Try with direct fetch with all possible auth headers
+    const response = await fetch(authDebugUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': window.location.origin,
+        'Authorization': `Bearer ${ANON_KEY}`,
+        'authorization': `Bearer ${ANON_KEY}`,
+        'apikey': ANON_KEY,
+        'Apikey': ANON_KEY,
+        'api-key': ANON_KEY,
+        'Api-Key': ANON_KEY,
+        'anon-key': ANON_KEY,
+        'Anon-Key': ANON_KEY
+      }
+    });
+    
+    console.log("courseGeneration.ts - Auth debug status:", response.status);
+    console.log("courseGeneration.ts - Auth debug headers:", Object.fromEntries(response.headers.entries()));
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("courseGeneration.ts - Auth debug error:", response.status, errorText);
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+    
+    const responseText = await response.text();
+    console.log("courseGeneration.ts - Auth debug raw response:", responseText);
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error("courseGeneration.ts - Error parsing JSON for auth debug:", e);
+      data = { raw: responseText };
+    }
+    
+    console.log("courseGeneration.ts - Auth debug parsed response:", data);
+    return data;
+  } catch (error) {
+    console.error("courseGeneration.ts - Error testing auth debug:", error);
     throw error;
   }
 };
@@ -237,8 +345,13 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
             'Content-Type': 'application/json',
             'Origin': window.location.origin,
             'Authorization': `Bearer ${ANON_KEY}`,
+            'authorization': `Bearer ${ANON_KEY}`,
             'apikey': ANON_KEY,
-            'anon-key': ANON_KEY
+            'Apikey': ANON_KEY,
+            'api-key': ANON_KEY,
+            'Api-Key': ANON_KEY,
+            'anon-key': ANON_KEY,
+            'Anon-Key': ANON_KEY
           },
           body: JSON.stringify({
             action: 'start',
@@ -350,13 +463,43 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
           attemptNumber: attempt
         };
         
+        // Try SDK first
+        try {
+          console.log("courseGeneration.ts - Attempting status check via Supabase SDK");
+          const { data: sdkData, error: sdkError } = await supabase.functions.invoke('generate-course', {
+            body: {
+              action: 'status',
+              jobId,
+              timestamp: new Date().toISOString(),
+              diagnostic: diagnosticInfo
+            }
+          });
+          
+          if (!sdkError) {
+            console.log("courseGeneration.ts - Status check via SDK succeeded:", sdkData);
+            return sdkData;
+          } else {
+            console.error("courseGeneration.ts - SDK status check error:", sdkError);
+            // Continue with direct fetch
+          }
+        } catch (sdkErr) {
+          console.error("courseGeneration.ts - SDK status check exception:", sdkErr);
+          // Continue with direct fetch
+        }
+        
         const response = await fetch(statusUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Origin': window.location.origin,
             'Authorization': `Bearer ${ANON_KEY}`,
-            'apikey': ANON_KEY
+            'authorization': `Bearer ${ANON_KEY}`,
+            'apikey': ANON_KEY,
+            'Apikey': ANON_KEY,
+            'api-key': ANON_KEY,
+            'Api-Key': ANON_KEY,
+            'anon-key': ANON_KEY,
+            'Anon-Key': ANON_KEY
           },
           body: JSON.stringify({
             action: 'status',

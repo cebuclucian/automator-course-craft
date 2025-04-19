@@ -36,18 +36,26 @@ if (apiKey) {
 
 // Function to extract and log auth details for debugging
 function extractAuthDetails(req: Request) {
-  const authHeader = req.headers.get('Authorization') || 'missing';
-  const apiKeyHeader = req.headers.get('apikey') || 'missing';
+  const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || 'missing';
+  const apiKeyHeader = req.headers.get('apikey') || req.headers.get('Apikey') || req.headers.get('ApiKey') || req.headers.get('api-key') || req.headers.get('Api-Key') || 'missing';
+  const anonKeyHeader = req.headers.get('anon-key') || req.headers.get('Anon-Key') || req.headers.get('anonKey') || req.headers.get('AnonKey') || 'missing';
   const clientInfo = req.headers.get('x-client-info') || 'missing';
   const origin = req.headers.get('origin') || 'missing';
   
   console.log("Auth details:");
   console.log(`- Authorization header: ${authHeader.substring(0, 15)}...`);
   console.log(`- apikey header: ${apiKeyHeader.substring(0, 15)}...`);
+  console.log(`- anon-key header: ${anonKeyHeader.substring(0, 15)}...`);
   console.log(`- x-client-info: ${clientInfo}`);
   console.log(`- origin: ${origin}`);
   
-  return { authHeader, apiKeyHeader, clientInfo, origin };
+  // Log all headers for comprehensive debugging
+  console.log("All headers received:");
+  for (const [key, value] of req.headers.entries()) {
+    console.log(`- ${key}: ${value.substring(0, 30)}...`);
+  }
+  
+  return { authHeader, apiKeyHeader, anonKeyHeader, clientInfo, origin };
 }
 
 // Funcție de procesare a cererilor
@@ -59,9 +67,9 @@ serve(async (req) => {
   console.log(`generate-course - Headers count: ${req.headers.size}`);
   
   // Log important headers for debugging
-  const { authHeader, apiKeyHeader, clientInfo, origin } = extractAuthDetails(req);
+  const { authHeader, apiKeyHeader, anonKeyHeader, clientInfo, origin } = extractAuthDetails(req);
   
-  // Gestionare CORS preflight
+  // Gestionare CORS preflight - should be the top priority
   if (req.method === 'OPTIONS') {
     console.log("generate-course - Handling OPTIONS preflight request");
     return new Response(null, { 
@@ -82,7 +90,7 @@ serve(async (req) => {
   if (lastSegment === 'auth-debug') {
     console.log("generate-course - Handling auth-debug endpoint");
     
-    // Extract auth headers for debugging
+    // Extract all headers for debugging
     const allHeaders = {};
     for (const [key, value] of req.headers.entries()) {
       allHeaders[key] = value;
@@ -95,11 +103,13 @@ serve(async (req) => {
         timestamp: now,
         authHeader,
         apiKeyHeader,
-        clientInfo,
+        anonKeyHeader,
         allHeaders,
         apiKeyConfigured: !!apiKey,
         corsHeadersUsed: corsHeaders,
-        clientOrigin: origin
+        clientOrigin: origin,
+        requestUrl: req.url,
+        requestMethod: req.method
       }), 
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -109,24 +119,7 @@ serve(async (req) => {
   if (lastSegment === 'debug-cors') {
     console.log("generate-course - Handling debug-cors endpoint");
     
-    // Authentication check
-    if (!authHeader.includes('Bearer') && !apiKeyHeader) {
-      console.log("generate-course - Auth failed for debug-cors endpoint");
-      return new Response(
-        JSON.stringify({
-          error: "Missing authorization header",
-          status: "error",
-          timestamp: now,
-          requiredHeaders: ["Authorization", "apikey"],
-          receivedHeaders: Object.fromEntries(req.headers.entries()),
-          note: "Please include either Authorization: Bearer YOUR_ANON_KEY or apikey: YOUR_ANON_KEY header"
-        }),
-        { 
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
+    // NO AUTH CHECK FOR TESTING
     
     return new Response(
       JSON.stringify({
@@ -138,12 +131,12 @@ serve(async (req) => {
         clientOrigin: origin,
         authHeaderReceived: authHeader !== 'missing',
         apiKeyHeaderReceived: apiKeyHeader !== 'missing',
+        anonKeyHeaderReceived: anonKeyHeader !== 'missing',
       }), 
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
   
-  // REMOVED AUTHENTICATION CHECK FOR TEST ENDPOINTS TO ISOLATE THE ISSUE
   // Endpoint test pentru conexiune - NO AUTH REQUIRED FOR TESTING
   if (lastSegment === 'test-connection') {
     console.log("generate-course - Handling test-connection endpoint");
@@ -157,7 +150,12 @@ serve(async (req) => {
         receivedHeaders: {
           authorization: authHeader.substring(0, 20) + '...',
           apikey: apiKeyHeader.substring(0, 20) + '...',
+          anonKey: anonKeyHeader.substring(0, 20) + '...',
           origin: origin
+        },
+        pathInfo: {
+          fullPath: url.pathname,
+          lastSegment: lastSegment
         }
       }), 
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -370,8 +368,9 @@ serve(async (req) => {
         method: req.method,
         url: req.url,
         headers: Object.fromEntries(req.headers.entries()),
-        authHeader: req.headers.get('Authorization') || 'No Authorization header',
-        apiKeyHeader: req.headers.get('apikey') || 'No apikey header',
+        authHeader: req.headers.get('Authorization') || req.headers.get('authorization') || 'No Authorization header',
+        apiKeyHeader: req.headers.get('apikey') || req.headers.get('Apikey') || 'No apikey header',
+        anonKeyHeader: req.headers.get('anon-key') || req.headers.get('Anon-Key') || 'No anon-key header',
         clientInfo: req.headers.get('x-client-info') || 'No client info',
         origin: req.headers.get('origin') || 'No origin header'
       };
@@ -431,8 +430,9 @@ serve(async (req) => {
   if (lastSegment === 'public-debug') {
     console.log("generate-course - Handling public-debug endpoint");
     
-    const authHeader = req.headers.get('Authorization') || 'No Authorization header';
-    const apiKeyHeader = req.headers.get('apikey') || 'No apikey header';
+    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || 'No Authorization header';
+    const apiKeyHeader = req.headers.get('apikey') || req.headers.get('Apikey') || 'No apikey header';
+    const anonKeyHeader = req.headers.get('anon-key') || req.headers.get('Anon-Key') || 'No anon-key header';
     
     return new Response(
       JSON.stringify({
@@ -443,6 +443,7 @@ serve(async (req) => {
         request: {
           authHeader: authHeader.substring(0, 20) + '...',
           apiKeyHeader: apiKeyHeader.substring(0, 20) + '...',
+          anonKeyHeader: anonKeyHeader.substring(0, 20) + '...',
           origin: req.headers.get('origin') || 'No origin header'
         },
         jobStore: {
@@ -457,20 +458,25 @@ serve(async (req) => {
   }
   
   try {
-    // Pentru celelalte cereri, preluăm datele din body și verificăm autentificarea
+    // Pentru celelalte cereri, preluăm datele din body
     
-    // Authentication check for non-test endpoints
-    if (!authHeader.includes('Bearer') && !apiKeyHeader) {
-      console.log("generate-course - Auth failed for endpoint:", lastSegment);
+    // For non-test endpoints, we'll still check auth but be more lenient
+    const hasAuth = req.headers.has('Authorization') || req.headers.has('authorization') || 
+                    req.headers.has('apikey') || req.headers.has('Apikey') || 
+                    req.headers.has('anon-key') || req.headers.has('Anon-Key');
+                    
+    if (!hasAuth) {
+      console.log("generate-course - Auth headers not found for endpoint:", lastSegment);
       return new Response(
         JSON.stringify({
           error: "Missing authorization header",
           status: "error",
           timestamp: now,
-          requiredHeaders: ["Authorization", "apikey"],
+          requiredHeaders: ["Authorization", "apikey", "anon-key"],
           receivedHeaders: {
             authorization: authHeader,
             apikey: apiKeyHeader,
+            anonKey: anonKeyHeader,
             origin: origin
           },
           note: "Please include either Authorization: Bearer YOUR_ANON_KEY or apikey: YOUR_ANON_KEY header"
