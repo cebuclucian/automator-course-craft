@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { CourseFormData, GenerationType, GeneratedCourse } from '@/types';
 import { UUID } from 'crypto';
@@ -5,13 +6,48 @@ import { UUID } from 'crypto';
 // Funcție pentru testarea conectivității Edge Function
 export const testEdgeFunctionConnection = async (): Promise<any> => {
   try {
-    console.log("courseGeneration.ts - Testing Edge Function connection");
-    const { data, error } = await supabase.functions.invoke('generate-course', {
-      body: { action: 'test-connection' }
-    });
+    console.log("courseGeneration.ts - Testare conexiune Edge Function");
     
-    if (error) throw error;
-    return data;
+    // URL complet pentru endpoint-ul de test
+    const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const testUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course/test-connection`;
+    
+    console.log(`courseGeneration.ts - Apelare endpoint test: ${testUrl}`);
+    
+    // Prima dată încercăm cu invoke standard
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-course', {
+        body: { action: 'test-connection' }
+      });
+      
+      if (error) {
+        console.log("courseGeneration.ts - Eroare invoke standard:", error);
+        throw error;
+      }
+      
+      console.log("courseGeneration.ts - Succes invoke standard:", data);
+      return data;
+    } catch (invokeError) {
+      console.log("courseGeneration.ts - Încercare direct cu fetch:", invokeError);
+      
+      // Backup: încercăm cu fetch direct
+      const response = await fetch(testUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("courseGeneration.ts - Eroare fetch:", response.status, errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log("courseGeneration.ts - Răspuns fetch direct:", data);
+      return data;
+    }
   } catch (error) {
     console.error("courseGeneration.ts - Error testing connection:", error);
     throw error;
@@ -21,13 +57,48 @@ export const testEdgeFunctionConnection = async (): Promise<any> => {
 // Funcție pentru testarea API Claude
 export const testClaudeAPI = async (): Promise<any> => {
   try {
-    console.log("courseGeneration.ts - Testing Claude API connection");
-    const { data, error } = await supabase.functions.invoke('generate-course', {
-      body: { action: 'test-claude' }
-    });
+    console.log("courseGeneration.ts - Testare conexiune API Claude");
     
-    if (error) throw error;
-    return data;
+    // URL complet pentru endpoint-ul de test Claude
+    const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const testUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course/test-claude`;
+    
+    console.log(`courseGeneration.ts - Apelare endpoint test Claude: ${testUrl}`);
+    
+    // Prima dată încercăm cu invoke standard
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-course', {
+        body: { action: 'test-claude' }
+      });
+      
+      if (error) {
+        console.log("courseGeneration.ts - Eroare invoke standard pentru Claude:", error);
+        throw error;
+      }
+      
+      console.log("courseGeneration.ts - Succes invoke standard pentru Claude:", data);
+      return data;
+    } catch (invokeError) {
+      console.log("courseGeneration.ts - Încercare direct cu fetch pentru Claude:", invokeError);
+      
+      // Backup: încercăm cu fetch direct
+      const response = await fetch(testUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("courseGeneration.ts - Eroare fetch Claude:", response.status, errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log("courseGeneration.ts - Răspuns fetch direct Claude:", data);
+      return data;
+    }
   } catch (error) {
     console.error("courseGeneration.ts - Error testing Claude API:", error);
     throw error;

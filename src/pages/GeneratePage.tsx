@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -9,7 +8,9 @@ import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Bug } from 'lucide-react';
+import { testEdgeFunctionConnection, testClaudeAPI } from '@/services/courseGeneration';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 const GeneratePage = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -22,6 +23,11 @@ const GeneratePage = () => {
   const [hasAttemptedProfileLoad, setHasAttemptedProfileLoad] = useState(false);
   const [profileLoadComplete, setProfileLoadComplete] = useState(false);
   const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
+  
+  // Debugging state
+  const [showDebugDialog, setShowDebugDialog] = useState(false);
+  const [debugInfo, setDebugInfo<{ [key: string]: any }>({})] = useState({});
+  const [debugLoading, setDebugLoading] = useState(false);
 
   // Verifică dacă utilizatorul este admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
@@ -110,6 +116,84 @@ const GeneratePage = () => {
     window.location.reload();
   };
 
+  // Debugging functions
+  const handleDebugConnection = async () => {
+    setDebugLoading(true);
+    setDebugInfo(prev => ({ ...prev, status: "Testare conexiune..." }));
+    
+    try {
+      // Test connection endpoint
+      console.log("Testare endpoint connect");
+      const connectionResponse = await testEdgeFunctionConnection();
+      console.log("Răspuns test conexiune:", connectionResponse);
+      
+      setDebugInfo(prev => ({ 
+        ...prev, 
+        connectionTest: {
+          success: true,
+          data: connectionResponse,
+          timestamp: new Date().toISOString()
+        }
+      }));
+
+      // Test Claude API
+      console.log("Testare endpoint Claude");
+      setDebugInfo(prev => ({ ...prev, status: "Testare API Claude..." }));
+      
+      try {
+        const claudeResponse = await testClaudeAPI();
+        console.log("Răspuns test Claude:", claudeResponse);
+        
+        setDebugInfo(prev => ({ 
+          ...prev, 
+          claudeTest: {
+            success: true,
+            data: claudeResponse,
+            timestamp: new Date().toISOString()
+          },
+          status: "Teste finalizate"
+        }));
+
+        // Show API key info (masked)
+        if (claudeResponse && claudeResponse.apiKeyConfigured) {
+          setDebugInfo(prev => ({ 
+            ...prev, 
+            apiKeyStatus: "API key configurată"
+          }));
+        } else {
+          setDebugInfo(prev => ({ 
+            ...prev, 
+            apiKeyStatus: "API key lipsă"
+          }));
+        }
+      } catch (claudeError) {
+        console.error("Eroare test Claude:", claudeError);
+        setDebugInfo(prev => ({ 
+          ...prev, 
+          claudeTest: {
+            success: false,
+            error: claudeError.message || "Eroare necunoscută",
+            timestamp: new Date().toISOString()
+          },
+          status: "Teste finalizate cu erori"
+        }));
+      }
+    } catch (error) {
+      console.error("Eroare test conexiune:", error);
+      setDebugInfo(prev => ({ 
+        ...prev, 
+        connectionTest: {
+          success: false,
+          error: error.message || "Eroare necunoscută",
+          timestamp: new Date().toISOString()
+        },
+        status: "Teste finalizate cu erori"
+      }));
+    } finally {
+      setDebugLoading(false);
+    }
+  };
+
   if ((isLoading || authLoading) && !profileLoadComplete) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -159,6 +243,106 @@ const GeneratePage = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <CourseGenerator />
+      
+      {/* Admin debugging tools */}
+      {isAdminUser && (
+        <div className="mt-6">
+          <div className="flex justify-end">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowDebugDialog(true)}
+              className="flex items-center gap-1 text-xs"
+            >
+              <Bug className="h-3 w-3" />
+              {language === 'ro' ? 'Debugging' : 'Debugging'}
+            </Button>
+          </div>
+          
+          <Dialog open={showDebugDialog} onOpenChange={setShowDebugDialog}>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Debugging Edge Functions</DialogTitle>
+                <DialogDescription>
+                  Testați conectivitatea cu Edge Functions și API-ul Claude
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleDebugConnection} 
+                    disabled={debugLoading}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {debugLoading ? 'Testing...' : 'Test Connection & Claude API'}
+                  </Button>
+                </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium mb-2">Status:</h4>
+                  <p className="text-xs">{debugInfo.status || 'Not tested yet'}</p>
+                </div>
+                
+                {debugInfo.connectionTest && (
+                  <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2">Connection Test:</h4>
+                    {debugInfo.connectionTest.success ? (
+                      <div className="text-xs text-green-600">
+                        <p>Success!</p>
+                        <pre className="mt-2 whitespace-pre-wrap">
+                          {JSON.stringify(debugInfo.connectionTest.data, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-red-600">
+                        <p>Failed: {debugInfo.connectionTest.error}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {debugInfo.claudeTest && (
+                  <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2">Claude API Test:</h4>
+                    {debugInfo.claudeTest.success ? (
+                      <div className="text-xs text-green-600">
+                        <p>Success!</p>
+                        <pre className="mt-2 whitespace-pre-wrap max-h-40 overflow-auto">
+                          {JSON.stringify(debugInfo.claudeTest.data, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-red-600">
+                        <p>Failed: {debugInfo.claudeTest.error}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium mb-2">API Endpoints:</h4>
+                  <ul className="text-xs space-y-1">
+                    <li><strong>Connection Test:</strong> https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-connection</li>
+                    <li><strong>Claude API Test:</strong> https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-claude</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium mb-2">System Info:</h4>
+                  <ul className="text-xs space-y-1">
+                    <li><strong>API Key Status:</strong> {debugInfo.apiKeyStatus || 'Necunoscut'}</li>
+                    <li><strong>User:</strong> {user?.email || 'Not authenticated'}</li>
+                    <li><strong>Admin:</strong> {isAdminUser ? 'Yes' : 'No'}</li>
+                    <li><strong>Project ID:</strong> ittzxpynkyzcrytyudlt</li>
+                  </ul>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
     </div>
   );
 };

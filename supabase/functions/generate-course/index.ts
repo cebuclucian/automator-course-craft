@@ -40,14 +40,27 @@ addEventListener('beforeunload', (ev) => {
   clearInterval(cleanupInterval);
 });
 
-// Endpoint de test adăugat pentru verificarea conectivității
-async function handleTestConnection() {
+// Endpoint de test pentru verificarea conectivității - acum îmbunătățit pentru debugging
+async function handleTestConnection(req) {
+  console.log("generate-course - Handle test-connection request");
+  const url = new URL(req.url);
+  console.log("generate-course - Request URL:", url.toString());
+  console.log("generate-course - Path:", url.pathname);
+  
+  // Verificare dacă este o cerere pentru endpoint-ul public specific
+  const isTestConnectionEndpoint = url.pathname.endsWith('/test-connection');
+  console.log("generate-course - Is test connection endpoint:", isTestConnectionEndpoint);
+  
+  // Returnare informații detaliate pentru debugging
   return new Response(
     JSON.stringify({ 
       status: 'ok', 
       timestamp: Date.now(),
       apiKeyConfigured: !!CLAUDE_API_KEY,
-      jobStoreSize: jobStore.size
+      jobStoreSize: jobStore.size,
+      requestUrl: url.toString(),
+      endpoint: "test-connection",
+      message: 'Edge Function is running correctly'
     }), 
     { 
       headers: { 
@@ -58,14 +71,26 @@ async function handleTestConnection() {
   );
 }
 
-// Endpoint minimal pentru testarea API Claude
-async function handleTestClaude() {
+// Endpoint minimal îmbunătățit pentru testarea API Claude
+async function handleTestClaude(req) {
   try {
+    console.log("generate-course - Handle test-claude request");
+    const url = new URL(req.url);
+    console.log("generate-course - Request URL:", url.toString());
+    console.log("generate-course - Path:", url.pathname);
+    
+    // Verificare dacă este o cerere pentru endpoint-ul public specific
+    const isTestClaudeEndpoint = url.pathname.endsWith('/test-claude');
+    console.log("generate-course - Is test Claude endpoint:", isTestClaudeEndpoint);
+    
     if (!CLAUDE_API_KEY) {
+      console.error("generate-course - Claude API key not configured");
       return new Response(
         JSON.stringify({
           success: false,
-          error: "API Key Claude nu este configurată"
+          error: "API Key Claude nu este configurată",
+          endpoint: "test-claude",
+          requestUrl: url.toString()
         }),
         {
           status: 400,
@@ -77,7 +102,7 @@ async function handleTestClaude() {
       );
     }
     
-    console.log("TestClaude - Testare conectare API Claude");
+    console.log("generate-course - Testare conectare API Claude");
     
     // Prompt minimal pentru testare
     const prompt = "Salut! Acesta este un test de conectivitate. Te rog să răspunzi cu 'Test reușit!'";
@@ -105,13 +130,15 @@ async function handleTestClaude() {
     // Verificare răspuns
     if (!response.ok) {
       const errorData = await response.text();
-      console.error("TestClaude - Eroare API:", response.status, errorData);
+      console.error("generate-course - Eroare API Claude:", response.status, errorData);
       
       return new Response(
         JSON.stringify({
           success: false,
           error: `API Claude a returnat status ${response.status}`,
-          details: errorData
+          details: errorData,
+          endpoint: "test-claude",
+          requestUrl: url.toString()
         }),
         {
           status: 500,
@@ -124,14 +151,22 @@ async function handleTestClaude() {
     }
     
     const data = await response.json();
-    console.log("TestClaude - Răspuns API primit");
+    console.log("generate-course - Răspuns API Claude primit");
+    
+    // Extrageți primele și ultimele 4 caractere din API key pentru verificare
+    const apiKeyFirstFour = CLAUDE_API_KEY.substring(0, 4);
+    const apiKeyLastFour = CLAUDE_API_KEY.substring(CLAUDE_API_KEY.length - 4);
+    const maskedApiKey = `${apiKeyFirstFour}...${apiKeyLastFour}`;
     
     return new Response(
       JSON.stringify({
         success: true,
         message: "Testare API Claude reușită",
         responseContent: data.content?.[0]?.text || "Răspuns gol",
-        responseData: data
+        endpoint: "test-claude",
+        requestUrl: url.toString(),
+        apiKeyConfigured: true,
+        apiKeyMasked: maskedApiKey
       }),
       {
         headers: {
@@ -141,13 +176,14 @@ async function handleTestClaude() {
       }
     );
   } catch (error) {
-    console.error("TestClaude - Eroare:", error);
+    console.error("generate-course - Eroare în handleTestClaude:", error);
     
     return new Response(
       JSON.stringify({
         success: false,
         error: `Eroare la testarea API Claude: ${error.message || "Eroare necunoscută"}`,
-        stack: error.stack
+        stack: error.stack,
+        endpoint: "test-claude"
       }),
       {
         status: 500,
@@ -167,118 +203,31 @@ serve(async (req) => {
   const pathname = url.pathname;
   
   console.log(`generate-course - Cerere primită la ${new Date().toISOString()}: ${req.method} ${pathname}`);
+  console.log("generate-course - Headers:", JSON.stringify(Array.from(req.headers.entries())));
   
   // Gestionare cereri preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Endpoint de test pentru verificarea conectivității
-  if (pathname.endsWith('/test-connection')) {
-    console.log("Handling /test-connection request");
-    return new Response(
-      JSON.stringify({ 
-        status: 'ok', 
-        timestamp: Date.now(),
-        message: 'Edge Function is running correctly',
-        apiKeyConfigured: !!CLAUDE_API_KEY
-      }), 
-      { 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json' 
-        } 
-      }
-    );
+  // Îmbunătățire pentru detectarea endpoint-urilor de test
+  // Verifică dacă calea URL conține test-connection sau test-claude
+  const isTestConnection = pathname.includes('test-connection');
+  const isTestClaude = pathname.includes('test-claude');
+  
+  console.log("generate-course - Verificare endpoint-uri de test:");
+  console.log("  - isTestConnection:", isTestConnection);
+  console.log("  - isTestClaude:", isTestClaude);
+  
+  // Rutare endpoint-uri de test
+  if (isTestConnection) {
+    console.log("generate-course - Handling test-connection request");
+    return await handleTestConnection(req);
   }
   
-  // Endpoint de test pentru API Claude
-  if (pathname.endsWith('/test-claude')) {
-    console.log("Handling /test-claude request");
-    try {
-      if (!CLAUDE_API_KEY) {
-        console.error("Claude API key not configured");
-        return new Response(
-          JSON.stringify({ 
-            error: 'Claude API key not configured' 
-          }), 
-          { 
-            status: 500, 
-            headers: { 
-              ...corsHeaders,
-              'Content-Type': 'application/json' 
-            } 
-          }
-        );
-      }
-
-      console.log("Attempting minimal Claude API test");
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": CLAUDE_API_KEY,
-          "anthropic-version": "2023-06-01"
-        },
-        body: JSON.stringify({
-          model: "claude-3-sonnet-20240229",
-          max_tokens: 100,
-          messages: [{ 
-            role: "user", 
-            content: "Respond with 'Claude API is working correctly'" 
-          }]
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Claude API error:", response.status, errorText);
-        return new Response(
-          JSON.stringify({ 
-            error: `Claude API error: ${response.status}`,
-            details: errorText
-          }), 
-          { 
-            status: 500, 
-            headers: { 
-              ...corsHeaders,
-              'Content-Type': 'application/json' 
-            } 
-          }
-        );
-      }
-
-      const data = await response.json();
-      console.log("Claude API test successful");
-      return new Response(
-        JSON.stringify({ 
-          status: 'ok',
-          message: 'Claude API connection successful',
-          response: data.content?.[0]?.text || "No response text"
-        }), 
-        { 
-          headers: { 
-            ...corsHeaders,
-            'Content-Type': 'application/json' 
-          } 
-        }
-      );
-    } catch (error) {
-      console.error("Exception testing Claude API:", error);
-      return new Response(
-        JSON.stringify({ 
-          error: `Exception testing Claude API: ${error.message}`,
-          stack: error.stack
-        }), 
-        { 
-          status: 500, 
-          headers: { 
-            ...corsHeaders,
-            'Content-Type': 'application/json' 
-          } 
-        }
-      );
-    }
+  if (isTestClaude) {
+    console.log("generate-course - Handling test-claude request");
+    return await handleTestClaude(req);
   }
 
   try {
@@ -352,10 +301,10 @@ serve(async (req) => {
       response = await handleCheckStatus(requestData, corsHeaders);
     } else if (action === 'test-connection') {  // Adăugat pentru compatibilitate cu apelurile vechi
       console.log("Procesare acțiune 'test-connection'");
-      response = await handleTestConnection();
+      response = await handleTestConnection(req);
     } else if (action === 'test-claude') {  // Adăugat pentru compatibilitate cu apelurile vechi
       console.log("Procesare acțiune 'test-claude'");
-      response = await handleTestClaude();
+      response = await handleTestClaude(req);
     } else {
       console.error("Acțiune invalidă specificată:", action);
       response = new Response(
