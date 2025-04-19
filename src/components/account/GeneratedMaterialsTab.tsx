@@ -1,16 +1,16 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { supportedCourseLanguages } from '@/config/supportedCourseLanguages';
+import { GeneratedCourse, CourseFormData } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { checkCourseGenerationStatus } from '@/services/courseGeneration';
-import { GeneratedCourse, CourseFormData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { Link } from 'react-router-dom';
 
 const GeneratedMaterialsTab = () => {
   const { user, refreshUser } = useAuth();
@@ -76,7 +76,7 @@ const GeneratedMaterialsTab = () => {
               level: 'Intermediar' as const,
               audience: 'Profesioniști' as const,
               duration: '1h' as const,
-              language: 'ro' as const,
+              language: 'română' as const,
               context: 'Corporativ' as const,
               tone: 'Profesional' as const
             };
@@ -173,48 +173,48 @@ const GeneratedMaterialsTab = () => {
                 const updated = {...prev};
                 delete updated[course.id];
                 return updated;
-              });
-              
-              setProgress(prev => ({
-                ...prev,
-                [course.id]: 100
-              }));
-              
-              toast({
-                title: "Material generat",
-                description: "Materialul a fost generat cu succes",
-              });
-              
-              refreshUser();
-              
-            } else if (status.status === 'processing') {
-              setProgress(prev => ({
-                ...prev,
-                [course.id]: Math.min(95, (prev[course.id] || 0) + 5)
-              }));
+                });
+                
+                setProgress(prev => ({
+                  ...prev,
+                  [course.id]: 100
+                }));
+                
+                toast({
+                  title: "Material generat",
+                  description: "Materialul a fost generat cu succes",
+                });
+                
+                refreshUser();
+                
+              } else if (status.status === 'processing') {
+                setProgress(prev => ({
+                  ...prev,
+                  [course.id]: Math.min(95, (prev[course.id] || 0) + 5)
+                }));
+              }
+            } catch (error) {
+              console.error(`GeneratedMaterialsTab - Error checking status for course ${course.id}:`, error);
             }
-          } catch (error) {
-            console.error(`GeneratedMaterialsTab - Error checking status for course ${course.id}:`, error);
-          }
-        };
-        
-        pollStatus();
-        
-        const intervalId = setInterval(pollStatus, 10000);
-        newIntervals[course.id] = intervalId;
-      }
-    });
-    
-    setProcessingCourses(newProcessingCourses);
-    setProgress(newProgress);
-    setPollingIntervals(newIntervals);
-    
-    return () => {
-      Object.values(newIntervals).forEach(intervalId => {
-        clearInterval(intervalId);
+          };
+          
+          pollStatus();
+          
+          const intervalId = setInterval(pollStatus, 10000);
+          newIntervals[course.id] = intervalId;
+        }
       });
-    };
-  }, [userChecked, coursesData, refreshUser, toast]);
+      
+      setProcessingCourses(newProcessingCourses);
+      setProgress(newProgress);
+      setPollingIntervals(newIntervals);
+      
+      return () => {
+        Object.values(newIntervals).forEach(intervalId => {
+          clearInterval(intervalId);
+        });
+      };
+    }, [userChecked, coursesData, refreshUser, toast]);
 
   const handleRefreshMaterials = useCallback(async () => {
     console.log("GeneratedMaterialsTab - Manual refresh triggered");
