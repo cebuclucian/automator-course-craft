@@ -253,6 +253,12 @@ serve(async (req) => {
     } else if (action === 'status') {
       console.log("Procesare acțiune 'status'");
       response = await handleCheckStatus(requestData, corsHeaders);
+    } else if (action === 'test-connection') {  // Adăugat pentru compatibilitate cu apelurile vechi
+      console.log("Procesare acțiune 'test-connection'");
+      response = await handleTestConnection();
+    } else if (action === 'test-claude') {  // Adăugat pentru compatibilitate cu apelurile vechi
+      console.log("Procesare acțiune 'test-claude'");
+      response = await handleTestClaude();
     } else {
       console.error("Acțiune invalidă specificată:", action);
       response = new Response(

@@ -123,11 +123,17 @@ const CourseGenerator = () => {
     try {
       console.log('CourseGenerator - Verificare conexiune API Claude');
       
-      const { data: response } = await supabase.functions.invoke('generate-course', {
+      const { data: response, error } = await supabase.functions.invoke('generate-course', {
         body: { action: 'test-connection' }
       });
       
       console.log('CourseGenerator - Răspuns conexiune API:', response);
+      
+      if (error) {
+        console.error('CourseGenerator - Eroare la verificarea conexiunii API:', error);
+        setTechnicalDetails(JSON.stringify(error, null, 2));
+        return false;
+      }
       
       if (response && response.status === 'ok') {
         console.log('CourseGenerator - Conexiune API funcțională');
@@ -304,6 +310,39 @@ const CourseGenerator = () => {
       
       const fullFormData = { ...formData, generationType };
       console.log("CourseGenerator - Calling generateCourse service");
+      
+      // Test API Claude înainte de a continua - nou
+      try {
+        console.log("CourseGenerator - Testing Claude API before generation");
+        const { data: claudeTestResponse, error: claudeTestError } = await supabase.functions.invoke('generate-course', {
+          body: { action: 'test-claude' }
+        });
+        
+        console.log("CourseGenerator - Claude API test response:", claudeTestResponse);
+        
+        if (claudeTestError) {
+          console.error("CourseGenerator - Claude API test error:", claudeTestError);
+          setTechnicalDetails(JSON.stringify(claudeTestError, null, 2));
+          throw new Error(language === 'ro' 
+            ? 'API-ul Claude nu este disponibil în acest moment. Vă rugăm să încercați mai târziu.' 
+            : 'Claude API is not available at the moment. Please try again later.');
+        }
+        
+        if (!claudeTestResponse || !claudeTestResponse.success) {
+          console.error("CourseGenerator - Claude API test failed:", claudeTestResponse);
+          setTechnicalDetails(JSON.stringify(claudeTestResponse, null, 2));
+          throw new Error(language === 'ro' 
+            ? 'Testul API Claude a eșuat. Detalii în secțiunea tehnică.' 
+            : 'Claude API test failed. See technical section for details.');
+        }
+      } catch (claudeTestError) {
+        console.error("CourseGenerator - Error testing Claude API:", claudeTestError);
+        setLoading(false);
+        setError(claudeTestError.message || (language === 'ro' 
+          ? 'Nu s-a putut verifica disponibilitatea API Claude.' 
+          : 'Could not verify Claude API availability.'));
+        return;
+      }
       
       const generatedCourse = await generateCourse(fullFormData);
       
