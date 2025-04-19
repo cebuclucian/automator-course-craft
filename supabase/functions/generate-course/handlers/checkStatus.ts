@@ -37,7 +37,7 @@ export async function handleCheckStatus(requestData, corsHeaders) {
       
       return new Response(
         JSON.stringify({ 
-          success: true,  // Returnăm succes=true pentru a evita erori în UI
+          success: true,  // Returnăm succes=true pentru evitarea erorilor în UI
           status: 'completed',  // Considerăm job-ul complet dacă nu îl mai găsim
           message: `Job ${jobId} nu există sau a expirat`,
           jobId,
@@ -64,6 +64,15 @@ export async function handleCheckStatus(requestData, corsHeaders) {
     const jobData = jobStore.get(jobId);
     console.log(`CRITICAL: Status job ${jobId}: ${jobData.status}`);
     
+    // Asigurăm că job-ul are date structurate corect, chiar dacă sunt goale
+    if (!jobData.data) {
+      jobData.data = { sections: [] };
+    }
+    
+    if (!jobData.data.sections || !Array.isArray(jobData.data.sections)) {
+      jobData.data.sections = [];
+    }
+    
     // Returnare status și date
     return new Response(
       JSON.stringify({
@@ -84,10 +93,15 @@ export async function handleCheckStatus(requestData, corsHeaders) {
     );
   } catch (error) {
     console.error("CRITICAL: Eroare în handler checkStatus:", error);
+    // Returnează un răspuns de eroare, dar cu o structură de date compatibilă pentru frontend
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || "Eroare internă de server la verificarea statusului" 
+        error: error.message || "Eroare internă de server la verificarea statusului",
+        status: 'error',
+        data: {
+          sections: []
+        }
       }),
       { 
         status: 500, 

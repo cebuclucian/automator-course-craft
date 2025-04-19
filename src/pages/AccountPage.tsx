@@ -5,21 +5,35 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 const AccountPage = () => {
   const { user, isLoading: authLoading, refreshUser } = useAuth();
   const [localLoading, setLocalLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const { toast } = useToast();
   
   // Load user data only once when the account page initially loads
   useEffect(() => {
     let isMounted = true;
+    let loadTimeout;
     
     const loadUserData = async () => {
       if (!isMounted) return;
       
       setLocalLoading(true);
       try {
+        // Setăm un timeout de siguranță pentru a evita blocarea UI-ului
+        loadTimeout = setTimeout(() => {
+          if (isMounted && localLoading) {
+            setLocalLoading(false);
+            setLoadError(true);
+            console.warn("⚠️ Timeout la încărcarea datelor utilizatorului");
+          }
+        }, 10000); // 10 secunde timeout maxim
+        
         // Fetch fresh user data when the account page loads
         const success = await refreshUser();
         console.log("User data refreshed on account page load, success:", success);
@@ -51,6 +65,7 @@ const AccountPage = () => {
         }
       } catch (error) {
         console.error("Error refreshing user data:", error);
+        setLoadError(true);
         toast({
           title: "Eroare",
           description: "Nu s-a putut actualiza informațiile contului.",
@@ -58,6 +73,7 @@ const AccountPage = () => {
         });
       } finally {
         if (isMounted) {
+          clearTimeout(loadTimeout);
           setLocalLoading(false);
         }
       }
@@ -72,9 +88,17 @@ const AccountPage = () => {
     
     return () => {
       isMounted = false;
+      clearTimeout(loadTimeout);
     };
   }, [refreshUser, authLoading, toast]);
+
+  const handleRetry = () => {
+    setLoadError(false);
+    setLocalLoading(true);
+    window.location.reload();
+  };
   
+  // Arată loading state
   if (authLoading || localLoading) {
     return (
       <div className="container mx-auto px-4 py-10">
@@ -92,8 +116,43 @@ const AccountPage = () => {
     );
   }
   
+  // Arată stare de eroare cu posibilitatea de retry
+  if (loadError) {
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>
+            Nu s-au putut încărca informațiile contului. Vă rugăm să încercați din nou.
+          </AlertDescription>
+        </Alert>
+        <Button onClick={handleRetry} className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Reîncarcă pagina
+        </Button>
+      </div>
+    );
+  }
+  
+  // Redirecționează dacă nu există utilizator autentificat
   if (!user) {
     return <Navigate to="/" replace />;
+  }
+  
+  // Adăugăm o verificare de siguranță pentru obiectul user
+  if (!user.subscription || !user.id) {
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>
+            Datele utilizatorului sunt incomplete. Vă rugăm să vă deconectați și să vă autentificați din nou.
+          </AlertDescription>
+        </Alert>
+        <Button onClick={handleRetry} className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Reîncarcă pagina
+        </Button>
+      </div>
+    );
   }
   
   return (

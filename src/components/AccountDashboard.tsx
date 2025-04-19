@@ -6,15 +6,39 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
 import GeneratedMaterialsTab from './account/GeneratedMaterialsTab';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RefreshCw } from 'lucide-react';
 
 const AccountDashboard = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   const formatDate = (dateString: Date | string | undefined) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('ro-RO');
+    try {
+      return new Date(dateString).toLocaleDateString('ro-RO');
+    } catch (e) {
+      console.error("Eroare formatare dată:", e);
+      return 'N/A';
+    }
   };
 
+  // Verificare dacă user există și are toate proprietățile necesare
+  if (!user) {
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <Alert>
+          <AlertDescription>
+            Nu s-au putut încărca datele utilizatorului. Vă rugăm să reîncărcați pagina.
+          </AlertDescription>
+        </Alert>
+        <Button onClick={() => window.location.reload()} className="mt-4 flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Reîncărcați pagina
+        </Button>
+      </div>
+    );
+  }
+  
   return (
     <div className="container mx-auto px-4 py-10">
       <h1 className="text-2xl font-bold mb-6">Contul meu</h1>
@@ -49,6 +73,10 @@ const AccountDashboard = () => {
                 <p className="text-sm text-muted-foreground">Expiră</p>
                 <p className="font-medium">{formatDate(user?.subscription?.expiresAt)}</p>
               </div>
+              <Button onClick={() => refreshUser()} className="w-full mt-4 flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Actualizează datele
+              </Button>
             </CardContent>
           </Card>
         </div>

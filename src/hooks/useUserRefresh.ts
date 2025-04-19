@@ -2,16 +2,28 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GeneratedCourse } from '@/types';
+import { useToast } from './use-toast';
 
 export const useUserRefresh = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { toast } = useToast();
 
   const refreshUser = useCallback(async () => {
     try {
       setIsRefreshing(true);
       
       // Obținere sesiune curentă
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error("useUserRefresh: Eroare la obținerea sesiunii:", sessionError);
+        toast({
+          title: "Eroare la autentificare",
+          description: "Vă rugăm să vă autentificați din nou.",
+          variant: "destructive"
+        });
+        return false;
+      }
+      
       if (!sessionData?.session) {
         console.log("useUserRefresh: Nu s-a găsit o sesiune activă");
         return false;
@@ -44,58 +56,69 @@ export const useUserRefresh = () => {
             console.log("useUserRefresh: Cursuri stocate găsite în localStorage:", parsedUser.generatedCourses.length);
             
             // Asigură-te că toate cursurile sunt normalizate corespunzător
-            generatedCourses = parsedUser.generatedCourses.map((course: any) => {
-              // Verificare și convertire date invalide
-              let createdAt = course.createdAt;
-              let expiresAt = course.expiresAt;
-              
-              // Asigură-te că createdAt este un string ISO valid
-              try {
-                if (!createdAt || new Date(createdAt).toString() === 'Invalid Date') {
+            generatedCourses = parsedUser.generatedCourses
+              .filter(course => course && typeof course === 'object') // Filtrare valori invalide
+              .map((course: any) => {
+                // Verificare și convertire date invalide
+                let createdAt = course.createdAt || new Date().toISOString();
+                let expiresAt = course.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                
+                // Asigură-te că createdAt este un string ISO valid
+                try {
+                  if (typeof createdAt !== 'string' || new Date(createdAt).toString() === 'Invalid Date') {
+                    createdAt = new Date().toISOString();
+                  }
+                } catch (e) {
+                  console.warn("useUserRefresh: createdAt invalid, resetare:", course.id);
                   createdAt = new Date().toISOString();
-                } else if (typeof createdAt !== 'string') {
-                  createdAt = new Date(createdAt).toISOString();
                 }
-              } catch (e) {
-                console.warn("useUserRefresh: createdAt invalid, resetare:", course.id);
-                createdAt = new Date().toISOString();
-              }
-              
-              // Asigură-te că expiresAt este un string ISO valid
-              try {
-                if (!expiresAt || new Date(expiresAt).toString() === 'Invalid Date') {
+                
+                // Asigură-te că expiresAt este un string ISO valid
+                try {
+                  if (typeof expiresAt !== 'string' || new Date(expiresAt).toString() === 'Invalid Date') {
+                    expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                  }
+                } catch (e) {
+                  console.warn("useUserRefresh: expiresAt invalid, resetare:", course.id);
                   expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-                } else if (typeof expiresAt !== 'string') {
-                  expiresAt = new Date(expiresAt).toISOString();
                 }
-              } catch (e) {
-                console.warn("useUserRefresh: expiresAt invalid, resetare:", course.id);
-                expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-              }
-              
-              // Cursa normalizat
-              const normalizedCourse = {
-                ...course,
-                id: course.id || `course-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-                createdAt: createdAt,
-                expiresAt: expiresAt,
-                sections: course.sections || [],
-                status: course.status || 'completed',
-                jobId: course.jobId || course.id
-              };
-              
-              return normalizedCourse;
-            });
+                
+                // Asigură-te că formData este un obiect valid
+                const formData = course.formData && typeof course.formData === 'object' 
+                  ? course.formData 
+                  : { subject: 'Curs necunoscut', level: 'Intermediar', audience: 'General', duration: '60 min' };
+                
+                // Asigură-te că sections este un array valid
+                const sections = Array.isArray(course.sections) ? course.sections : [];
+                
+                // Curs normalizat
+                return {
+                  id: course.id || `course-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                  createdAt,
+                  expiresAt,
+                  formData,
+                  sections,
+                  status: course.status || 'completed',
+                  jobId: course.jobId || course.id || `job-${Date.now()}`
+                };
+              });
             
             // Filtrare cursuri corupte
             generatedCourses = generatedCourses.filter(course => 
-              course && course.formData && course.formData.subject && 
-              course.sections && Array.isArray(course.sections));
+              course && 
+              course.formData && 
+              course.formData.subject && 
+              Array.isArray(course.sections));
             
             console.log("useUserRefresh: Cursuri normalizate cu date corecte:", generatedCourses.length);
           }
         } catch (e) {
           console.error("useUserRefresh: Eroare parsare date utilizator stocate:", e);
+          toast({
+            title: "Eroare",
+            description: "A apărut o eroare la încărcarea datelor stocate",
+            variant: "destructive"
+          });
           generatedCourses = [];
         }
       }
@@ -126,7 +149,12 @@ export const useUserRefresh = () => {
         })));
       
       // Actualizare localStorage cu format dată consistent
-      localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
+      try {
+        localStorage.setItem('automatorUser', JSON.stringify(updatedUser));
+      } catch (storageError) {
+        console.error("useUserRefresh: Eroare la salvarea în localStorage:", storageError);
+        // În caz de eroare localStorage, nu oprim procesul - continuăm
+      }
       
       console.log("useUserRefresh: Date utilizator actualizate și stocate:", {
         id: updatedUser.id,
@@ -136,16 +164,25 @@ export const useUserRefresh = () => {
       });
       
       // Declanșare eveniment pentru informarea tuturor componentelor despre actualizarea datelor
-      window.dispatchEvent(new Event('user-refreshed'));
+      try {
+        window.dispatchEvent(new Event('user-refreshed'));
+      } catch (eventError) {
+        console.error("useUserRefresh: Eroare la declanșarea evenimentului:", eventError);
+      }
       
       return true;
     } catch (error) {
       console.error("useUserRefresh: Eroare reîmprospătare date utilizator:", error);
+      toast({
+        title: "Eroare",
+        description: "Nu s-au putut actualiza informațiile contului",
+        variant: "destructive"
+      });
       return false;
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [toast]);
   
   return { refreshUser, isRefreshing };
 };
