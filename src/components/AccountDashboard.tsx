@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,9 @@ function isPaidSubscription(
 
 const AccountDashboard = () => {
   const { user, refreshUser } = useAuth();
+
+  // Log user data for debugging
+  console.log("Props in AccountDashboard", { user });
 
   const formatDate = (dateString: Date | string | undefined) => {
     if (!dateString) return 'N/A';

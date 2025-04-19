@@ -3,7 +3,7 @@ import { jobStore } from "../index.ts";
 import { corsHeaders } from "../cors.ts";
 
 // Handler for checking a job status
-export async function handleCheckStatus(requestData, corsHeaders) {
+export async function handleCheckStatus(requestData: any, corsHeaders: any) {
   console.log("CRITICAL: checkStatus handler called with data:", JSON.stringify(requestData));
   
   const { jobId } = requestData;
@@ -76,17 +76,30 @@ export async function handleCheckStatus(requestData, corsHeaders) {
       jobData.data.sections = [];
     }
     
+    // Complete response structure to ensure frontend has all needed fields
+    const response = {
+      success: true,
+      status: jobData.status || 'unknown',
+      startedAt: jobData.startedAt || new Date().toISOString(),
+      completedAt: jobData.completedAt,
+      error: jobData.error,
+      data: {
+        sections: Array.isArray(jobData.data.sections) ? 
+          jobData.data.sections : []
+      },
+      message: jobData.message,
+      jobId
+    };
+    
+    console.log(`CRITICAL: checkStatus response for ${jobId}:`, {
+      status: response.status,
+      sectionsCount: response.data.sections.length,
+      hasError: !!response.error
+    });
+    
     // Return status and data
     return new Response(
-      JSON.stringify({
-        success: true,
-        status: jobData.status,
-        startedAt: jobData.startedAt || new Date().toISOString(),
-        completedAt: jobData.completedAt,
-        error: jobData.error,
-        data: jobData.data,
-        message: jobData.message
-      }),
+      JSON.stringify(response),
       { 
         headers: { 
           ...corsHeaders, 
@@ -105,7 +118,8 @@ export async function handleCheckStatus(requestData, corsHeaders) {
         status: 'error',
         data: {
           sections: []
-        }
+        },
+        jobId
       }),
       { 
         status: 500, 

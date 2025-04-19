@@ -16,6 +16,39 @@ const AccountPage = () => {
   const [loadAttempts, setLoadAttempts] = useState(0);
   const { toast } = useToast();
   
+  // Logging for debugging
+  useEffect(() => {
+    console.log("AccountPage - Initial render with:", {
+      user: user ? {
+        id: user.id,
+        email: user.email,
+        generatedCourses: user.generatedCourses ? 
+          (Array.isArray(user.generatedCourses) ? user.generatedCourses.length : 'Not an array') : 
+          'undefined'
+      } : 'No user',
+      authLoading,
+      localLoading
+    });
+    
+    // Debug localStorage data
+    try {
+      const automatorUser = localStorage.getItem('automatorUser');
+      console.log("AccountPage - localStorage automatorUser exists:", !!automatorUser);
+      if (automatorUser) {
+        const parsed = JSON.parse(automatorUser);
+        console.log("AccountPage - localStorage parsed user:", {
+          id: parsed.id,
+          email: parsed.email,
+          generatedCoursesLength: parsed.generatedCourses ? 
+            (Array.isArray(parsed.generatedCourses) ? parsed.generatedCourses.length : 'Not an array') : 
+            'undefined'
+        });
+      }
+    } catch (e) {
+      console.error("AccountPage - Error parsing localStorage:", e);
+    }
+  }, [user, authLoading, localLoading]);
+  
   // Load user data only once when the account page initially loads
   useEffect(() => {
     let isMounted = true;
@@ -29,7 +62,7 @@ const AccountPage = () => {
         // Set a safety timeout to avoid UI blocking
         loadTimeout = setTimeout(() => {
           if (isMounted && localLoading) {
-            console.error("⚠️ Timeout loading user data after 10 seconds");
+            console.error("⚠️ AccountPage - Timeout loading user data after 10 seconds");
             setLocalLoading(false);
             setLoadError(true);
           }
@@ -50,7 +83,8 @@ const AccountPage = () => {
                 email: user.email,
                 subscription: user.subscription || "No subscription data",
                 generationsLeft: user.generationsLeft,
-                coursesCount: user.generatedCourses?.length || 0
+                coursesCount: user.generatedCourses?.length || 0,
+                coursesArray: Array.isArray(user.generatedCourses)
               });
             } else {
               console.warn("AccountPage - User is null after successful refresh");
@@ -59,6 +93,7 @@ const AccountPage = () => {
             console.error("AccountPage - User data refresh failed");
             setLoadError(true);
             
+            // Try a few times before giving up
             if (loadAttempts < 2) {
               console.log("AccountPage - Scheduling retry attempt", loadAttempts + 1);
               setTimeout(() => {
@@ -108,12 +143,14 @@ const AccountPage = () => {
     };
   }, [refreshUser, authLoading, toast, loadAttempts, user?.id]);
 
-  const handleRetry = () => {
+  const handleRetry = useCallback(() => {
+    console.log("AccountPage - Manual retry triggered");
     setLoadError(false);
     setLocalLoading(true);
     setLoadAttempts(0);
+    // Force full page reload to reset the app state
     window.location.reload();
-  };
+  }, []);
   
   // Show loading state
   if (authLoading || localLoading) {
@@ -164,6 +201,37 @@ const AccountPage = () => {
         <Alert variant="destructive" className="mb-6">
           <AlertDescription>
             Datele utilizatorului sunt incomplete. Vă rugăm să vă deconectați și să vă autentificați din nou.
+          </AlertDescription>
+        </Alert>
+        <Button onClick={handleRetry} className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Reîncarcă pagina
+        </Button>
+      </div>
+    );
+  }
+  
+  // Ensure user.generatedCourses is an array
+  if (user.generatedCourses && !Array.isArray(user.generatedCourses)) {
+    console.error("AccountPage - user.generatedCourses is not an array:", user.generatedCourses);
+    const fixedUser = {
+      ...user,
+      generatedCourses: [] // Safe fallback
+    };
+    console.log("AccountPage - Fixed user with empty generatedCourses array");
+    
+    // Update localStorage with corrected user data
+    try {
+      localStorage.setItem('automatorUser', JSON.stringify(fixedUser));
+    } catch (e) {
+      console.error("AccountPage - Error updating localStorage with fixed user:", e);
+    }
+    
+    return (
+      <div className="container mx-auto px-4 py-10">
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>
+            Datele despre materialele generate sunt incorecte. Am încercat să reparăm automat. Vă rugăm să reîncărcați pagina.
           </AlertDescription>
         </Alert>
         <Button onClick={handleRetry} className="flex items-center gap-2">

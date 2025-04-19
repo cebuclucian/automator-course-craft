@@ -1,3 +1,4 @@
+
 import { jobStore } from "../index.ts";
 import { mockCourseData } from "./mockData.ts";
 
@@ -88,14 +89,17 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
       console.log(`JobProcessor: Section ${index + 1}: ${section.type} - ${section.title}`);
     });
 
+    // Prepare the final result
+    const finalResult = {
+      sections: sections
+    };
+    console.log("JobProcessor: Final parsed result to be saved:", JSON.stringify(finalResult));
+
     // Update job in store
     jobStore.set(jobId, {
       ...job,
       status: 'completed',
-      data: {
-        ...job.data,
-        sections: sections
-      },
+      data: finalResult,
       completedAt: new Date().toISOString()
     });
 

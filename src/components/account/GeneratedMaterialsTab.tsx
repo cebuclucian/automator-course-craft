@@ -25,6 +25,7 @@ const GeneratedMaterialsTab = () => {
   
   // Log the user object and courses for debugging
   useEffect(() => {
+    console.log("GeneratedMaterialsTab - Mounting component with user:", user);
     if (user) {
       console.log("GeneratedMaterialsTab - Current user object:", {
         id: user.id,
@@ -32,9 +33,16 @@ const GeneratedMaterialsTab = () => {
         coursesCount: user.generatedCourses?.length || 0
       });
       
-      if (user.generatedCourses?.length) {
-        console.log("GeneratedMaterialsTab - First course:", 
-          user.generatedCourses[0].formData?.subject);
+      if (user.generatedCourses) {
+        console.log("GeneratedMaterialsTab - GeneratedCourses is of type:", 
+          Array.isArray(user.generatedCourses) ? "Array" : typeof user.generatedCourses);
+        
+        console.log("GeneratedMaterialsTab - Courses structure:", 
+          Array.isArray(user.generatedCourses) 
+            ? user.generatedCourses.map(c => ({ id: c.id, subject: c.formData?.subject })) 
+            : "Not an array");
+      } else {
+        console.log("GeneratedMaterialsTab - generatedCourses is undefined or null");
       }
     } else {
       console.log("GeneratedMaterialsTab - No user data available");
@@ -44,7 +52,22 @@ const GeneratedMaterialsTab = () => {
   // Effect to check processing courses and update their status
   useEffect(() => {
     // Skip if no courses or we've already checked
-    if (!user?.generatedCourses?.length || hasCheckedStatuses) return;
+    if (!user?.generatedCourses || hasCheckedStatuses) {
+      console.log("GeneratedMaterialsTab - Skipping status check:", { 
+        hasGeneratedCourses: !!user?.generatedCourses, 
+        hasCheckedStatuses 
+      });
+      return;
+    }
+    
+    // Ensure generatedCourses is an array
+    if (!Array.isArray(user.generatedCourses)) {
+      console.error("GeneratedMaterialsTab - user.generatedCourses is not an array:", user.generatedCourses);
+      setError(language === 'ro' ? 
+        "Date incorecte pentru materialele generate. Reîncărcați pagina." : 
+        "Invalid generated materials data. Please reload the page.");
+      return;
+    }
     
     console.log("GeneratedMaterialsTab - Checking for processing courses, count:", user.generatedCourses.length);
     
@@ -57,13 +80,12 @@ const GeneratedMaterialsTab = () => {
       clearInterval(interval);
     });
     
-    if (!Array.isArray(user.generatedCourses)) {
-      console.error("GeneratedMaterialsTab - user.generatedCourses is not an array");
-      setError("Date materiale incorecte. Contactați administratorul.");
-      return;
-    }
-    
     user.generatedCourses.forEach(course => {
+      if (!course) {
+        console.error("GeneratedMaterialsTab - Found null or undefined course in generatedCourses array");
+        return;
+      }
+      
       if (course && course.status === 'processing' && course.jobId) {
         console.log(`Course ${course.id} is still processing, setting up polling`);
         newProcessingCourses[course.id] = true;
@@ -195,6 +217,7 @@ const GeneratedMaterialsTab = () => {
 
   // Handle case when no user is found
   if (!user) {
+    console.log("GeneratedMaterialsTab - No user data, showing loading state");
     return (
       <Card className="w-full">
         <CardHeader>
@@ -245,8 +268,41 @@ const GeneratedMaterialsTab = () => {
   console.log("- Generated courses count:", user.generatedCourses?.length || 0);
   console.log("- Processing courses:", Object.keys(processingCourses).length);
 
+  // Check localStorage for debugging
+  console.log("LS materials:", localStorage.getItem("automatorUser"));
+
   // Make sure generatedCourses is always an array
   const generatedCourses = Array.isArray(user.generatedCourses) ? user.generatedCourses : [];
+  console.log("Received courses:", generatedCourses);
+  
+  // Fallback for non-array generatedCourses
+  if (!Array.isArray(generatedCourses)) {
+    console.error("GeneratedMaterialsTab - generatedCourses is not an array after type checking");
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>{language === 'ro' ? 'Materiale generate' : 'Generated materials'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 text-sm text-red-500">
+            {language === 'ro' 
+              ? 'Nu s-au putut încărca materialele generate corect.' 
+              : 'Could not load generated materials correctly.'}
+          </div>
+          <Button onClick={handleRefreshMaterials} disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {language === 'ro' ? 'Se încarcă...' : 'Loading...'}
+              </>
+            ) : (
+              language === 'ro' ? 'Reîncearcă' : 'Try again'
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full">

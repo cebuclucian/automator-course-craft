@@ -50,9 +50,20 @@ export const useUserRefresh = () => {
       let generatedCourses: GeneratedCourse[] = [];
       const automatorUser = localStorage.getItem('automatorUser');
       
+      console.log("useUserRefresh: automatorUser exists in localStorage:", !!automatorUser);
+      
       if (automatorUser) {
         try {
           const parsedUser = JSON.parse(automatorUser);
+          console.log("useUserRefresh: Parsed user from localStorage:", {
+            id: parsedUser.id,
+            email: parsedUser.email,
+            hasGeneratedCourses: !!parsedUser.generatedCourses,
+            generatedCoursesType: parsedUser.generatedCourses ? typeof parsedUser.generatedCourses : 'undefined',
+            isArray: parsedUser.generatedCourses ? Array.isArray(parsedUser.generatedCourses) : false,
+            length: parsedUser.generatedCourses && Array.isArray(parsedUser.generatedCourses) ? parsedUser.generatedCourses.length : 'N/A'
+          });
+          
           if (parsedUser.generatedCourses && Array.isArray(parsedUser.generatedCourses)) {
             console.log("useUserRefresh: Found stored courses in localStorage:", parsedUser.generatedCourses.length);
             
@@ -60,6 +71,12 @@ export const useUserRefresh = () => {
             generatedCourses = parsedUser.generatedCourses
               .filter(course => course && typeof course === 'object') // Filter out invalid values
               .map((course: any) => {
+                console.log("useUserRefresh: Processing course:", {
+                  id: course.id, 
+                  subject: course.formData?.subject,
+                  status: course.status
+                });
+                
                 // Check and convert invalid dates
                 let createdAt = course.createdAt || new Date().toISOString();
                 let expiresAt = course.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -112,6 +129,9 @@ export const useUserRefresh = () => {
               Array.isArray(course.sections));
             
             console.log("useUserRefresh: Normalized courses with correct data:", generatedCourses.length);
+          } else if (parsedUser.generatedCourses) {
+            console.error("useUserRefresh: generatedCourses exists but is not an array:", typeof parsedUser.generatedCourses);
+            generatedCourses = []; // Reset to empty array if data is corrupted
           }
         } catch (e) {
           console.error("useUserRefresh: Error parsing stored user data:", e);
