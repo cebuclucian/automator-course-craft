@@ -1,4 +1,5 @@
 
+
 [functions]
 [functions.generate-course]
 verify_jwt = true
@@ -17,3 +18,4 @@ verify_jwt = false
 
 [functions.generate-course.debug-cors]
 verify_jwt = false
+
