@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,7 +9,7 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { checkCourseGenerationStatus } from '@/services/courseGeneration';
-import { GeneratedCourse } from '@/types';
+import { GeneratedCourse, CourseFormData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 
 const GeneratedMaterialsTab = () => {
@@ -18,7 +19,7 @@ const GeneratedMaterialsTab = () => {
   const [processingCourses, setProcessingCourses] = useState<Record<string, boolean>>({});
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState<boolean>(false);
-  const [pollingIntervals, setPollingIntervals] = useState<Record<string, NodeJS.Timer>>({});
+  const [pollingIntervals, setPollingIntervals] = useState<Record<string, NodeJS.Timeout>>({});
   const [hasError, setHasError] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userChecked, setUserChecked] = useState<boolean>(false);
@@ -68,21 +69,49 @@ const GeneratedMaterialsTab = () => {
         // Normalize and validate course data
         const validCourses: GeneratedCourse[] = user.generatedCourses
           .filter(course => course && typeof course === 'object' && course.id)
-          .map(course => ({
-            id: course.id,
-            createdAt: course.createdAt || new Date(),
-            expiresAt: course.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            formData: course.formData || {
+          .map(course => {
+            // Create a properly typed default formData with all required fields
+            const defaultFormData: CourseFormData = {
               subject: 'Curs fără titlu',
-              level: 'Nivel necunoscut' as const,
-              audience: 'Public necunoscut' as const,
-              duration: 'Durată necunoscută' as const,
-            },
-            sections: Array.isArray(course.sections) ? course.sections : [],
-            previewMode: course.previewMode ?? false,
-            status: course.status || 'completed',
-            jobId: course.jobId || course.id
-          }));
+              level: 'Intermediar' as const,
+              audience: 'Profesioniști' as const,
+              duration: '1h' as const,
+              language: 'ro' as const,
+              context: 'Corporativ' as const,
+              tone: 'Profesional' as const
+            };
+            
+            // Use the course's formData if it has all required fields, otherwise use default with overrides
+            const formData: CourseFormData = 
+              course.formData && 
+              typeof course.formData === 'object' &&
+              'language' in course.formData &&
+              'context' in course.formData &&
+              'tone' in course.formData
+                ? course.formData as CourseFormData
+                : {
+                    ...defaultFormData,
+                    ...(course.formData && typeof course.formData === 'object' 
+                      ? {
+                          subject: course.formData.subject || defaultFormData.subject,
+                          level: (course.formData.level as any) || defaultFormData.level,
+                          audience: (course.formData.audience as any) || defaultFormData.audience,
+                          duration: (course.formData.duration as any) || defaultFormData.duration
+                        } 
+                      : {})
+                  };
+                  
+            return {
+              id: course.id,
+              createdAt: course.createdAt || new Date(),
+              expiresAt: course.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              formData,
+              sections: Array.isArray(course.sections) ? course.sections : [],
+              previewMode: course.previewMode ?? false,
+              status: course.status || 'completed',
+              jobId: course.jobId || course.id
+            };
+          });
           
         console.log(`GeneratedMaterialsTab - Processed ${validCourses.length} valid courses`);
         setCoursesData(validCourses);
@@ -107,12 +136,12 @@ const GeneratedMaterialsTab = () => {
     
     // Cleanup existing intervals
     Object.values(pollingIntervals).forEach(intervalId => {
-      clearInterval(intervalId as NodeJS.Timer);
+      clearInterval(intervalId);
     });
     
     const newProcessingCourses = {} as Record<string, boolean>;
     const newProgress = {} as Record<string, number>;
-    const newIntervals = {} as Record<string, NodeJS.Timer>;
+    const newIntervals = {} as Record<string, NodeJS.Timeout>;
     
     // Find processing courses
     const processingCoursesList = coursesData.filter(course => 
@@ -171,7 +200,7 @@ const GeneratedMaterialsTab = () => {
         
         pollStatus();
         
-        const intervalId = setInterval(pollStatus, 10000) as unknown as NodeJS.Timer;
+        const intervalId = setInterval(pollStatus, 10000);
         newIntervals[course.id] = intervalId;
       }
     });
