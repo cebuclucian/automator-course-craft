@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { ClipboardCheck, Settings, Download } from 'lucide-react';
@@ -52,14 +51,14 @@ const HowItWorksSection = () => {
         
         <div className="flex flex-col md:flex-row justify-between items-start gap-8">
           {currentSteps.map((step, index) => (
-            <div key={index} className="flex-1 bg-white dark:bg-gray-900 p-8 rounded-lg shadow-md text-center">
-              <div className="flex justify-center mb-4">
+            <div key={index} className="flex-1 bg-white dark:bg-gray-900 p-8 rounded-lg shadow-md text-center animate-fade-in hover:shadow-lg transition-all duration-300">
+              <div className="flex justify-center mb-4 transform hover:scale-110 transition-transform duration-200">
                 {step.icon}
               </div>
               <h3 className="text-xl font-semibold mb-4">{step.title}</h3>
               <p className="text-gray-600 dark:text-gray-400">{step.description}</p>
               <div className="mt-6 flex justify-center">
-                <span className="bg-automator-100 dark:bg-automator-900 text-automator-800 dark:text-automator-200 text-xl font-bold h-10 w-10 rounded-full flex items-center justify-center">
+                <span className="bg-automator-100 dark:bg-automator-900 text-automator-800 dark:text-automator-200 text-xl font-bold h-10 w-10 rounded-full flex items-center justify-center transform hover:rotate-12 transition-transform duration-200">
                   {index + 1}
                 </span>
               </div>

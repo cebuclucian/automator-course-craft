@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -84,10 +83,16 @@ const MaterialsSection = () => {
             <TabsContent key={material.id} value={material.id}>
               <Card>
                 <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-bold">{material.title}</h3>
-                    <p className="text-gray-600 dark:text-gray-400">{material.description}</p>
-                    <p>{material.content}</p>
+                  <div className="space-y-4 animate-fade-in">
+                    <h3 className="text-xl font-bold hover:text-automator-600 dark:hover:text-automator-400 transition-colors duration-200">
+                      {material.title}
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 hover:translate-x-1 transition-transform duration-200">
+                      {material.description}
+                    </p>
+                    <p className="transform hover:translate-x-1 transition-transform duration-200">
+                      {material.content}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
