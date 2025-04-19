@@ -1,21 +1,22 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "./cors.ts";
 import { handleStartJob } from "./handlers/startJob.ts";
 import { handleCheckStatus } from "./handlers/checkStatus.ts";
 import { mockCourseData } from "./helpers/mockData.ts";
 
-// Obtinere sigură a cheii API Claude din variabilele de mediu
+// Safe retrieval of Claude API key from environment variables
 const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
 
-// Verifică și logheaza disponibilitatea API key pentru debugging
-console.log(`generate-course - CLAUDE_API_KEY este ${CLAUDE_API_KEY ? 'configurată' : 'lipsă'}`);
+// Check and log API key availability for debugging
+console.log(`generate-course - CLAUDE_API_KEY is ${CLAUDE_API_KEY ? 'configured' : 'missing'}`);
 
-// Store în memorie pentru urmărirea job-urilor (într-o aplicație de producție, ar utiliza o bază de date)
+// In-memory store for tracking jobs (in a production app, would use a database)
 export const jobStore = new Map();
 
-// Curățare periodică a job-urilor vechi (pentru a preveni scurgerile de memorie)
+// Periodic cleanup of old jobs (to prevent memory leaks)
 const cleanupInterval = setInterval(() => {
-  // Găsim job-urile mai vechi de 24 ore
+  // Find jobs older than 24 hours
   const now = Date.now();
   const dayInMs = 24 * 60 * 60 * 1000;
   
@@ -30,28 +31,29 @@ const cleanupInterval = setInterval(() => {
   });
   
   if (removedCount > 0) {
-    console.log(`Cleanup - ${removedCount} job-uri vechi eliminate din store`);
+    console.log(`Cleanup - ${removedCount} old jobs removed from store`);
   }
-}, 60 * 60 * 1000); // Rulează la fiecare oră
+}, 60 * 60 * 1000); // Run every hour
 
-// Oprire curățare când funcția este închisă
+// Stop cleanup when function is closed
 addEventListener('beforeunload', (ev) => {
   console.log('Edge function shutting down, reason:', ev.detail?.reason);
   clearInterval(cleanupInterval);
 });
 
-// Endpoint de test pentru verificarea conectivității - acum îmbunătățit pentru debugging
+// Test endpoint for checking connectivity - now improved for debugging
 async function handleTestConnection(req) {
   console.log("generate-course - Handle test-connection request");
   const url = new URL(req.url);
   console.log("generate-course - Request URL:", url.toString());
   console.log("generate-course - Path:", url.pathname);
+  console.log("generate-course - Headers:", Object.fromEntries(req.headers));
   
-  // Verificare dacă este o cerere pentru endpoint-ul public specific
+  // Check if this is a request for the specific public endpoint
   const isTestConnectionEndpoint = url.pathname.endsWith('/test-connection');
   console.log("generate-course - Is test connection endpoint:", isTestConnectionEndpoint);
   
-  // Returnare informații detaliate pentru debugging
+  // Return detailed information for debugging
   return new Response(
     JSON.stringify({ 
       status: 'ok', 
@@ -60,7 +62,8 @@ async function handleTestConnection(req) {
       jobStoreSize: jobStore.size,
       requestUrl: url.toString(),
       endpoint: "test-connection",
-      message: 'Edge Function is running correctly'
+      message: 'Edge Function is running correctly',
+      headers: Object.fromEntries(req.headers)
     }), 
     { 
       headers: { 
@@ -71,15 +74,16 @@ async function handleTestConnection(req) {
   );
 }
 
-// Endpoint minimal îmbunătățit pentru testarea API Claude
+// Enhanced minimal endpoint for testing Claude API
 async function handleTestClaude(req) {
   try {
     console.log("generate-course - Handle test-claude request");
     const url = new URL(req.url);
     console.log("generate-course - Request URL:", url.toString());
     console.log("generate-course - Path:", url.pathname);
+    console.log("generate-course - Headers:", Object.fromEntries(req.headers));
     
-    // Verificare dacă este o cerere pentru endpoint-ul public specific
+    // Check if this is a request for the specific public endpoint
     const isTestClaudeEndpoint = url.pathname.endsWith('/test-claude');
     console.log("generate-course - Is test Claude endpoint:", isTestClaudeEndpoint);
     
@@ -88,9 +92,10 @@ async function handleTestClaude(req) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "API Key Claude nu este configurată",
+          error: "Claude API Key not configured",
           endpoint: "test-claude",
-          requestUrl: url.toString()
+          requestUrl: url.toString(),
+          apiKeyConfigured: false
         }),
         {
           status: 400,
@@ -102,43 +107,114 @@ async function handleTestClaude(req) {
       );
     }
     
-    console.log("generate-course - Testare conectare API Claude");
+    console.log("generate-course - Testing Claude API connection");
     
-    // Prompt minimal pentru testare
-    const prompt = "Salut! Acesta este un test de conectivitate. Te rog să răspunzi cu 'Test reușit!'";
+    // Extract first and last 4 characters of the API key for verification
+    const apiKeyFirstFour = CLAUDE_API_KEY.substring(0, 4);
+    const apiKeyLastFour = CLAUDE_API_KEY.substring(CLAUDE_API_KEY.length - 4);
+    const maskedApiKey = `${apiKeyFirstFour}...${apiKeyLastFour}`;
     
-    // Apelare directă API Claude cu prompt minimal
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-3-sonnet-20240229',
-        max_tokens: 1000,
-        messages: [
+    // Minimal prompt for testing
+    const prompt = "Hello! This is a connectivity test. Please respond with 'Test successful!'";
+    
+    // Direct call to Claude API with minimal prompt
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-3-sonnet-20240229',
+          max_tokens: 1000,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        })
+      });
+      
+      console.log("generate-course - Claude API response status:", response.status);
+      
+      // Check response
+      if (!response.ok) {
+        const responseText = await response.text();
+        console.error("generate-course - Claude API error:", response.status, responseText);
+        
+        let errorDetails;
+        try {
+          errorDetails = JSON.parse(responseText);
+        } catch (e) {
+          errorDetails = { raw: responseText };
+        }
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Claude API returned status ${response.status}`,
+            details: errorDetails,
+            endpoint: "test-claude",
+            requestUrl: url.toString(),
+            apiKeyConfigured: true,
+            apiKeyMasked: maskedApiKey
+          }),
           {
-            role: 'user',
-            content: prompt
+            status: 500,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
           }
-        ]
-      })
-    });
-    
-    // Verificare răspuns
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("generate-course - Eroare API Claude:", response.status, errorData);
+        );
+      }
+      
+      const responseText = await response.text();
+      console.log("generate-course - Claude API raw response:", responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("generate-course - Error parsing JSON response:", e);
+        data = { raw: responseText };
+      }
+      
+      console.log("generate-course - Claude API parsed response:", data);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Claude API test successful",
+          responseContent: data.content?.[0]?.text || "Empty response",
+          endpoint: "test-claude",
+          requestUrl: url.toString(),
+          apiKeyConfigured: true,
+          apiKeyMasked: maskedApiKey,
+          rawResponse: responseText
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    } catch (apiError) {
+      console.error("generate-course - Error calling Claude API:", apiError);
       
       return new Response(
         JSON.stringify({
           success: false,
-          error: `API Claude a returnat status ${response.status}`,
-          details: errorData,
+          error: `Error calling Claude API: ${apiError.message || "Unknown error"}`,
+          stack: apiError.stack,
           endpoint: "test-claude",
-          requestUrl: url.toString()
+          requestUrl: url.toString(),
+          apiKeyConfigured: true,
+          apiKeyMasked: maskedApiKey
         }),
         {
           status: 500,
@@ -149,39 +225,13 @@ async function handleTestClaude(req) {
         }
       );
     }
-    
-    const data = await response.json();
-    console.log("generate-course - Răspuns API Claude primit");
-    
-    // Extrageți primele și ultimele 4 caractere din API key pentru verificare
-    const apiKeyFirstFour = CLAUDE_API_KEY.substring(0, 4);
-    const apiKeyLastFour = CLAUDE_API_KEY.substring(CLAUDE_API_KEY.length - 4);
-    const maskedApiKey = `${apiKeyFirstFour}...${apiKeyLastFour}`;
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Testare API Claude reușită",
-        responseContent: data.content?.[0]?.text || "Răspuns gol",
-        endpoint: "test-claude",
-        requestUrl: url.toString(),
-        apiKeyConfigured: true,
-        apiKeyMasked: maskedApiKey
-      }),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
   } catch (error) {
-    console.error("generate-course - Eroare în handleTestClaude:", error);
+    console.error("generate-course - Error in handleTestClaude:", error);
     
     return new Response(
       JSON.stringify({
         success: false,
-        error: `Eroare la testarea API Claude: ${error.message || "Eroare necunoscută"}`,
+        error: `Error testing Claude API: ${error.message || "Unknown error"}`,
         stack: error.stack,
         endpoint: "test-claude"
       }),
@@ -196,30 +246,84 @@ async function handleTestClaude(req) {
   }
 }
 
+// New endpoint to check environment variables
+async function handleCheckEnv(req) {
+  try {
+    console.log("generate-course - Handling check-env request");
+    
+    // Check if CLAUDE_API_KEY is set
+    const apiKeyConfigured = !!CLAUDE_API_KEY;
+    
+    // If configured, extract first and last 4 characters
+    let apiKeyMasked = null;
+    if (apiKeyConfigured && CLAUDE_API_KEY.length >= 8) {
+      const apiKeyFirstFour = CLAUDE_API_KEY.substring(0, 4);
+      const apiKeyLastFour = CLAUDE_API_KEY.substring(CLAUDE_API_KEY.length - 4);
+      apiKeyMasked = `${apiKeyFirstFour}...${apiKeyLastFour}`;
+    }
+    
+    // Check all environment variables available (names only, not values)
+    const envVarNames = Object.keys(Deno.env.toObject());
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        apiKeyConfigured,
+        apiKeyMasked,
+        availableEnvVars: envVarNames,
+        timestamp: new Date().toISOString()
+      }),
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  } catch (error) {
+    console.error("generate-course - Error checking environment variables:", error);
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `Error checking environment variables: ${error.message || "Unknown error"}`,
+        timestamp: new Date().toISOString()
+      }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }
+}
+
 serve(async (req) => {
-  // Măsurare timp de procesare cerere pentru debugging
+  // Measure request processing time for debugging
   const requestStartTime = Date.now();
   const url = new URL(req.url);
   const pathname = url.pathname;
   
-  console.log(`generate-course - Cerere primită la ${new Date().toISOString()}: ${req.method} ${pathname}`);
+  console.log(`generate-course - Request received at ${new Date().toISOString()}: ${req.method} ${pathname}`);
   console.log("generate-course - Headers:", JSON.stringify(Array.from(req.headers.entries())));
   
-  // Gestionare cereri preflight CORS
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Îmbunătățire pentru detectarea endpoint-urilor de test
-  // Verifică dacă calea URL conține test-connection sau test-claude
+  // Enhanced detection of test endpoints
+  // Check if URL path contains test-connection or test-claude
   const isTestConnection = pathname.includes('test-connection');
   const isTestClaude = pathname.includes('test-claude');
   
-  console.log("generate-course - Verificare endpoint-uri de test:");
+  console.log("generate-course - Checking test endpoints:");
   console.log("  - isTestConnection:", isTestConnection);
   console.log("  - isTestClaude:", isTestClaude);
   
-  // Rutare endpoint-uri de test
+  // Route test endpoints
   if (isTestConnection) {
     console.log("generate-course - Handling test-connection request");
     return await handleTestConnection(req);
@@ -231,27 +335,27 @@ serve(async (req) => {
   }
 
   try {
-    // Verifică și configurează timeout pentru a preveni încheierea prematură
+    // Set up timeout to prevent premature termination
     const abortController = new AbortController();
     const signal = abortController.signal;
     const timeout = setTimeout(() => {
       console.error("Edge function timeout limit approaching, attempting to finalize processing");
       abortController.abort();
-    }, 28000); // 28 secunde pentru a permite returnarea răspunsului înaintea timeout-ului de 30s al Edge Function
+    }, 28000); // 28 seconds to allow response return before the 30s Edge Function timeout
     
-    // Verifică dacă cheia API Claude este configurată
+    // Check if Claude API key is configured
     if (!CLAUDE_API_KEY) {
-      console.warn("Cheia API Claude nu este setată! Se vor genera date mock.");
+      console.warn("Claude API key is not set! Will generate mock data.");
     }
     
-    // Verifică dacă cererea conține date valide
+    // Check if request contains valid data
     if (!req.body) {
-      console.error("Corpul cererii este gol");
+      console.error("Request body is empty");
       clearTimeout(timeout);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Corpul cererii este gol" 
+          error: "Request body is empty" 
         }),
         { 
           status: 400, 
@@ -263,17 +367,17 @@ serve(async (req) => {
       );
     }
 
-    // Parsare date cerere cu gestionarea timeout-ului
+    // Parse request data with timeout handling
     let requestData;
     try {
       requestData = await req.json();
     } catch (parseError) {
-      console.error("Eroare la parsarea JSON din cerere:", parseError);
+      console.error("Error parsing JSON from request:", parseError);
       clearTimeout(timeout);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Format invalid al cererii" 
+          error: "Invalid request format" 
         }),
         { 
           status: 400, 
@@ -285,32 +389,35 @@ serve(async (req) => {
       );
     }
     
-    console.log("Generate-course funcția primită requestData:", JSON.stringify(requestData));
+    console.log("Generate-course function received requestData:", JSON.stringify(requestData));
     
-    // Verifică ce acțiune este solicitată
+    // Check which action is requested
     const action = requestData.action || 'start';
     
     let response;
     
-    // Procesare în funcție de acțiunea solicitată
+    // Process based on requested action
     if (action === 'start') {
-      console.log("Procesare acțiune 'start'");
+      console.log("Processing 'start' action");
       response = await handleStartJob(requestData, corsHeaders);
     } else if (action === 'status') {
-      console.log("Procesare acțiune 'status'");
+      console.log("Processing 'status' action");
       response = await handleCheckStatus(requestData, corsHeaders);
-    } else if (action === 'test-connection') {  // Adăugat pentru compatibilitate cu apelurile vechi
-      console.log("Procesare acțiune 'test-connection'");
+    } else if (action === 'test-connection') {  // Added for compatibility with old calls
+      console.log("Processing 'test-connection' action");
       response = await handleTestConnection(req);
-    } else if (action === 'test-claude') {  // Adăugat pentru compatibilitate cu apelurile vechi
-      console.log("Procesare acțiune 'test-claude'");
+    } else if (action === 'test-claude') {  // Added for compatibility with old calls
+      console.log("Processing 'test-claude' action");
       response = await handleTestClaude(req);
+    } else if (action === 'check-env') {
+      console.log("Processing 'check-env' action");
+      response = await handleCheckEnv(req);
     } else {
-      console.error("Acțiune invalidă specificată:", action);
+      console.error("Invalid action specified:", action);
       response = new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Acțiune invalidă specificată" 
+          error: "Invalid action specified" 
         }),
         { 
           status: 400, 
@@ -322,36 +429,36 @@ serve(async (req) => {
       );
     }
     
-    // Curățare și jurnalizare metrici
+    // Cleanup and log metrics
     clearTimeout(timeout);
     const processingTime = Date.now() - requestStartTime;
-    console.log(`generate-course - Cerere procesată în ${processingTime}ms cu status ${response.status}`);
+    console.log(`generate-course - Request processed in ${processingTime}ms with status ${response.status}`);
     
     return response;
   } catch (error) {
-    console.error('Eroare în funcția generate-course:', error);
+    console.error('Error in generate-course function:', error);
     
-    // Încercare backup de furnizare date mock în caz de eroare generală
+    // Backup attempt to provide mock data in case of general error
     try {
       let requestData;
       try {
         requestData = await req.json();
       } catch (jsonError) {
-        console.error("Nu am putut extrage date din cerere pentru fallback:", jsonError);
+        console.error("Could not extract data from request for fallback:", jsonError);
         requestData = { action: 'unknown' };
       }
       
-      console.log("Încercare fallback pentru cererea:", JSON.stringify(requestData));
+      console.log("Attempting fallback for request:", JSON.stringify(requestData));
       
       if (requestData.action === 'status') {
         const jobId = requestData.jobId;
         if (jobId) {
-          console.log(`Returnare status de eroare pentru job ${jobId}`);
+          console.log(`Returning error status for job ${jobId}`);
           return new Response(
             JSON.stringify({
               success: true,
               status: 'error',
-              error: "Eroare verificare status: " + (error.message || "Eroare necunoscută")
+              error: "Status check error: " + (error.message || "Unknown error")
             }),
             {
               headers: {
@@ -363,40 +470,40 @@ serve(async (req) => {
         }
       }
       
-      // Încercare generare date mock pentru a oferi utilizatorului ceva
+      // Attempt to generate mock data to provide the user with something
       const formData = requestData.formData || {};
-      console.log("Generare date mock pentru formular:", formData);
+      console.log("Generating mock data for form:", formData);
       const mockData = mockCourseData(formData);
       
-      // Asigurare că mockData are secțiuni
+      // Ensure mockData has sections
       if (!mockData.sections || mockData.sections.length === 0) {
         mockData.sections = [
           { 
             type: 'lesson-plan', 
             title: 'Plan de lecție',
-            content: `# Plan de lecție de urgență\n\n## Obiective\n- Înțelegerea conceptelor de bază\n- Dezvoltarea abilităților practice`
+            content: `# Emergency lesson plan\n\n## Objectives\n- Understanding basic concepts\n- Developing practical skills`
           },
           { 
             type: 'slides', 
             title: 'Slide-uri prezentare',
-            content: `# Prezentare de urgență\n\n## Introducere\n- Acest material a fost generat în modul de urgență`
+            content: `# Emergency presentation\n\n## Introduction\n- This material was generated in emergency mode`
           },
           { 
             type: 'trainer-notes', 
             title: 'Note pentru trainer',
-            content: `# Note pentru trainer\n\n- Acest material a fost generat în regim de urgență`
+            content: `# Trainer notes\n\n- This material was generated in emergency mode`
           },
           { 
             type: 'exercises', 
             title: 'Exerciții',
-            content: `# Exerciții\n\n## Exercițiul de urgență\nAplicați conceptele de bază`
+            content: `# Exercises\n\n## Emergency exercise\nApply the basic concepts`
           }
         ];
       }
       
       const mockJobId = 'fallback-' + Date.now();
       
-      // Salvare job în store pentru verificări ulterioare
+      // Save job in store for later checks
       jobStore.set(mockJobId, {
         status: 'completed',
         formData: formData,
@@ -411,7 +518,7 @@ serve(async (req) => {
           data: mockData,
           jobId: mockJobId,
           status: 'completed',
-          note: "Generat utilizând sistemul de rezervă" 
+          note: "Generated using backup system" 
         }),
         { 
           headers: { 
@@ -421,11 +528,11 @@ serve(async (req) => {
         }
       );
     } catch (fallbackError) {
-      console.error("Eroare și în mecanismul de rezervă:", fallbackError);
+      console.error("Error in backup mechanism:", fallbackError);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Eroare la generarea cursului: " + (error.message || "Eroare necunoscută") 
+          error: "Error generating the course: " + (error.message || "Unknown error") 
         }),
         { 
           status: 500, 

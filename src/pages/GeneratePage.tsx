@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -6,11 +7,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserProfile } from '@/contexts/UserProfileContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Bug } from 'lucide-react';
+import { RefreshCw, Bug, ExternalLink } from 'lucide-react';
 import { testEdgeFunctionConnection, testClaudeAPI } from '@/services/courseGeneration';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { supabase } from '@/integrations/supabase/client';
 
 const GeneratePage = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -28,6 +30,14 @@ const GeneratePage = () => {
   const [showDebugDialog, setShowDebugDialog] = useState(false);
   const [debugInfo, setDebugInfo] = useState<{ [key: string]: any }>({});
   const [debugLoading, setDebugLoading] = useState(false);
+  const [debugEndpoints, setDebugEndpoints] = useState<{
+    connectionUrl: string;
+    claudeUrl: string;
+  }>({
+    connectionUrl: `https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-connection`,
+    claudeUrl: `https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-claude`
+  });
+  const [rawResponse, setRawResponse] = useState<string | null>(null);
 
   // Verifică dacă utilizatorul este admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
@@ -120,29 +130,144 @@ const GeneratePage = () => {
   const handleDebugConnection = async () => {
     setDebugLoading(true);
     setDebugInfo(prev => ({ ...prev, status: "Testare conexiune..." }));
+    setRawResponse(null);
     
     try {
       // Test connection endpoint
       console.log("Testare endpoint connect");
-      const connectionResponse = await testEdgeFunctionConnection();
-      console.log("Răspuns test conexiune:", connectionResponse);
+      console.log("URL endpoint test connection:", debugEndpoints.connectionUrl);
       
-      setDebugInfo(prev => ({ 
-        ...prev, 
-        connectionTest: {
-          success: true,
-          data: connectionResponse,
-          timestamp: new Date().toISOString()
+      // Direct fetch for connection test
+      try {
+        const directResponse = await fetch(debugEndpoints.connectionUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        const responseText = await directResponse.text();
+        console.log("Răspuns direct connection test (status):", directResponse.status);
+        console.log("Răspuns direct connection test (body):", responseText);
+        
+        let parsedResponse;
+        try {
+          parsedResponse = JSON.parse(responseText);
+        } catch (e) {
+          parsedResponse = { text: responseText };
         }
-      }));
+        
+        setRawResponse(responseText);
+        
+        setDebugInfo(prev => ({ 
+          ...prev, 
+          connectionTest: {
+            success: directResponse.ok,
+            status: directResponse.status,
+            data: parsedResponse,
+            timestamp: new Date().toISOString(),
+            url: debugEndpoints.connectionUrl
+          }
+        }));
+      } catch (directError) {
+        console.error("Eroare fetch direct:", directError);
+        setDebugInfo(prev => ({ 
+          ...prev, 
+          connectionTest: {
+            success: false,
+            error: directError.message || "Eroare la fetch direct",
+            timestamp: new Date().toISOString(),
+            url: debugEndpoints.connectionUrl
+          }
+        }));
+      }
+      
+      // Test standard method
+      try {
+        const connectionResponse = await testEdgeFunctionConnection();
+        console.log("Răspuns test conexiune (standard):", connectionResponse);
+        
+        setDebugInfo(prev => ({
+          ...prev,
+          standardConnectionTest: {
+            success: true,
+            data: connectionResponse,
+            timestamp: new Date().toISOString()
+          }
+        }));
+      } catch (standardError) {
+        console.error("Eroare test standard:", standardError);
+        setDebugInfo(prev => ({
+          ...prev,
+          standardConnectionTest: {
+            success: false,
+            error: standardError.message || "Eroare necunoscută",
+            timestamp: new Date().toISOString()
+          }
+        }));
+      }
 
       // Test Claude API
       console.log("Testare endpoint Claude");
+      console.log("URL endpoint test Claude:", debugEndpoints.claudeUrl);
       setDebugInfo(prev => ({ ...prev, status: "Testare API Claude..." }));
       
+      // Direct fetch for Claude API test
+      try {
+        const directClaudeResponse = await fetch(debugEndpoints.claudeUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        const claudeResponseText = await directClaudeResponse.text();
+        console.log("Răspuns direct Claude test (status):", directClaudeResponse.status);
+        console.log("Răspuns direct Claude test (body):", claudeResponseText);
+        
+        let parsedClaudeResponse;
+        try {
+          parsedClaudeResponse = JSON.parse(claudeResponseText);
+        } catch (e) {
+          parsedClaudeResponse = { text: claudeResponseText };
+        }
+        
+        setDebugInfo(prev => ({
+          ...prev,
+          claudeDirectTest: {
+            success: directClaudeResponse.ok,
+            status: directClaudeResponse.status,
+            data: parsedClaudeResponse,
+            timestamp: new Date().toISOString(),
+            url: debugEndpoints.claudeUrl
+          }
+        }));
+        
+        // Show API key info (masked) if available
+        if (parsedClaudeResponse && parsedClaudeResponse.apiKeyMasked) {
+          setDebugInfo(prev => ({
+            ...prev,
+            apiKeyStatus: "API key configurată",
+            apiKeyMasked: parsedClaudeResponse.apiKeyMasked
+          }));
+        }
+      } catch (directClaudeError) {
+        console.error("Eroare fetch direct Claude:", directClaudeError);
+        setDebugInfo(prev => ({
+          ...prev,
+          claudeDirectTest: {
+            success: false,
+            error: directClaudeError.message || "Eroare la fetch direct",
+            timestamp: new Date().toISOString(),
+            url: debugEndpoints.claudeUrl
+          }
+        }));
+      }
+      
+      // Standard method
       try {
         const claudeResponse = await testClaudeAPI();
-        console.log("Răspuns test Claude:", claudeResponse);
+        console.log("Răspuns test Claude (standard):", claudeResponse);
         
         setDebugInfo(prev => ({ 
           ...prev, 
@@ -158,7 +283,8 @@ const GeneratePage = () => {
         if (claudeResponse && claudeResponse.apiKeyConfigured) {
           setDebugInfo(prev => ({ 
             ...prev, 
-            apiKeyStatus: "API key configurată"
+            apiKeyStatus: "API key configurată",
+            apiKeyMasked: claudeResponse.apiKeyMasked || "Nu este disponibil"
           }));
         } else {
           setDebugInfo(prev => ({ 
@@ -167,7 +293,7 @@ const GeneratePage = () => {
           }));
         }
       } catch (claudeError) {
-        console.error("Eroare test Claude:", claudeError);
+        console.error("Eroare test Claude (standard):", claudeError);
         setDebugInfo(prev => ({ 
           ...prev, 
           claudeTest: {
@@ -176,6 +302,47 @@ const GeneratePage = () => {
             timestamp: new Date().toISOString()
           },
           status: "Teste finalizate cu erori"
+        }));
+      }
+      
+      // Test if CLAUDE_API_KEY exists in the Edge Function
+      try {
+        setDebugInfo(prev => ({ ...prev, status: "Verificare variabile de mediu Edge Function..." }));
+        
+        const { data: envCheckResponse, error: envCheckError } = await supabase.functions.invoke('generate-course', {
+          body: { action: 'check-env' }
+        });
+        
+        if (envCheckError) {
+          console.error("Eroare verificare variabile de mediu:", envCheckError);
+          setDebugInfo(prev => ({
+            ...prev,
+            envCheck: {
+              success: false,
+              error: envCheckError.message || "Eroare la verificarea variabilelor de mediu",
+              timestamp: new Date().toISOString()
+            }
+          }));
+        } else {
+          console.log("Răspuns verificare variabile de mediu:", envCheckResponse);
+          setDebugInfo(prev => ({
+            ...prev,
+            envCheck: {
+              success: true,
+              data: envCheckResponse,
+              timestamp: new Date().toISOString()
+            }
+          }));
+        }
+      } catch (envCheckError) {
+        console.error("Eroare verificare variabile de mediu:", envCheckError);
+        setDebugInfo(prev => ({
+          ...prev,
+          envCheck: {
+            success: false,
+            error: envCheckError.message || "Eroare la verificarea variabilelor de mediu",
+            timestamp: new Date().toISOString()
+          }
         }));
       }
     } catch (error) {
@@ -191,7 +358,16 @@ const GeneratePage = () => {
       }));
     } finally {
       setDebugLoading(false);
+      setDebugInfo(prev => ({
+        ...prev,
+        status: "Teste finalizate"
+      }));
     }
+  };
+  
+  // Open URL in new tab
+  const openInNewTab = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   if ((isLoading || authLoading) && !profileLoadComplete) {
@@ -260,7 +436,7 @@ const GeneratePage = () => {
           </div>
           
           <Dialog open={showDebugDialog} onOpenChange={setShowDebugDialog}>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Debugging Edge Functions</DialogTitle>
                 <DialogDescription>
@@ -285,47 +461,157 @@ const GeneratePage = () => {
                   <p className="text-xs">{debugInfo.status || 'Not tested yet'}</p>
                 </div>
                 
-                {debugInfo.connectionTest && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                    <h4 className="text-sm font-medium mb-2">Connection Test:</h4>
-                    {debugInfo.connectionTest.success ? (
-                      <div className="text-xs text-green-600">
-                        <p>Success!</p>
-                        <pre className="mt-2 whitespace-pre-wrap">
+                    <h4 className="text-sm font-medium mb-2 flex items-center justify-between">
+                      <span>Connection Test (Direct Fetch):</span>
+                      {debugInfo.connectionTest?.url && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => openInNewTab(debugInfo.connectionTest.url)}
+                          className="h-5 w-5 p-0"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </h4>
+                    {debugInfo.connectionTest ? (
+                      <div className={`text-xs ${debugInfo.connectionTest.success ? 'text-green-600' : 'text-red-600'}`}>
+                        <p>
+                          {debugInfo.connectionTest.success ? 'Success!' : 'Failed:'} 
+                          {debugInfo.connectionTest.status && ` (Status: ${debugInfo.connectionTest.status})`}
+                        </p>
+                        {debugInfo.connectionTest.error && (
+                          <p className="mt-1 text-red-600">Error: {debugInfo.connectionTest.error}</p>
+                        )}
+                        <pre className="mt-2 whitespace-pre-wrap text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-36">
                           {JSON.stringify(debugInfo.connectionTest.data, null, 2)}
                         </pre>
                       </div>
                     ) : (
-                      <div className="text-xs text-red-600">
-                        <p>Failed: {debugInfo.connectionTest.error}</p>
-                      </div>
+                      <p className="text-xs">Not tested yet</p>
                     )}
                   </div>
-                )}
-                
-                {debugInfo.claudeTest && (
+                  
                   <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                    <h4 className="text-sm font-medium mb-2">Claude API Test:</h4>
-                    {debugInfo.claudeTest.success ? (
-                      <div className="text-xs text-green-600">
-                        <p>Success!</p>
-                        <pre className="mt-2 whitespace-pre-wrap max-h-40 overflow-auto">
+                    <h4 className="text-sm font-medium mb-2">Connection Test (Standard Method):</h4>
+                    {debugInfo.standardConnectionTest ? (
+                      <div className={`text-xs ${debugInfo.standardConnectionTest.success ? 'text-green-600' : 'text-red-600'}`}>
+                        <p>{debugInfo.standardConnectionTest.success ? 'Success!' : 'Failed:'}</p>
+                        {debugInfo.standardConnectionTest.error && (
+                          <p className="mt-1 text-red-600">Error: {debugInfo.standardConnectionTest.error}</p>
+                        )}
+                        <pre className="mt-2 whitespace-pre-wrap text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-36">
+                          {JSON.stringify(debugInfo.standardConnectionTest.data, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <p className="text-xs">Not tested yet</p>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2 flex items-center justify-between">
+                      <span>Claude API Test (Direct Fetch):</span>
+                      {debugInfo.claudeDirectTest?.url && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => openInNewTab(debugInfo.claudeDirectTest.url)}
+                          className="h-5 w-5 p-0"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </h4>
+                    {debugInfo.claudeDirectTest ? (
+                      <div className={`text-xs ${debugInfo.claudeDirectTest.success ? 'text-green-600' : 'text-red-600'}`}>
+                        <p>
+                          {debugInfo.claudeDirectTest.success ? 'Success!' : 'Failed:'} 
+                          {debugInfo.claudeDirectTest.status && ` (Status: ${debugInfo.claudeDirectTest.status})`}
+                        </p>
+                        {debugInfo.claudeDirectTest.error && (
+                          <p className="mt-1 text-red-600">Error: {debugInfo.claudeDirectTest.error}</p>
+                        )}
+                        <pre className="mt-2 whitespace-pre-wrap text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-36">
+                          {JSON.stringify(debugInfo.claudeDirectTest.data, null, 2)}
+                        </pre>
+                      </div>
+                    ) : (
+                      <p className="text-xs">Not tested yet</p>
+                    )}
+                  </div>
+                  
+                  <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2">Claude API Test (Standard Method):</h4>
+                    {debugInfo.claudeTest ? (
+                      <div className={`text-xs ${debugInfo.claudeTest.success ? 'text-green-600' : 'text-red-600'}`}>
+                        <p>{debugInfo.claudeTest.success ? 'Success!' : 'Failed:'}</p>
+                        {debugInfo.claudeTest.error && (
+                          <p className="mt-1 text-red-600">Error: {debugInfo.claudeTest.error}</p>
+                        )}
+                        <pre className="mt-2 whitespace-pre-wrap text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-36">
                           {JSON.stringify(debugInfo.claudeTest.data, null, 2)}
                         </pre>
                       </div>
                     ) : (
-                      <div className="text-xs text-red-600">
-                        <p>Failed: {debugInfo.claudeTest.error}</p>
-                      </div>
+                      <p className="text-xs">Not tested yet</p>
                     )}
+                  </div>
+                </div>
+                
+                {debugInfo.envCheck && (
+                  <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2">Environment Variables Check:</h4>
+                    <div className={`text-xs ${debugInfo.envCheck.success ? 'text-green-600' : 'text-red-600'}`}>
+                      <p>{debugInfo.envCheck.success ? 'Success!' : 'Failed:'}</p>
+                      {debugInfo.envCheck.error && (
+                        <p className="mt-1 text-red-600">Error: {debugInfo.envCheck.error}</p>
+                      )}
+                      <pre className="mt-2 whitespace-pre-wrap text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-36">
+                        {JSON.stringify(debugInfo.envCheck.data, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+                
+                {rawResponse && (
+                  <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium mb-2">Raw Response:</h4>
+                    <pre className="whitespace-pre-wrap text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-36">
+                      {rawResponse}
+                    </pre>
                   </div>
                 )}
                 
                 <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
                   <h4 className="text-sm font-medium mb-2">API Endpoints:</h4>
                   <ul className="text-xs space-y-1">
-                    <li><strong>Connection Test:</strong> https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-connection</li>
-                    <li><strong>Claude API Test:</strong> https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-claude</li>
+                    <li className="flex items-center justify-between">
+                      <span><strong>Connection Test:</strong> {debugEndpoints.connectionUrl}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => openInNewTab(debugEndpoints.connectionUrl)}
+                        className="h-5 w-5 p-0 ml-2"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </li>
+                    <li className="flex items-center justify-between">
+                      <span><strong>Claude API Test:</strong> {debugEndpoints.claudeUrl}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => openInNewTab(debugEndpoints.claudeUrl)}
+                        className="h-5 w-5 p-0 ml-2"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </li>
                   </ul>
                 </div>
                 
@@ -333,12 +619,21 @@ const GeneratePage = () => {
                   <h4 className="text-sm font-medium mb-2">System Info:</h4>
                   <ul className="text-xs space-y-1">
                     <li><strong>API Key Status:</strong> {debugInfo.apiKeyStatus || 'Necunoscut'}</li>
+                    {debugInfo.apiKeyMasked && (
+                      <li><strong>API Key (masked):</strong> {debugInfo.apiKeyMasked}</li>
+                    )}
                     <li><strong>User:</strong> {user?.email || 'Not authenticated'}</li>
                     <li><strong>Admin:</strong> {isAdminUser ? 'Yes' : 'No'}</li>
                     <li><strong>Project ID:</strong> ittzxpynkyzcrytyudlt</li>
                   </ul>
                 </div>
               </div>
+              
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setShowDebugDialog(false)}>
+                  {language === 'ro' ? 'Închide' : 'Close'}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
