@@ -13,6 +13,27 @@ export const testEdgeFunctionConnection = async (): Promise<any> => {
     const testUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course/test-connection`;
     
     console.log(`courseGeneration.ts - Calling test endpoint: ${testUrl}`);
+    console.log(`courseGeneration.ts - Using ANON_KEY: ${ANON_KEY.substring(0, 15)}...`);
+    
+    // First, try using the Supabase SDK
+    try {
+      console.log("courseGeneration.ts - Attempting to call via Supabase SDK");
+      const { data: sdkData, error: sdkError } = await supabase.functions.invoke('generate-course/test-connection');
+      
+      if (!sdkError) {
+        console.log("courseGeneration.ts - Supabase SDK call succeeded:", sdkData);
+        return sdkData;
+      } else {
+        console.error("courseGeneration.ts - Supabase SDK error:", sdkError);
+        // We'll continue with direct fetch below
+      }
+    } catch (sdkErr) {
+      console.error("courseGeneration.ts - Supabase SDK exception:", sdkErr);
+      // Continue with direct fetch
+    }
+    
+    // Try with Direct fetch as a fallback
+    console.log("courseGeneration.ts - Attempting direct fetch with multiple auth headers");
     
     const response = await fetch(testUrl, {
       method: 'GET',
@@ -20,11 +41,13 @@ export const testEdgeFunctionConnection = async (): Promise<any> => {
         'Content-Type': 'application/json',
         'Origin': window.location.origin,
         'Authorization': `Bearer ${ANON_KEY}`,
-        'apikey': ANON_KEY
+        'apikey': ANON_KEY,
+        'anon-key': ANON_KEY
       }
     });
     
     console.log("courseGeneration.ts - Direct fetch status:", response.status);
+    console.log("courseGeneration.ts - Response headers:", Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -180,13 +203,42 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
           attemptNumber: attempt
         };
         
+        // First, try the Supabase SDK
+        try {
+          console.log("courseGeneration.ts - Trying course generation via Supabase SDK");
+          
+          const { data: sdkData, error: sdkError } = await supabase.functions.invoke('generate-course', {
+            body: {
+              action: 'start',
+              formData,
+              timestamp: new Date().toISOString(),
+              diagnostic: diagnosticInfo
+            }
+          });
+          
+          if (!sdkError && sdkData) {
+            console.log("courseGeneration.ts - Generation via SDK succeeded:", sdkData);
+            return sdkData;
+          } else {
+            console.error("courseGeneration.ts - SDK generation error:", sdkError);
+            // Continue with direct fetch below
+          }
+        } catch (sdkErr) {
+          console.error("courseGeneration.ts - SDK generation exception:", sdkErr);
+          // Continue with direct fetch
+        }
+        
+        // Attempt direct fetch with multiple auth headers
+        console.log("courseGeneration.ts - Attempting course generation via direct fetch");
+        
         const response = await fetch(generateUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Origin': window.location.origin,
             'Authorization': `Bearer ${ANON_KEY}`,
-            'apikey': ANON_KEY
+            'apikey': ANON_KEY,
+            'anon-key': ANON_KEY
           },
           body: JSON.stringify({
             action: 'start',

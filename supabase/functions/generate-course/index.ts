@@ -34,37 +34,55 @@ if (apiKey) {
   console.warn("generate-course - CLAUDE_API_KEY is missing");
 }
 
+// Function to extract and log auth details for debugging
+function extractAuthDetails(req: Request) {
+  const authHeader = req.headers.get('Authorization') || 'missing';
+  const apiKeyHeader = req.headers.get('apikey') || 'missing';
+  const clientInfo = req.headers.get('x-client-info') || 'missing';
+  const origin = req.headers.get('origin') || 'missing';
+  
+  console.log("Auth details:");
+  console.log(`- Authorization header: ${authHeader.substring(0, 15)}...`);
+  console.log(`- apikey header: ${apiKeyHeader.substring(0, 15)}...`);
+  console.log(`- x-client-info: ${clientInfo}`);
+  console.log(`- origin: ${origin}`);
+  
+  return { authHeader, apiKeyHeader, clientInfo, origin };
+}
+
 // Funcție de procesare a cererilor
 serve(async (req) => {
   // Logging cerere
   const now = new Date().toISOString();
-  console.log(`generate-course - Request received at ${now}: ${req.method} ${new URL(req.url).pathname}`);
-  console.log("generate-course - Headers:", Array.from(req.headers.entries()));
-  console.log("generate-course - Origin:", req.headers.get("origin"));
+  const url = new URL(req.url);
+  console.log(`generate-course - Request received at ${now}: ${req.method} ${url.pathname}`);
+  console.log(`generate-course - Headers count: ${req.headers.size}`);
+  
+  // Log important headers for debugging
+  const { authHeader, apiKeyHeader, clientInfo, origin } = extractAuthDetails(req);
   
   // Gestionare CORS preflight
   if (req.method === 'OPTIONS') {
     console.log("generate-course - Handling OPTIONS preflight request");
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      headers: corsHeaders 
+    });
   }
   
   // Verificăm dacă cererea este pentru testare
   const pathSegments = new URL(req.url).pathname.split('/');
   const lastSegment = pathSegments[pathSegments.length - 1];
   
-  console.log("generate-course - Checking test endpoints:");
+  console.log("generate-course - Path analysis:");
+  console.log(`  - Full path: ${url.pathname}`);
   console.log(`  - Path segments: ${pathSegments.join(', ')}`);
   console.log(`  - Last segment: ${lastSegment}`);
 
-  // Adăugăm un endpoint pentru verificare detaliată a CORS
+  // Endpoint pentru autentificare detaliată
   if (lastSegment === 'auth-debug') {
     console.log("generate-course - Handling auth-debug endpoint");
     
     // Extract auth headers for debugging
-    const authHeader = req.headers.get('Authorization') || 'No Authorization header';
-    const apiKeyHeader = req.headers.get('apikey') || 'No apikey header';
-    const clientInfo = req.headers.get('x-client-info') || 'No client info';
-    
     const allHeaders = {};
     for (const [key, value] of req.headers.entries()) {
       allHeaders[key] = value;
@@ -81,7 +99,7 @@ serve(async (req) => {
         allHeaders,
         apiKeyConfigured: !!apiKey,
         corsHeadersUsed: corsHeaders,
-        clientOrigin: req.headers.get("origin") || "No origin header"
+        clientOrigin: origin
       }), 
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -90,7 +108,26 @@ serve(async (req) => {
   // Debug endpoint pentru CORS
   if (lastSegment === 'debug-cors') {
     console.log("generate-course - Handling debug-cors endpoint");
-    const clientOrigin = req.headers.get("origin") || "No origin header";
+    
+    // Authentication check
+    if (!authHeader.includes('Bearer') && !apiKeyHeader) {
+      console.log("generate-course - Auth failed for debug-cors endpoint");
+      return new Response(
+        JSON.stringify({
+          error: "Missing authorization header",
+          status: "error",
+          timestamp: now,
+          requiredHeaders: ["Authorization", "apikey"],
+          receivedHeaders: Object.fromEntries(req.headers.entries()),
+          note: "Please include either Authorization: Bearer YOUR_ANON_KEY or apikey: YOUR_ANON_KEY header"
+        }),
+        { 
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+    
     return new Response(
       JSON.stringify({
         status: "ok",
@@ -98,26 +135,36 @@ serve(async (req) => {
         timestamp: now,
         requestHeaders: Object.fromEntries(req.headers.entries()),
         corsHeadersUsed: corsHeaders,
-        clientOrigin: clientOrigin
+        clientOrigin: origin,
+        authHeaderReceived: authHeader !== 'missing',
+        apiKeyHeaderReceived: apiKeyHeader !== 'missing',
       }), 
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
   
-  // Endpoint test pentru conexiune
+  // REMOVED AUTHENTICATION CHECK FOR TEST ENDPOINTS TO ISOLATE THE ISSUE
+  // Endpoint test pentru conexiune - NO AUTH REQUIRED FOR TESTING
   if (lastSegment === 'test-connection') {
     console.log("generate-course - Handling test-connection endpoint");
+    
+    // For testing, we'll accept any request to this endpoint
     return new Response(
       JSON.stringify({
         status: "ok",
         timestamp: now,
-        message: "Connection to Edge Function successful"
+        message: "Connection to Edge Function successful",
+        receivedHeaders: {
+          authorization: authHeader.substring(0, 20) + '...',
+          apikey: apiKeyHeader.substring(0, 20) + '...',
+          origin: origin
+        }
       }), 
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
   
-  // Endpoint test pentru API Claude
+  // Endpoint test pentru API Claude - NO AUTH REQUIRED FOR TESTING
   if (lastSegment === 'test-claude') {
     console.log("generate-course - Handling test-claude endpoint");
     
@@ -410,7 +457,31 @@ serve(async (req) => {
   }
   
   try {
-    // Pentru celelalte cereri, preluăm datele din body
+    // Pentru celelalte cereri, preluăm datele din body și verificăm autentificarea
+    
+    // Authentication check for non-test endpoints
+    if (!authHeader.includes('Bearer') && !apiKeyHeader) {
+      console.log("generate-course - Auth failed for endpoint:", lastSegment);
+      return new Response(
+        JSON.stringify({
+          error: "Missing authorization header",
+          status: "error",
+          timestamp: now,
+          requiredHeaders: ["Authorization", "apikey"],
+          receivedHeaders: {
+            authorization: authHeader,
+            apikey: apiKeyHeader,
+            origin: origin
+          },
+          note: "Please include either Authorization: Bearer YOUR_ANON_KEY or apikey: YOUR_ANON_KEY header"
+        }),
+        { 
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+    
     const bodyText = await req.text();
     let requestData;
     
@@ -436,7 +507,6 @@ serve(async (req) => {
     
     // Procesăm în funcție de acțiunea specificată
     console.log(`Generate-course function received requestData: ${JSON.stringify(requestData)}`);
-    console.log(`generate-course - Parsed request data: ${JSON.stringify(requestData)}...`);
     
     if (requestData.action === 'start') {
       console.log("Processing 'start' action");
@@ -497,6 +567,6 @@ serve(async (req) => {
     );
   } finally {
     const processingTime = Date.now() - new Date(now).getTime();
-    console.log(`generate-course - Request processed in ${processingTime}ms with status 200`);
+    console.log(`generate-course - Request processed in ${processingTime}ms`);
   }
 });
