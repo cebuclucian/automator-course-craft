@@ -242,24 +242,24 @@ const PackagesSection = () => {
           {currentPackages.map((pkg, index) => (
             <div 
               key={index}
-              className={`border rounded-lg overflow-hidden ${
+              className={`border rounded-lg overflow-hidden transition-all duration-300 ${
                 pkg.highlight 
-                  ? 'border-automator-500 shadow-lg dark:border-automator-400 light:border-automator-100' 
-                  : 'border-gray-200 dark:border-gray-700'
+                  ? 'border-blue-500 shadow-2xl scale-105' 
+                  : 'border-gray-200 dark:border-gray-700 opacity-90 hover:opacity-100'
               }`}
             >
               {pkg.highlight && (
-                <div className="bg-automator-500 text-white text-center py-2 text-sm font-medium dark:bg-automator-600 light:bg-automator-100 light:text-automator-600">
+                <div className="bg-blue-500 text-white text-center py-2 text-sm font-medium">
                   {language === 'ro' ? 'Cel mai popular' : 'Most Popular'}
                 </div>
               )}
-              <div className="p-6">
-                <h3 className="text-2xl font-bold mb-2">{pkg.name}</h3>
+              <div className="p-6 bg-white dark:bg-gray-800">
+                <h3 className="text-2xl font-bold mb-2 text-gray-800 dark:text-white">{pkg.name}</h3>
                 <div className="flex items-end mb-4">
-                  <span className="text-4xl font-bold">€{pkg.price}</span>
+                  <span className="text-4xl font-bold text-blue-600">€{pkg.price}</span>
                   <span className="text-gray-500 dark:text-gray-400 ml-1">{pkg.period}</span>
                 </div>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">{pkg.description}</p>
+                <p className="text-gray-600 dark:text-gray-300 mb-6 min-h-[60px]">{pkg.description}</p>
                 <ul className="mb-8 space-y-2">
                   {pkg.features.map((feature, idx) => (
                     <li key={idx} className="flex items-start">
@@ -271,8 +271,8 @@ const PackagesSection = () => {
                 <Button 
                   className={`w-full ${
                     pkg.highlight 
-                      ? 'bg-automator-500 hover:bg-automator-600 text-white dark:bg-automator-600 light:bg-automator-100 light:text-automator-600 light:hover:bg-automator-200' 
-                      : 'light:bg-gray-100 light:text-gray-800 light:hover:bg-gray-200'
+                      ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                   }`}
                   variant={pkg.highlight ? 'default' : 'outline'}
                   onClick={() => handlePackageSelect(pkg.name)}
@@ -306,3 +306,4 @@ const PackagesSection = () => {
 };
 
 export default PackagesSection;
+
