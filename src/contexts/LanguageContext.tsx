@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 type SupportedLanguages = 'ro' | 'en';
@@ -56,6 +57,16 @@ const translations: Record<SupportedLanguages, Record<string, string>> = {
     'auth.continueWithGoogle': 'Continuă cu Google',
     'auth.continueWith': 'sau continuă cu',
     'account.userInfo': 'Informații utilizator',
+    'account.name': 'Nume',
+    'account.email': 'Email',
+    'account.subscriptionType': 'Tip abonament',
+    'account.expires': 'Expiră',
+    'account.active': 'Activ',
+    'account.creating': 'Se creează...',
+    'account.createAdminPro': 'Creează abonament Pro Admin',
+    'account.adminOnlyButton': 'Acest buton este disponibil doar pentru contul de administrator.',
+    'account.lastResponse': 'Ultimul răspuns',
+    'account.dbSubscriptionStatus': 'Status abonament în baza de date',
   },
   en: {
     'nav.about': 'About',
@@ -103,6 +114,16 @@ const translations: Record<SupportedLanguages, Record<string, string>> = {
     'auth.continueWithGoogle': 'Continue with Google',
     'auth.continueWith': 'or continue with',
     'account.userInfo': 'User Information',
+    'account.name': 'Name',
+    'account.email': 'Email',
+    'account.subscriptionType': 'Subscription Type',
+    'account.expires': 'Expires',
+    'account.active': 'Active',
+    'account.creating': 'Creating...',
+    'account.createAdminPro': 'Create Admin Pro Subscription',
+    'account.adminOnlyButton': 'This button is only available for administrator accounts.',
+    'account.lastResponse': 'Last Response',
+    'account.dbSubscriptionStatus': 'Subscription Status in Database',
   }
 };
 
