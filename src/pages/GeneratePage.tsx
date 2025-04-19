@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -26,23 +25,22 @@ const GeneratePage = () => {
   const [profileLoadComplete, setProfileLoadComplete] = useState(false);
   const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
   
-  // Debugging state
   const [showDebugDialog, setShowDebugDialog] = useState(false);
   const [debugInfo, setDebugInfo] = useState<{ [key: string]: any }>({});
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugEndpoints, setDebugEndpoints] = useState<{
     connectionUrl: string;
     claudeUrl: string;
+    publicDebugUrl: string;
   }>({
     connectionUrl: `https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-connection`,
-    claudeUrl: `https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-claude`
+    claudeUrl: `https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/test-claude`,
+    publicDebugUrl: `https://ittzxpynkyzcrytyudlt.supabase.co/functions/v1/generate-course/public-debug`
   });
   const [rawResponse, setRawResponse] = useState<string | null>(null);
 
-  // Verifică dacă utilizatorul este admin
   const isAdminUser = user && profile?.email === 'admin@automator.ro';
 
-  // Add safety timeout to prevent infinite loading
   useEffect(() => {
     if (isLoading) {
       const safetyTimeout = setTimeout(() => {
@@ -61,7 +59,6 @@ const GeneratePage = () => {
     console.log("GeneratePage auth loading state:", authLoading);
     console.log("GeneratePage local loading state:", isLoading);
     
-    // Adăugăm un flag pentru a preveni încărcările multiple ale profilului
     if (!hasAttemptedProfileLoad && !profileLoadComplete && !authLoading) {
       console.log("First profile load attempt");
       
@@ -96,8 +93,6 @@ const GeneratePage = () => {
   }, [user, refreshProfile, language, hasAttemptedProfileLoad, profileLoadComplete, profile, authLoading, loadTimeout]);
 
   useEffect(() => {
-    // Verificăm limitele de generare doar după ce profilul a fost încărcat
-    // și doar pentru utilizatorii neadmin
     if (user && profile && !isAdminUser && !isLoading && profileLoadComplete) {
       console.log("Checking generation limits for non-admin user");
       console.log("Current generations left:", profile.generationsLeft);
@@ -121,23 +116,19 @@ const GeneratePage = () => {
     }
   }, [user, profile, navigate, toast, language, isAdminUser, isLoading, profileLoadComplete]);
 
-  // Add manual refresh ability for users
   const handleManualRefresh = () => {
     window.location.reload();
   };
 
-  // Debugging functions
   const handleDebugConnection = async () => {
     setDebugLoading(true);
     setDebugInfo(prev => ({ ...prev, status: "Testare conexiune..." }));
     setRawResponse(null);
     
     try {
-      // Test connection endpoint
       console.log("Testare endpoint connect");
       console.log("URL endpoint test connection:", debugEndpoints.connectionUrl);
       
-      // Direct fetch for connection test
       try {
         const directResponse = await fetch(debugEndpoints.connectionUrl, {
           method: 'GET',
@@ -182,7 +173,6 @@ const GeneratePage = () => {
         }));
       }
       
-      // Test standard method
       try {
         const connectionResponse = await testEdgeFunctionConnection();
         console.log("Răspuns test conexiune (standard):", connectionResponse);
@@ -207,12 +197,10 @@ const GeneratePage = () => {
         }));
       }
 
-      // Test Claude API
       console.log("Testare endpoint Claude");
       console.log("URL endpoint test Claude:", debugEndpoints.claudeUrl);
       setDebugInfo(prev => ({ ...prev, status: "Testare API Claude..." }));
       
-      // Direct fetch for Claude API test
       try {
         const directClaudeResponse = await fetch(debugEndpoints.claudeUrl, {
           method: 'GET',
@@ -243,7 +231,6 @@ const GeneratePage = () => {
           }
         }));
         
-        // Show API key info (masked) if available
         if (parsedClaudeResponse && parsedClaudeResponse.apiKeyMasked) {
           setDebugInfo(prev => ({
             ...prev,
@@ -264,7 +251,6 @@ const GeneratePage = () => {
         }));
       }
       
-      // Standard method
       try {
         const claudeResponse = await testClaudeAPI();
         console.log("Răspuns test Claude (standard):", claudeResponse);
@@ -279,7 +265,6 @@ const GeneratePage = () => {
           status: "Teste finalizate"
         }));
 
-        // Show API key info (masked)
         if (claudeResponse && claudeResponse.apiKeyConfigured) {
           setDebugInfo(prev => ({ 
             ...prev, 
@@ -305,7 +290,6 @@ const GeneratePage = () => {
         }));
       }
       
-      // Test if CLAUDE_API_KEY exists in the Edge Function
       try {
         setDebugInfo(prev => ({ ...prev, status: "Verificare variabile de mediu Edge Function..." }));
         
@@ -364,11 +348,65 @@ const GeneratePage = () => {
       }));
     }
   };
-  
-  // Open URL in new tab
+
   const openInNewTab = (url: string) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
+
+  useEffect(() => {
+    if (isAdminUser) {
+      const fetchDebugInfo = async () => {
+        try {
+          console.log("Fetching public debug info");
+          const response = await fetch(debugEndpoints.publicDebugUrl, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+
+          const responseText = await response.text();
+          console.log("Public debug raw response:", responseText);
+          setRawResponse(responseText);
+
+          try {
+            const data = JSON.parse(responseText);
+            setDebugInfo(prev => ({
+              ...prev,
+              publicDebug: {
+                success: true,
+                data: data,
+                timestamp: new Date().toISOString()
+              }
+            }));
+          } catch (e) {
+            console.error("Error parsing debug response:", e);
+            setDebugInfo(prev => ({
+              ...prev,
+              publicDebug: {
+                success: false,
+                error: "Could not parse response",
+                raw: responseText,
+                timestamp: new Date().toISOString()
+              }
+            }));
+          }
+        } catch (error) {
+          console.error("Error fetching debug info:", error);
+          setDebugInfo(prev => ({
+            ...prev,
+            publicDebug: {
+              success: false,
+              error: error.message || "Unknown error",
+              timestamp: new Date().toISOString()
+            }
+          }));
+        }
+      };
+
+      fetchDebugInfo();
+    }
+  }, [isAdminUser, debugEndpoints.publicDebugUrl]);
 
   if ((isLoading || authLoading) && !profileLoadComplete) {
     return (
@@ -398,7 +436,6 @@ const GeneratePage = () => {
     );
   }
 
-  // If we still have no user after loading is complete, show a message
   if (!user && !isLoading && !authLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -420,7 +457,6 @@ const GeneratePage = () => {
     <div className="container mx-auto px-4 py-8">
       <CourseGenerator />
       
-      {/* Admin debugging tools */}
       {isAdminUser && (
         <div className="mt-6">
           <div className="flex justify-end">
@@ -563,16 +599,16 @@ const GeneratePage = () => {
                   </div>
                 </div>
                 
-                {debugInfo.envCheck && (
+                {debugInfo.publicDebug && (
                   <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                    <h4 className="text-sm font-medium mb-2">Environment Variables Check:</h4>
-                    <div className={`text-xs ${debugInfo.envCheck.success ? 'text-green-600' : 'text-red-600'}`}>
-                      <p>{debugInfo.envCheck.success ? 'Success!' : 'Failed:'}</p>
-                      {debugInfo.envCheck.error && (
-                        <p className="mt-1 text-red-600">Error: {debugInfo.envCheck.error}</p>
+                    <h4 className="text-sm font-medium mb-2">Public Debug Info:</h4>
+                    <div className={`text-xs ${debugInfo.publicDebug.success ? 'text-green-600' : 'text-red-600'}`}>
+                      <p>{debugInfo.publicDebug.success ? 'Success!' : 'Failed:'}</p>
+                      {debugInfo.publicDebug.error && (
+                        <p className="mt-1 text-red-600">Error: {debugInfo.publicDebug.error}</p>
                       )}
                       <pre className="mt-2 whitespace-pre-wrap text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-36">
-                        {JSON.stringify(debugInfo.envCheck.data, null, 2)}
+                        {JSON.stringify(debugInfo.publicDebug.data, null, 2)}
                       </pre>
                     </div>
                   </div>
@@ -636,6 +672,27 @@ const GeneratePage = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+        </div>
+      )}
+      
+      {process.env.NODE_ENV !== 'production' && isAdminUser && (
+        <div className="p-4 mt-4 border rounded bg-gray-50">
+          <h3 className="font-bold">Debug Info (Development Only):</h3>
+          <pre className="mt-2 text-xs overflow-auto max-h-96">
+            {JSON.stringify(
+              {
+                debugInfo,
+                endpoints: debugEndpoints,
+                user: {
+                  email: user?.email,
+                  isAdmin: isAdminUser
+                },
+                environment: process.env.NODE_ENV
+              },
+              null,
+              2
+            )}
+          </pre>
         </div>
       )}
     </div>

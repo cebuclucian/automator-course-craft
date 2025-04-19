@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "./cors.ts";
 import { handleStartJob } from "./handlers/startJob.ts";
@@ -300,6 +299,64 @@ async function handleCheckEnv(req) {
   }
 }
 
+// New endpoint for checking environment variables
+async function handlePublicDebug(req: Request) {
+  try {
+    console.log("generate-course - Handling public-debug request");
+    
+    // Get the CLAUDE_API_KEY status (safely)
+    const apiKeyConfigured = !!Deno.env.get('CLAUDE_API_KEY');
+    let apiKeyMasked = null;
+    
+    // If configured, extract first and last 4 characters
+    const apiKey = Deno.env.get('CLAUDE_API_KEY');
+    if (apiKeyConfigured && apiKey && apiKey.length >= 8) {
+      const apiKeyFirstFour = apiKey.substring(0, 4);
+      const apiKeyLastFour = apiKey.substring(apiKey.length - 4);
+      apiKeyMasked = `${apiKeyFirstFour}...${apiKeyLastFour}`;
+    }
+
+    // Check all available environment variables (names only)
+    const envVarNames = Object.keys(Deno.env.toObject());
+    
+    return new Response(
+      JSON.stringify({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        message: 'Public debug endpoint is working',
+        apiKeyConfigured,
+        apiKeyMasked,
+        availableEnvVars: envVarNames,
+        functionUrl: req.url,
+        headers: Object.fromEntries(req.headers)
+      }),
+      { 
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  } catch (error) {
+    console.error("Error in public-debug endpoint:", error);
+    return new Response(
+      JSON.stringify({
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        error: error.message || "Unknown error",
+        stack: error.stack
+      }),
+      { 
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 500
+      }
+    );
+  }
+}
+
 serve(async (req) => {
   // Measure request processing time for debugging
   const requestStartTime = Date.now();
@@ -312,6 +369,12 @@ serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Add the new public debug endpoint
+  if (pathname.endsWith('/public-debug')) {
+    console.log("generate-course - Handling public-debug request");
+    return await handlePublicDebug(req);
   }
 
   // Enhanced detection of test endpoints
