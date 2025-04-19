@@ -9,6 +9,7 @@ export const testEdgeFunctionConnection = async (): Promise<any> => {
     
     // Use direct fetch with full URL for more reliable connection
     const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0dHp4cHlua3l6Y3J5dHl1ZGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ2MTcwNjcsImV4cCI6MjA2MDE5MzA2N30._NHAy4AFExT03NettnTE4J8SdodAh8nQb_78U1dzKj4";
     const testUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course/test-connection`;
     
     console.log(`courseGeneration.ts - Calling test endpoint: ${testUrl}`);
@@ -17,7 +18,9 @@ export const testEdgeFunctionConnection = async (): Promise<any> => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Origin': window.location.origin
+        'Origin': window.location.origin,
+        'Authorization': `Bearer ${ANON_KEY}`,
+        'apikey': ANON_KEY
       }
     });
     
@@ -54,6 +57,7 @@ export const testClaudeAPI = async (): Promise<any> => {
     console.log("courseGeneration.ts - Testing Claude API connection");
     
     const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0dHp4cHlua3l6Y3J5dHl1ZGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ2MTcwNjcsImV4cCI6MjA2MDE5MzA2N30._NHAy4AFExT03NettnTE4J8SdodAh8nQb_78U1dzKj4";
     const testUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course/test-claude`;
     
     console.log(`courseGeneration.ts - Calling Claude API test endpoint: ${testUrl}`);
@@ -62,7 +66,9 @@ export const testClaudeAPI = async (): Promise<any> => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Origin': window.location.origin
+        'Origin': window.location.origin,
+        'Authorization': `Bearer ${ANON_KEY}`,
+        'apikey': ANON_KEY
       }
     });
     
@@ -99,6 +105,7 @@ export const runFullDiagnosis = async (): Promise<any> => {
     console.log("courseGeneration.ts - Rulare diagnosticare completă");
     
     const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0dHp4cHlua3l6Y3J5dHl1ZGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ2MTcwNjcsImV4cCI6MjA2MDE5MzA2N30._NHAy4AFExT03NettnTE4J8SdodAh8nQb_78U1dzKj4";
     const diagnosisUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course/full-diagnosis`;
     
     console.log(`courseGeneration.ts - Apelare endpoint diagnoză completă: ${diagnosisUrl}`);
@@ -107,7 +114,9 @@ export const runFullDiagnosis = async (): Promise<any> => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Origin': window.location.origin
+        'Origin': window.location.origin,
+        'Authorization': `Bearer ${ANON_KEY}`,
+        'apikey': ANON_KEY
       }
     });
     
@@ -151,6 +160,7 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
     console.log("courseGeneration.ts - Inițiere generare curs cu formData:", formData);
 
     const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0dHp4cHlua3l6Y3J5dHl1ZGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ2MTcwNjcsImV4cCI6MjA2MDE5MzA2N30._NHAy4AFExT03NettnTE4J8SdodAh8nQb_78U1dzKj4";
     const generateUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course`;
     
     let attempt = 0;
@@ -174,7 +184,9 @@ export const generateCourse = async (formData: CourseFormData): Promise<any> => 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Origin': window.location.origin
+            'Origin': window.location.origin,
+            'Authorization': `Bearer ${ANON_KEY}`,
+            'apikey': ANON_KEY
           },
           body: JSON.stringify({
             action: 'start',
@@ -269,6 +281,7 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
     console.log(`courseGeneration.ts - Verificare status pentru jobId: ${jobId}`);
     
     const PROJECT_ID = "ittzxpynkyzcrytyudlt";
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0dHp4cHlua3l6Y3J5dHl1ZGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ2MTcwNjcsImV4cCI6MjA2MDE5MzA2N30._NHAy4AFExT03NettnTE4J8SdodAh8nQb_78U1dzKj4";
     const statusUrl = `https://${PROJECT_ID}.supabase.co/functions/v1/generate-course`;
     
     let attempt = 0;
@@ -289,7 +302,9 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Origin': window.location.origin
+            'Origin': window.location.origin,
+            'Authorization': `Bearer ${ANON_KEY}`,
+            'apikey': ANON_KEY
           },
           body: JSON.stringify({
             action: 'status',

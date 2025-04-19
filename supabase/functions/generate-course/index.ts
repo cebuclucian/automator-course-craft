@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "./cors.ts";
 import { startJob } from "./handlers/startJob.ts";
@@ -54,6 +55,37 @@ serve(async (req) => {
   console.log("generate-course - Checking test endpoints:");
   console.log(`  - Path segments: ${pathSegments.join(', ')}`);
   console.log(`  - Last segment: ${lastSegment}`);
+
+  // Adăugăm un endpoint pentru verificare detaliată a CORS
+  if (lastSegment === 'auth-debug') {
+    console.log("generate-course - Handling auth-debug endpoint");
+    
+    // Extract auth headers for debugging
+    const authHeader = req.headers.get('Authorization') || 'No Authorization header';
+    const apiKeyHeader = req.headers.get('apikey') || 'No apikey header';
+    const clientInfo = req.headers.get('x-client-info') || 'No client info';
+    
+    const allHeaders = {};
+    for (const [key, value] of req.headers.entries()) {
+      allHeaders[key] = value;
+    }
+    
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        message: "Auth debug endpoint",
+        timestamp: now,
+        authHeader,
+        apiKeyHeader,
+        clientInfo,
+        allHeaders,
+        apiKeyConfigured: !!apiKey,
+        corsHeadersUsed: corsHeaders,
+        clientOrigin: req.headers.get("origin") || "No origin header"
+      }), 
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
   
   // Debug endpoint pentru CORS
   if (lastSegment === 'debug-cors') {
@@ -286,6 +318,17 @@ serve(async (req) => {
         };
       });
       
+      // Request information
+      const requestInfo = {
+        method: req.method,
+        url: req.url,
+        headers: Object.fromEntries(req.headers.entries()),
+        authHeader: req.headers.get('Authorization') || 'No Authorization header',
+        apiKeyHeader: req.headers.get('apikey') || 'No apikey header',
+        clientInfo: req.headers.get('x-client-info') || 'No client info',
+        origin: req.headers.get('origin') || 'No origin header'
+      };
+      
       // Construim rezultatul diagnosticării
       const diagnosisResult = {
         timestamp: now,
@@ -303,6 +346,7 @@ serve(async (req) => {
           keys: jobStoreKeys,
           jobs: jobStoreDetails
         },
+        request: requestInfo,
         runtime: {
           denoVersion: Deno.version.deno,
           v8Version: Deno.version.v8,
@@ -340,11 +384,19 @@ serve(async (req) => {
   if (lastSegment === 'public-debug') {
     console.log("generate-course - Handling public-debug endpoint");
     
+    const authHeader = req.headers.get('Authorization') || 'No Authorization header';
+    const apiKeyHeader = req.headers.get('apikey') || 'No apikey header';
+    
     return new Response(
       JSON.stringify({
         timestamp: now,
         environment: {
           CLAUDE_API_KEY: apiKey ? "configured" : "missing"
+        },
+        request: {
+          authHeader: authHeader.substring(0, 20) + '...',
+          apiKeyHeader: apiKeyHeader.substring(0, 20) + '...',
+          origin: req.headers.get('origin') || 'No origin header'
         },
         jobStore: {
           size: jobStore.size

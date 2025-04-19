@@ -2,7 +2,7 @@
 
 [functions]
 [functions.generate-course]
-verify_jwt = true
+verify_jwt = false
 
 [functions.generate-course.test-connection]
 verify_jwt = false
@@ -19,3 +19,5 @@ verify_jwt = false
 [functions.generate-course.debug-cors]
 verify_jwt = false
 
+[functions.generate-course.check-env]
+verify_jwt = false
