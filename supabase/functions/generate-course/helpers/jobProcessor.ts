@@ -3,8 +3,10 @@ import { jobStore } from "../index.ts";
 import { mockCourseData } from "./mockData.ts";
 
 const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
 
-// Function to process a course generation job
+// Funcția principală pentru procesarea unui job de generare curs
 export async function processJob(jobId: string, prompt: string, formData: any) {
   console.log(`JobProcessor: Starting processing job ${jobId}`);
   console.log(`JobProcessor: CLAUDE_API_KEY is ${CLAUDE_API_KEY ? 'configured' : 'missing'}`);
@@ -18,12 +20,12 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
     console.log(`JobProcessor: Sending request to Claude API for job ${jobId}`);
     console.log(`JobProcessor: Prompt length: ${prompt.length} characters`);
     
-    // Check API key
+    // Verificare cheie API
     if (!CLAUDE_API_KEY) {
       throw new Error("Claude API key is missing from environment variables");
     }
 
-    // Check if job still exists
+    // Verificare dacă job-ul mai există
     const job = jobStore.get(jobId);
     if (!job) {
       throw new Error(`Job ${jobId} no longer exists in store`);
@@ -31,69 +33,103 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
 
     console.log(`JobProcessor: Calling Claude API for job ${jobId}...`);
     
-    // Log the API request details
+    // Jurnalizare detalii cerere API
     console.log(`JobProcessor: Request to API with model: claude-3-sonnet-20240229, temperature: 0.7, max_tokens: 16000`);
     console.log(`JobProcessor: System prompt: "Expert in course design and training"`);
     
-    // Call Anthropic/Claude API to generate content
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-3-sonnet-20240229',
-        max_tokens: 16000,
-        temperature: 0.7,
-        system: "Ești un expert în design de cursuri și training. Vei genera materiale de curs complete bazate pe informațiile furnizate.",
-        messages: [
-          {
-            role: 'user',
-            content: prompt
+    // Implementare strategie de reîncercare pentru apelul API
+    let response = null;
+    let result = null;
+    let retries = 0;
+    
+    while (retries <= MAX_RETRIES) {
+      try {
+        // Apelare API Claude cu versiunea corectă și formatul actualizat
+        response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': CLAUDE_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-3-sonnet-20240229',
+            max_tokens: 16000,
+            temperature: 0.7,
+            system: "Ești un expert în design de cursuri și training. Vei genera materiale de curs complete bazate pe informațiile furnizate.",
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ]
+          })
+        });
+
+        console.log(`JobProcessor: Response status from Claude API: ${response.status}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`JobProcessor: Claude API Error: ${response.status} - ${errorText}`);
+          
+          if (retries < MAX_RETRIES) {
+            retries++;
+            console.log(`JobProcessor: Retrying API call (${retries}/${MAX_RETRIES}) after ${RETRY_DELAY_MS}ms delay...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
           }
-        ]
-      })
-    });
+          
+          throw new Error(`Claude API Error: ${response.status}`);
+        }
 
-    console.log(`JobProcessor: Response status from Claude API: ${response.status}`);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`JobProcessor: Claude API Error: ${response.status} - ${errorText}`);
-      throw new Error(`Claude API Error: ${response.status}`);
+        // Procesare răspuns
+        result = await response.json();
+        console.log(`JobProcessor: Response received from Claude, contains data: ${!!result}`);
+        
+        if (!result || !result.content || result.content.length === 0) {
+          if (retries < MAX_RETRIES) {
+            retries++;
+            console.log(`JobProcessor: Empty response, retrying (${retries}/${MAX_RETRIES})...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
+          }
+          throw new Error("Empty or invalid response from API");
+        }
+        
+        // Am primit un răspuns valid, ieșim din bucla de reîncercări
+        break;
+      } catch (apiError) {
+        console.error(`JobProcessor: API error on try ${retries}:`, apiError);
+        if (retries < MAX_RETRIES) {
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        } else {
+          throw apiError; // Reîncercările au eșuat, propagăm eroarea
+        }
+      }
     }
 
-    // Process response
-    const result = await response.json();
-    console.log(`JobProcessor: Response received from Claude, contains data: ${!!result}`);
-    
-    if (!result || !result.content || result.content.length === 0) {
-      throw new Error("Empty or invalid response from API");
-    }
-
-    // Extract content from Claude response
+    // Extragere conținut din răspunsul Claude
     const content = result.content[0].text;
     console.log(`JobProcessor: Content extracted, length: ${content?.length || 0}`);
     console.log(`JobProcessor: First 100 chars of response: ${content?.substring(0, 100)}...`);
     
-    // Parse content to extract needed sections
+    // Procesare conținut pentru extragerea secțiunilor necesare
     const sections = parseContentToSections(content, formData);
     console.log(`JobProcessor: Sections extracted: ${sections.length}`);
     
-    // Log each section title for debugging
+    // Jurnalizare titluri secțiuni pentru debugging
     sections.forEach((section, index) => {
       console.log(`JobProcessor: Section ${index + 1}: ${section.type} - ${section.title}`);
     });
 
-    // Prepare the final result
+    // Pregătire rezultat final
     const finalResult = {
       sections: sections
     };
     console.log("JobProcessor: Final parsed result to be saved:", JSON.stringify(finalResult));
 
-    // Update job in store
+    // Actualizare job în store
     jobStore.set(jobId, {
       ...job,
       status: 'completed',
@@ -105,12 +141,12 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
   } catch (error) {
     console.error(`JobProcessor: Error processing job ${jobId}:`, error);
     
-    // In case of error, ensure the job gets an error status
-    // but keep the mock data to avoid showing an empty screen to the user
+    // În caz de eroare, asigurăm că job-ul primește un status de eroare
+    // dar păstrăm datele mock pentru a evita afișarea unui ecran gol utilizatorului
     if (jobStore.has(jobId)) {
       const job = jobStore.get(jobId);
       
-      // If job exists but has no sections in data, add mock sections
+      // Dacă job-ul există dar nu are secțiuni în date, adăugăm secțiuni mock
       let updatedData = job.data;
       if (!updatedData || !updatedData.sections || updatedData.sections.length === 0) {
         updatedData = mockCourseData(formData);
@@ -128,12 +164,12 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
   }
 }
 
-// Function to parse Claude response into structured sections
+// Funcție pentru procesarea răspunsului Claude în secțiuni structurate
 function parseContentToSections(content: string, formData: any) {
   console.log(`ParseContent: Starting to parse content, length: ${content.length}`);
   
   try {
-    // Check if content includes JSON sections
+    // Verificare dacă conținutul include secțiuni JSON
     if (content.includes('```json')) {
       console.log(`ParseContent: Detected JSON format in response`);
       const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
@@ -152,10 +188,10 @@ function parseContentToSections(content: string, formData: any) {
       }
     }
     
-    // If we don't find JSON or parsing fails, try to extract sections manually
+    // Dacă nu găsim JSON sau interpretarea eșuează, încercăm extragerea secțiunilor manual
     console.log(`ParseContent: Attempting to extract sections manually`);
     
-    // Identify main sections using delimiters (e.g., ## Lesson Plan, ## Slides, etc)
+    // Identificare secțiuni principale folosind delimitatori (ex., ## Plan de lecție, ## Slide-uri etc)
     const lessonPlanMatch = content.match(/(?:##\s*Plan de lecție|##\s*Lesson Plan)([\s\S]*?)(?=##|$)/i);
     const slidesMatch = content.match(/(?:##\s*Slide-uri|##\s*Prezentare|##\s*Slides)([\s\S]*?)(?=##|$)/i);
     const notesMatch = content.match(/(?:##\s*Note pentru trainer|##\s*Trainer Notes)([\s\S]*?)(?=##|$)/i);
@@ -197,7 +233,7 @@ function parseContentToSections(content: string, formData: any) {
     
     console.log(`ParseContent: Manually extracted ${sections.length} sections`);
     
-    // If we still have no sections, use the entire content as a lesson plan
+    // Dacă tot nu avem secțiuni, folosim întregul conținut ca plan de lecție
     if (sections.length === 0) {
       console.log(`ParseContent: No sections could be extracted, using entire content`);
       sections.push({
@@ -212,7 +248,7 @@ function parseContentToSections(content: string, formData: any) {
   } catch (error) {
     console.error(`ParseContent: Error parsing content:`, error);
     
-    // Return at least one section to avoid UI errors
+    // Returnăm cel puțin o secțiune pentru a evita erorile în interfața utilizator
     return [{
       type: 'lesson-plan',
       title: formData.language === 'română' ? 'Plan de lecție' : 'Lesson Plan',

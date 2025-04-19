@@ -5,7 +5,7 @@ import { handleStartJob } from "./handlers/startJob.ts";
 import { handleCheckStatus } from "./handlers/checkStatus.ts";
 import { mockCourseData } from "./helpers/mockData.ts";
 
-// Securely retrieve Claude API key from environment
+// Obtinere sigură a cheii API Claude din variabilele de mediu
 const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
 
 // Verifică și logheaza disponibilitatea API key pentru debugging
@@ -36,13 +36,15 @@ const cleanupInterval = setInterval(() => {
 }, 60 * 60 * 1000); // Rulează la fiecare oră
 
 // Oprire curățare când funcția este închisă
-addEventListener('beforeunload', () => {
+addEventListener('beforeunload', (ev) => {
+  console.log('Edge function shutting down, reason:', ev.detail?.reason);
   clearInterval(cleanupInterval);
 });
 
 serve(async (req) => {
-  // Logging pentru debugging
-  console.log(`generate-course - Cerere primită: ${req.method} ${new URL(req.url).pathname}`);
+  // Măsurare timp de procesare cerere pentru debugging
+  const requestStartTime = Date.now();
+  console.log(`generate-course - Cerere primită la ${new Date().toISOString()}: ${req.method} ${new URL(req.url).pathname}`);
   
   // Gestionare cereri preflight CORS
   if (req.method === 'OPTIONS') {
@@ -50,6 +52,14 @@ serve(async (req) => {
   }
 
   try {
+    // Verifică și configurează timeout pentru a preveni încheierea prematură
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+    const timeout = setTimeout(() => {
+      console.error("Edge function timeout limit approaching, attempting to finalize processing");
+      abortController.abort();
+    }, 28000); // 28 secunde pentru a permite returnarea răspunsului înaintea timeout-ului de 30s al Edge Function
+    
     // Verifică dacă cheia API Claude este configurată
     if (!CLAUDE_API_KEY) {
       console.warn("Cheia API Claude nu este setată! Se vor genera date mock.");
@@ -58,6 +68,7 @@ serve(async (req) => {
     // Verifică dacă cererea conține date valide
     if (!req.body) {
       console.error("Corpul cererii este gol");
+      clearTimeout(timeout);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -73,22 +84,45 @@ serve(async (req) => {
       );
     }
 
-    const requestData = await req.json();
+    // Parsare date cerere cu gestionarea timeout-ului
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (parseError) {
+      console.error("Eroare la parsarea JSON din cerere:", parseError);
+      clearTimeout(timeout);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Format invalid al cererii" 
+        }),
+        { 
+          status: 400, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
+    }
     
     console.log("Generate-course funcția primită requestData:", JSON.stringify(requestData));
     
     // Verifică ce acțiune este solicitată
     const action = requestData.action || 'start';
     
+    let response;
+    
+    // Procesare în funcție de acțiunea solicitată
     if (action === 'start') {
       console.log("Procesare acțiune 'start'");
-      return handleStartJob(requestData, corsHeaders);
+      response = await handleStartJob(requestData, corsHeaders);
     } else if (action === 'status') {
       console.log("Procesare acțiune 'status'");
-      return handleCheckStatus(requestData, corsHeaders);
+      response = await handleCheckStatus(requestData, corsHeaders);
     } else {
       console.error("Acțiune invalidă specificată:", action);
-      return new Response(
+      response = new Response(
         JSON.stringify({ 
           success: false, 
           error: "Acțiune invalidă specificată" 
@@ -102,12 +136,25 @@ serve(async (req) => {
         }
       );
     }
+    
+    // Curățare și jurnalizare metrici
+    clearTimeout(timeout);
+    const processingTime = Date.now() - requestStartTime;
+    console.log(`generate-course - Cerere procesată în ${processingTime}ms cu status ${response.status}`);
+    
+    return response;
   } catch (error) {
     console.error('Eroare în funcția generate-course:', error);
     
-    // Încercăm să furnizăm date mock în caz de eroare generală
+    // Încercare backup de furnizare date mock în caz de eroare generală
     try {
-      const requestData = await req.json();
+      let requestData;
+      try {
+        requestData = await req.json();
+      } catch (jsonError) {
+        console.error("Nu am putut extrage date din cerere pentru fallback:", jsonError);
+        requestData = { action: 'unknown' };
+      }
       
       console.log("Încercare fallback pentru cererea:", JSON.stringify(requestData));
       
@@ -119,7 +166,7 @@ serve(async (req) => {
             JSON.stringify({
               success: true,
               status: 'error',
-              error: "Eroare verificare status: " + error.message
+              error: "Eroare verificare status: " + (error.message || "Eroare necunoscută")
             }),
             {
               headers: {
@@ -131,8 +178,10 @@ serve(async (req) => {
         }
       }
       
-      console.log("Generare date mock pentru formular:", requestData.formData);
-      const mockData = mockCourseData(requestData.formData || {});
+      // Încercare generare date mock pentru a oferi utilizatorului ceva
+      const formData = requestData.formData || {};
+      console.log("Generare date mock pentru formular:", formData);
+      const mockData = mockCourseData(formData);
       
       // Asigurare că mockData are secțiuni
       if (!mockData.sections || mockData.sections.length === 0) {
@@ -165,7 +214,7 @@ serve(async (req) => {
       // Salvare job în store pentru verificări ulterioare
       jobStore.set(mockJobId, {
         status: 'completed',
-        formData: requestData.formData || {},
+        formData: formData,
         startedAt: new Date().toISOString(),
         completedAt: new Date().toISOString(),
         data: mockData
@@ -191,7 +240,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Eroare la generarea cursului: " + error.message 
+          error: "Eroare la generarea cursului: " + (error.message || "Eroare necunoscută") 
         }),
         { 
           status: 500, 
