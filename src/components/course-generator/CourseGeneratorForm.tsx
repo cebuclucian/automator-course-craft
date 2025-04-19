@@ -1,10 +1,11 @@
+
 import React, { memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Infinity as InfinityIcon } from 'lucide-react';
+import { Loader2, Infinity as InfinityIcon, AlertCircle } from 'lucide-react';
 import { CourseFormData } from '@/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supportedCourseLanguages } from '@/config/supportedCourseLanguages';
@@ -44,9 +45,11 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
 
   console.log("CourseGeneratorForm rendered with progress:", { 
     generationProgress, 
-    milestone, 
+    milestone,
+    statusMessage, 
     jobId,
-    loading 
+    loading,
+    error
   });
 
   const handleDurationChange = (value: string) => {
@@ -55,6 +58,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      {/* Status display area - always show when loading or when we have a jobId */}
       {(loading || jobId) && (
         <GenerationProgress
           generationProgress={generationProgress}
@@ -70,6 +74,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
         <Select 
           value={formData.language} 
           onValueChange={(value) => onFormDataChange('language', value)}
+          disabled={loading}
         >
           <SelectTrigger>
             <SelectValue placeholder={language === 'ro' ? 'Selectează limba' : 'Select language'} />
@@ -94,6 +99,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
               value="Corporativ"
               checked={formData.context === 'Corporativ'}
               onChange={(e) => onFormDataChange('context', e.target.value)}
+              disabled={loading}
               className="radio"
             />
             <Label htmlFor="corporativ">
@@ -107,6 +113,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
               value="Academic"
               checked={formData.context === 'Academic'}
               onChange={(e) => onFormDataChange('context', e.target.value)}
+              disabled={loading}
               className="radio"
             />
             <Label htmlFor="academic">
@@ -124,6 +131,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
           onChange={(e) => onFormDataChange('subject', e.target.value)}
           placeholder={language === 'ro' ? 'Exemplu: Comunicare eficientă în echipă' : 'Example: Effective team communication'}
           required
+          disabled={loading}
         />
       </div>
 
@@ -133,6 +141,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
           <Select 
             value={formData.level} 
             onValueChange={(value) => onFormDataChange('level', value as any)}
+            disabled={loading}
           >
             <SelectTrigger>
               <SelectValue />
@@ -156,6 +165,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
           <Select 
             value={formData.audience} 
             onValueChange={(value) => onFormDataChange('audience', value as any)}
+            disabled={loading}
           >
             <SelectTrigger>
               <SelectValue />
@@ -185,6 +195,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
           <Select 
             value={formData.duration} 
             onValueChange={handleDurationChange}
+            disabled={loading}
           >
             <SelectTrigger>
               <SelectValue />
@@ -217,6 +228,7 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
           <Select 
             value={formData.tone} 
             onValueChange={(value) => onFormDataChange('tone', value as any)}
+            disabled={loading}
           >
             <SelectTrigger>
               <SelectValue />
@@ -247,6 +259,14 @@ const CourseGeneratorForm: React.FC<CourseGeneratorFormProps> = ({
               ? 'Generarea materialelor pentru cursuri de mai multe zile poate dura până la câteva minute. Vei fi notificat când procesul este finalizat.'
               : 'Generating materials for multi-day courses can take several minutes. You will be notified when the process is complete.'}
           </AlertDescription>
+        </Alert>
+      )}
+      
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>{language === 'ro' ? 'Eroare' : 'Error'}</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 

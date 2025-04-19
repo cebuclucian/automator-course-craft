@@ -1,858 +1,433 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "./cors.ts";
-import { handleStartJob } from "./handlers/startJob.ts";
-import { handleCheckStatus } from "./handlers/checkStatus.ts";
-import { mockCourseData } from "./helpers/mockData.ts";
+import { startJob } from "./handlers/startJob.ts";
+import { checkStatus } from "./handlers/checkStatus.ts";
+import { JobStore } from "./helpers/jobProcessor.ts";
 
-// Safe retrieval of Claude API key from environment variables
-const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
-
-// Check and log API key availability for debugging
-console.log(`generate-course - CLAUDE_API_KEY is ${CLAUDE_API_KEY ? 'configured' : 'missing'}`);
-
-// In-memory store for tracking jobs (in a production app, would use a database)
-export const jobStore = new Map();
-
-// Periodic cleanup of old jobs (to prevent memory leaks)
-const cleanupInterval = setInterval(() => {
-  // Find jobs older than 24 hours
-  const now = Date.now();
-  const dayInMs = 24 * 60 * 60 * 1000;
-  
-  let removedCount = 0;
-  
-  jobStore.forEach((job, id) => {
-    const startedAt = job.startedAt ? new Date(job.startedAt).getTime() : 0;
-    if ((now - startedAt) > dayInMs) {
-      jobStore.delete(id);
-      removedCount++;
-    }
-  });
-  
-  if (removedCount > 0) {
-    console.log(`Cleanup - ${removedCount} old jobs removed from store`);
-  }
-}, 60 * 60 * 1000); // Run every hour
-
-// Stop cleanup when function is closed
-addEventListener('beforeunload', (ev) => {
-  console.log('Edge function shutting down, reason:', ev.detail?.reason);
-  clearInterval(cleanupInterval);
-});
-
-// Test endpoint for checking connectivity - now improved for debugging
-async function handleTestConnection(req) {
-  console.log("generate-course - Handle test-connection request");
-  const url = new URL(req.url);
-  console.log("generate-course - Request URL:", url.toString());
-  console.log("generate-course - Path:", url.pathname);
-  console.log("generate-course - Headers:", Object.fromEntries(req.headers));
-  
-  // Check if this is a request for the specific public endpoint
-  const isTestConnectionEndpoint = url.pathname.endsWith('/test-connection');
-  console.log("generate-course - Is test connection endpoint:", isTestConnectionEndpoint);
-  
-  // Return detailed information for debugging
-  return new Response(
-    JSON.stringify({ 
-      status: 'ok', 
-      timestamp: Date.now(),
-      apiKeyConfigured: !!CLAUDE_API_KEY,
-      jobStoreSize: jobStore.size,
-      requestUrl: url.toString(),
-      endpoint: "test-connection",
-      message: 'Edge Function is running correctly',
-      headers: Object.fromEntries(req.headers)
-    }), 
-    { 
-      headers: { 
-        ...corsHeaders,
-        'Content-Type': 'application/json' 
-      } 
-    }
-  );
+export interface Job {
+  id: string;
+  status: "processing" | "completed" | "error";
+  formData: any;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  progressPercent: number;
+  milestone?: string;
+  statusMessage?: string;
+  data?: any;
+  partialData?: any;
+  error?: string;
+  errorDetails?: any;
 }
 
-// Enhanced minimal endpoint for testing Claude API
-async function handleTestClaude(req) {
-  try {
-    console.log("generate-course - Handle test-claude request");
-    const url = new URL(req.url);
-    console.log("generate-course - Request URL:", url.toString());
-    console.log("generate-course - Path:", url.pathname);
-    console.log("generate-course - Headers:", Object.fromEntries(req.headers));
+// Store global pentru job-uri 
+// Notă: Aceasta este o soluție temporară. În producție, ar trebui să folosim un store persistent
+// sau o bază de date pentru a păstra starea job-urilor între cereri.
+const jobStore = new JobStore();
+
+// Verificăm existența API key-ului pentru Claude
+const apiKey = Deno.env.get('CLAUDE_API_KEY');
+if (apiKey) {
+  console.log("generate-course - CLAUDE_API_KEY is configured");
+} else {
+  console.warn("generate-course - CLAUDE_API_KEY is missing");
+}
+
+// Funcție de procesare a cererilor
+serve(async (req) => {
+  // Logging cerere
+  const now = new Date().toISOString();
+  console.log(`generate-course - Request received at ${now}: ${req.method} ${new URL(req.url).pathname}`);
+  console.log("generate-course - Headers:", Array.from(req.headers.entries()));
+  
+  // Gestionare CORS preflight
+  if (req.method === 'OPTIONS') {
+    console.log("generate-course - Handling OPTIONS preflight request");
+    return new Response(null, { headers: corsHeaders });
+  }
+  
+  // Verificăm dacă cererea este pentru testare
+  const pathSegments = new URL(req.url).pathname.split('/');
+  const lastSegment = pathSegments[pathSegments.length - 1];
+  
+  console.log("generate-course - Checking test endpoints:");
+  console.log(`  - isTestConnection: ${lastSegment === 'test-connection'}`);
+  console.log(`  - isTestClaude: ${lastSegment === 'test-claude'}`);
+  
+  // Endpoint test pentru conexiune
+  if (lastSegment === 'test-connection') {
+    console.log("generate-course - Handling test-connection endpoint");
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        timestamp: now,
+        message: "Connection to Edge Function successful"
+      }), 
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  // Endpoint test pentru API Claude
+  if (lastSegment === 'test-claude') {
+    console.log("generate-course - Handling test-claude endpoint");
     
-    // Check if this is a request for the specific public endpoint
-    const isTestClaudeEndpoint = url.pathname.endsWith('/test-claude');
-    console.log("generate-course - Is test Claude endpoint:", isTestClaudeEndpoint);
-    
-    if (!CLAUDE_API_KEY) {
-      console.error("generate-course - Claude API key not configured");
+    // Verificăm dacă API key-ul este configurat
+    if (!apiKey) {
+      console.warn("generate-course - Claude API key not configured for test");
+      
       return new Response(
         JSON.stringify({
-          success: false,
-          error: "Claude API Key not configured",
-          endpoint: "test-claude",
-          requestUrl: url.toString(),
+          status: "error",
+          timestamp: now,
+          message: "Claude API key not configured",
           apiKeyConfigured: false
         }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json'
-          }
-        }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    console.log("generate-course - Testing Claude API connection");
+    // Returnăm informații despre API key (mascat)
+    const maskedKey = apiKey.substring(0, 4) + '...' + apiKey.substring(apiKey.length - 4);
     
-    // Extract first and last 4 characters of the API key for verification
-    const apiKeyFirstFour = CLAUDE_API_KEY.substring(0, 4);
-    const apiKeyLastFour = CLAUDE_API_KEY.substring(CLAUDE_API_KEY.length - 4);
-    const maskedApiKey = `${apiKeyFirstFour}...${apiKeyLastFour}`;
+    console.log(`generate-course - Claude API key is configured (masked: ${maskedKey})`);
     
-    // Minimal prompt for testing
-    const prompt = "Hello! This is a connectivity test. Please respond with 'Test successful!'";
-    
-    // Direct call to Claude API with minimal prompt
     try {
+      console.log("generate-course - Testing Claude API with a simple query");
+      
+      // Facem un apel simplu către API
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': CLAUDE_API_KEY,
-          'anthropic-version': '2023-06-01'
+          'anthropic-version': '2023-06-01',
+          'x-api-key': apiKey
         },
         body: JSON.stringify({
           model: 'claude-3-sonnet-20240229',
-          max_tokens: 1000,
+          max_tokens: 20,
+          temperature: 0.1,
+          system: "Reply with just 'API test successful'.",
           messages: [
             {
               role: 'user',
-              content: prompt
+              content: "Say 'API test successful' and nothing else."
             }
           ]
         })
       });
       
-      console.log("generate-course - Claude API response status:", response.status);
-      
-      // Check response
-      if (!response.ok) {
-        const responseText = await response.text();
-        console.error("generate-course - Claude API error:", response.status, responseText);
+      // Procesăm răspunsul
+      if (response.ok) {
+        const responseData = await response.json();
+        const apiResponse = responseData.content?.[0]?.text || "No content";
         
-        let errorDetails;
-        try {
-          errorDetails = JSON.parse(responseText);
-        } catch (e) {
-          errorDetails = { raw: responseText };
-        }
+        console.log("generate-course - Claude API test successful:", apiResponse);
         
         return new Response(
           JSON.stringify({
-            success: false,
-            error: `Claude API returned status ${response.status}`,
-            details: errorDetails,
-            endpoint: "test-claude",
-            requestUrl: url.toString(),
+            status: "ok",
+            timestamp: now,
+            message: "Claude API connection successful",
             apiKeyConfigured: true,
-            apiKeyMasked: maskedApiKey
+            apiKeyMasked: maskedKey,
+            apiResponse
           }),
-          {
-            status: 500,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/json'
-            }
-          }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        const errorText = await response.text();
+        console.error("generate-course - Claude API error:", response.status, errorText);
+        
+        return new Response(
+          JSON.stringify({
+            status: "error",
+            timestamp: now,
+            message: `Claude API error: ${response.status}`,
+            apiKeyConfigured: true,
+            apiKeyMasked: maskedKey,
+            error: errorText
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
-      const responseText = await response.text();
-      console.log("generate-course - Claude API raw response:", responseText);
-      
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (e) {
-        console.error("generate-course - Error parsing JSON response:", e);
-        data = { raw: responseText };
-      }
-      
-      console.log("generate-course - Claude API parsed response:", data);
+    } catch (error: any) {
+      console.error("generate-course - Error testing Claude API:", error);
       
       return new Response(
         JSON.stringify({
-          success: true,
-          message: "Claude API test successful",
-          responseContent: data.content?.[0]?.text || "Empty response",
-          endpoint: "test-claude",
-          requestUrl: url.toString(),
+          status: "error",
+          timestamp: now,
+          message: `Error testing Claude API: ${error.message}`,
           apiKeyConfigured: true,
-          apiKeyMasked: maskedApiKey,
-          rawResponse: responseText
+          apiKeyMasked: maskedKey,
+          error: error.message
         }),
-        {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-    } catch (apiError) {
-      console.error("generate-course - Error calling Claude API:", apiError);
-      
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Error calling Claude API: ${apiError.message || "Unknown error"}`,
-          stack: apiError.stack,
-          endpoint: "test-claude",
-          requestUrl: url.toString(),
-          apiKeyConfigured: true,
-          apiKeyMasked: maskedApiKey
-        }),
-        {
-          status: 500,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json'
-          }
-        }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-  } catch (error) {
-    console.error("generate-course - Error in handleTestClaude:", error);
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: `Error testing Claude API: ${error.message || "Unknown error"}`,
-        stack: error.stack,
-        endpoint: "test-claude"
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
   }
-}
-
-// New endpoint to check environment variables
-async function handleCheckEnv(req) {
-  try {
-    console.log("generate-course - Handling check-env request");
+  
+  // Endpoint pentru verificare variabile de mediu
+  if (lastSegment === 'check-env') {
+    console.log("generate-course - Handling check-env endpoint");
     
-    // Check if CLAUDE_API_KEY is set
-    const apiKeyConfigured = !!CLAUDE_API_KEY;
-    
-    // If configured, extract first and last 4 characters
-    let apiKeyMasked = null;
-    if (apiKeyConfigured && CLAUDE_API_KEY.length >= 8) {
-      const apiKeyFirstFour = CLAUDE_API_KEY.substring(0, 4);
-      const apiKeyLastFour = CLAUDE_API_KEY.substring(CLAUDE_API_KEY.length - 4);
-      apiKeyMasked = `${apiKeyFirstFour}...${apiKeyLastFour}`;
-    }
-    
-    // Check all environment variables available (names only, not values)
-    const envVarNames = Object.keys(Deno.env.toObject());
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        apiKeyConfigured,
-        apiKeyMasked,
-        availableEnvVars: envVarNames,
-        timestamp: new Date().toISOString()
-      }),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-  } catch (error) {
-    console.error("generate-course - Error checking environment variables:", error);
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: `Error checking environment variables: ${error.message || "Unknown error"}`,
-        timestamp: new Date().toISOString()
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-  }
-}
-
-// New endpoint for checking environment variables
-async function handlePublicDebug(req: Request) {
-  try {
-    console.log("generate-course - Handling public-debug request");
-    
-    // Get the CLAUDE_API_KEY status (safely)
-    const apiKeyConfigured = !!Deno.env.get('CLAUDE_API_KEY');
-    let apiKeyMasked = null;
-    
-    // If configured, extract first and last 4 characters
-    const apiKey = Deno.env.get('CLAUDE_API_KEY');
-    if (apiKeyConfigured && apiKey && apiKey.length >= 8) {
-      const apiKeyFirstFour = apiKey.substring(0, 4);
-      const apiKeyLastFour = apiKey.substring(apiKey.length - 4);
-      apiKeyMasked = `${apiKeyFirstFour}...${apiKeyLastFour}`;
-    }
-
-    // Check all available environment variables (names only)
-    const envVarNames = Object.keys(Deno.env.toObject());
-    
-    return new Response(
-      JSON.stringify({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        message: 'Public debug endpoint is working',
-        apiKeyConfigured,
-        apiKeyMasked,
-        availableEnvVars: envVarNames,
-        functionUrl: req.url,
-        headers: Object.fromEntries(req.headers)
-      }),
-      { 
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-  } catch (error) {
-    console.error("Error in public-debug endpoint:", error);
-    return new Response(
-      JSON.stringify({
-        status: 'error',
-        timestamp: new Date().toISOString(),
-        error: error.message || "Unknown error",
-        stack: error.stack
-      }),
-      { 
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        },
-        status: 500
-      }
-    );
-  }
-}
-
-// Nou endpoint pentru diagnoză completă a sistemului
-async function handleFullDiagnosis(req: Request) {
-  try {
-    console.log("generate-course - Handling full-diagnosis request");
-    
-    // Informații despre mediu
-    const environment = {
-      timestamp: new Date().toISOString(),
-      denoVersion: Deno.version.deno,
-      v8Version: Deno.version.v8,
-      typescriptVersion: Deno.version.typescript,
-      memoryUsage: Deno.memoryUsage(),
-      availableEnvVars: Object.keys(Deno.env.toObject()),
-      claudeApiKeyConfigured: !!CLAUDE_API_KEY,
-      requestUrl: req.url,
-      requestHeaders: Object.fromEntries(req.headers)
+    const envStatus = {
+      CLAUDE_API_KEY: apiKey ? "configured" : "missing",
+      CLAUDE_API_KEY_LENGTH: apiKey ? apiKey.length : 0,
+      CLAUDE_API_KEY_MASKED: apiKey ? apiKey.substring(0, 4) + '...' + apiKey.substring(apiKey.length - 4) : null
     };
     
-    // Informații despre jobStore
-    const jobStoreStats = {
-      totalJobs: jobStore.size,
-      activeJobs: 0,
-      completedJobs: 0,
-      errorJobs: 0,
-      oldestJobTimestamp: null,
-      newestJobTimestamp: null,
-      jobIds: []
-    };
-    
-    // Analizăm jobStore pentru statistici
-    if (jobStore.size > 0) {
-      let oldestTime = Date.now();
-      let newestTime = 0;
-      
-      jobStore.forEach((job, id) => {
-        jobStoreStats.jobIds.push(id);
-        
-        if (job.status === 'processing') {
-          jobStoreStats.activeJobs++;
-        } else if (job.status === 'completed') {
-          jobStoreStats.completedJobs++;
-        } else if (job.status === 'error') {
-          jobStoreStats.errorJobs++;
-        }
-        
-        const jobTime = job.startedAt ? new Date(job.startedAt).getTime() : 0;
-        if (jobTime > 0) {
-          if (jobTime < oldestTime) oldestTime = jobTime;
-          if (jobTime > newestTime) newestTime = jobTime;
-        }
-      });
-      
-      if (oldestTime !== Date.now()) {
-        jobStoreStats.oldestJobTimestamp = new Date(oldestTime).toISOString();
-      }
-      
-      if (newestTime > 0) {
-        jobStoreStats.newestJobTimestamp = new Date(newestTime).toISOString();
-      }
-    }
-    
-    // Test minim de conectivitate Claude API
-    let claudeApiTest = { success: false, message: "Test nerealizat" };
-    if (CLAUDE_API_KEY) {
-      try {
-        const testPrompt = "Acesta este un test simplu. Răspunde doar cu 'Test reușit!'";
-        
-        console.log("full-diagnosis - Testare conexiune Claude API");
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': CLAUDE_API_KEY,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: 'claude-3-sonnet-20240229',
-            max_tokens: 100,
-            messages: [
-              {
-                role: 'user',
-                content: testPrompt
-              }
-            ]
-          })
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          claudeApiTest = {
-            success: true,
-            message: "Conexiune reușită",
-            status: response.status,
-            responseContent: data.content?.[0]?.text || "Răspuns gol"
-          };
-        } else {
-          const errorText = await response.text();
-          claudeApiTest = {
-            success: false,
-            message: `Eroare conexiune: ${response.status}`,
-            error: errorText
-          };
-        }
-      } catch (error) {
-        claudeApiTest = {
-          success: false,
-          message: "Excepție la testare",
-          error: error.message || "Eroare necunoscută"
-        };
-      }
-    } else {
-      claudeApiTest.message = "API Key Claude nesetat";
-    }
-    
-    // Verificăm funcționarea backend-ului cu un job de test simplu
-    let jobTestResult = { success: false, message: "Test nerealizat" };
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        timestamp: now,
+        environment: envStatus
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  // Endpoint pentru diagnostic complet
+  if (lastSegment === 'full-diagnosis') {
+    console.log("generate-course - Handling full-diagnosis endpoint");
     
     try {
-      console.log("full-diagnosis - Testare creare job");
+      // Diagnostic pentru API Claude
+      let claudeApiStatus = "untested";
+      let claudeApiDetails = null;
+      let claudeApiTestResponse = null;
       
-      // Creăm un job de test simplu
-      const testJobId = `diagnose-${Date.now()}`;
-      const testFormData = {
-        subject: "Test Diagnostic",
-        language: "română",
-        level: "Începător",
-        audience: "Testeri",
-        duration: "1 oră",
-        tone: "Profesional",
-        context: "Diagnostic"
-      };
-      
-      // Înregistrăm job-ul direct în jobStore
-      jobStore.set(testJobId, {
-        status: 'processing',
-        formData: testFormData,
-        startedAt: new Date().toISOString(),
-        sections: [],
-        processedSections: 0,
-        totalSections: 3
-      });
-      
-      // Simulăm procesarea unui job
-      setTimeout(() => {
-        const job = jobStore.get(testJobId);
-        if (job) {
-          const simpleSections = [
-            {
-              title: "Test Diagnostic",
-              content: "Acesta este un material de test diagnosticare.",
-              type: "diagnostic-test"
-            }
-          ];
+      if (apiKey) {
+        try {
+          console.log("generate-course - Testing Claude API for diagnosis");
           
-          jobStore.set(testJobId, {
-            ...job,
-            status: 'completed',
-            sections: simpleSections,
-            data: { sections: simpleSections },
-            completedAt: new Date().toISOString(),
-            processedSections: 1,
-            totalSections: 1
+          const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'anthropic-version': '2023-06-01',
+              'x-api-key': apiKey
+            },
+            body: JSON.stringify({
+              model: 'claude-3-sonnet-20240229',
+              max_tokens: 20,
+              temperature: 0.1,
+              system: "Reply with just 'API diagnostic test successful'.",
+              messages: [
+                {
+                  role: 'user',
+                  content: "Say 'API diagnostic test successful' and nothing else."
+                }
+              ]
+            })
           });
           
-          console.log(`full-diagnosis - Job test ${testJobId} marcat ca finalizat`);
-        }
-      }, 2000);
-      
-      jobTestResult = {
-        success: true,
-        message: "Job de test înregistrat cu succes",
-        jobId: testJobId,
-        jobStoreSize: jobStore.size
-      };
-    } catch (jobError) {
-      jobTestResult = {
-        success: false,
-        message: "Eroare la testarea job",
-        error: jobError.message || "Eroare necunoscută"
-      };
-    }
-    
-    // Construim răspunsul final
-    const diagnosticResult = {
-      success: true,
-      timestamp: new Date().toISOString(),
-      environment,
-      jobStore: jobStoreStats,
-      claudeApiTest,
-      jobTest: jobTestResult,
-      message: "Diagnoză completă efectuată cu succes"
-    };
-    
-    console.log("generate-course - Diagnostic complet finalizat");
-    
-    return new Response(
-      JSON.stringify(diagnosticResult),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-  } catch (error) {
-    console.error("Error in full-diagnosis endpoint:", error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        timestamp: new Date().toISOString(),
-        error: error.message || "Unknown error",
-        stack: error.stack
-      }),
-      { 
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        },
-        status: 500
-      }
-    );
-  }
-}
-
-serve(async (req) => {
-  // Measure request processing time for debugging
-  const requestStartTime = Date.now();
-  const url = new URL(req.url);
-  const pathname = url.pathname;
-  
-  console.log(`generate-course - Request received at ${new Date().toISOString()}: ${req.method} ${pathname}`);
-  console.log("generate-course - Headers:", JSON.stringify(Array.from(req.headers.entries())));
-  
-  try {
-    // Request body (doar pentru debugging)
-    if (req.method !== 'OPTIONS' && req.body) {
-      const clonedReq = req.clone();
-      try {
-        const bodyText = await clonedReq.text();
-        console.log(`generate-course - Request body preview (first 200 chars): ${bodyText.substring(0, 200)}`);
-      } catch (bodyError) {
-        console.log(`generate-course - Could not preview request body: ${bodyError.message}`);
-      }
-    }
-  } catch (reqDebugError) {
-    console.error("Error debugging request:", reqDebugError);
-  }
-  
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    console.log("generate-course - Handling OPTIONS preflight request");
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  // Add the new full diagnosis endpoint
-  if (pathname.endsWith('/full-diagnosis')) {
-    console.log("generate-course - Handling full-diagnosis request");
-    return await handleFullDiagnosis(req);
-  }
-  
-  // Add the new public debug endpoint
-  if (pathname.endsWith('/public-debug')) {
-    console.log("generate-course - Handling public-debug request");
-    return await handlePublicDebug(req);
-  }
-
-  // Enhanced detection of test endpoints
-  // Check if URL path contains test-connection or test-claude
-  const isTestConnection = pathname.includes('test-connection');
-  const isTestClaude = pathname.includes('test-claude');
-  
-  console.log("generate-course - Checking test endpoints:");
-  console.log("  - isTestConnection:", isTestConnection);
-  console.log("  - isTestClaude:", isTestClaude);
-  
-  // Route test endpoints
-  if (isTestConnection) {
-    console.log("generate-course - Handling test-connection request");
-    return await handleTestConnection(req);
-  }
-  
-  if (isTestClaude) {
-    console.log("generate-course - Handling test-claude request");
-    return await handleTestClaude(req);
-  }
-
-  try {
-    // Set up timeout to prevent premature termination
-    const abortController = new AbortController();
-    const signal = abortController.signal;
-    const timeout = setTimeout(() => {
-      console.error("Edge function timeout limit approaching, attempting to finalize processing");
-      abortController.abort();
-    }, 28000); // 28 seconds to allow response return before the 30s Edge Function timeout
-    
-    // Check if Claude API key is configured
-    if (!CLAUDE_API_KEY) {
-      console.warn("Claude API key is not set! Will generate mock data.");
-    }
-    
-    // Check if request contains valid data
-    if (!req.body) {
-      console.error("Request body is empty");
-      clearTimeout(timeout);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Request body is empty" 
-        }),
-        { 
-          status: 400, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
-        }
-      );
-    }
-
-    // Parse request data with timeout handling
-    let requestData;
-    try {
-      requestData = await req.json();
-      console.log("generate-course - Parsed request data:", JSON.stringify(requestData).substring(0, 500) + "...");
-    } catch (parseError) {
-      console.error("Error parsing JSON from request:", parseError);
-      clearTimeout(timeout);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Invalid request format" 
-        }),
-        { 
-          status: 400, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
-        }
-      );
-    }
-    
-    console.log("Generate-course function received requestData:", JSON.stringify(requestData));
-    
-    // Check which action is requested
-    const action = requestData.action || 'start';
-    
-    let response;
-    
-    // Process based on requested action
-    if (action === 'start') {
-      console.log("Processing 'start' action");
-      response = await handleStartJob(requestData, corsHeaders);
-    } else if (action === 'status') {
-      console.log("Processing 'status' action");
-      response = await handleCheckStatus(requestData, corsHeaders);
-    } else if (action === 'test-connection') {  // Added for compatibility with old calls
-      console.log("Processing 'test-connection' action");
-      response = await handleTestConnection(req);
-    } else if (action === 'test-claude') {  // Added for compatibility with old calls
-      console.log("Processing 'test-claude' action");
-      response = await handleTestClaude(req);
-    } else if (action === 'check-env') {
-      console.log("Processing 'check-env' action");
-      response = await handleCheckEnv(req);
-    } else {
-      console.error("Invalid action specified:", action);
-      response = new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Invalid action specified" 
-        }),
-        { 
-          status: 400, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
-        }
-      );
-    }
-    
-    // Cleanup and log metrics
-    clearTimeout(timeout);
-    const processingTime = Date.now() - requestStartTime;
-    console.log(`generate-course - Request processed in ${processingTime}ms with status ${response.status}`);
-    
-    return response;
-  } catch (error) {
-    console.error('Error in generate-course function:', error);
-    
-    // Backup attempt to provide mock data in case of general error
-    try {
-      let requestData;
-      try {
-        requestData = await req.json();
-      } catch (jsonError) {
-        console.error("Could not extract data from request for fallback:", jsonError);
-        requestData = { action: 'unknown' };
-      }
-      
-      console.log("Attempting fallback for request:", JSON.stringify(requestData));
-      
-      if (requestData.action === 'status') {
-        const jobId = requestData.jobId;
-        if (jobId) {
-          console.log(`Returning error status for job ${jobId}`);
-          return new Response(
-            JSON.stringify({
-              success: true,
-              status: 'error',
-              error: "Status check error: " + (error.message || "Unknown error")
-            }),
-            {
-              headers: {
-                ...corsHeaders,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-        }
-      }
-      
-      // Attempt to generate mock data to provide the user with something
-      const formData = requestData.formData || {};
-      console.log("Generating mock data for form:", formData);
-      const mockData = mockCourseData(formData);
-      
-      // Ensure mockData has sections
-      if (!mockData.sections || mockData.sections.length === 0) {
-        mockData.sections = [
-          { 
-            type: 'lesson-plan', 
-            title: 'Plan de lecție',
-            content: `# Emergency lesson plan\n\n## Objectives\n- Understanding basic concepts\n- Developing practical skills`
-          },
-          { 
-            type: 'slides', 
-            title: 'Slide-uri prezentare',
-            content: `# Emergency presentation\n\n## Introduction\n- This material was generated in emergency mode`
-          },
-          { 
-            type: 'trainer-notes', 
-            title: 'Note pentru trainer',
-            content: `# Trainer notes\n\n- This material was generated in emergency mode`
-          },
-          { 
-            type: 'exercises', 
-            title: 'Exerciții',
-            content: `# Exercises\n\n## Emergency exercise\nApply the basic concepts`
+          if (response.ok) {
+            const responseData = await response.json();
+            claudeApiTestResponse = responseData;
+            claudeApiStatus = "working";
+            claudeApiDetails = {
+              responseStatus: response.status,
+              model: responseData.model,
+              messageId: responseData.id,
+              content: responseData.content?.[0]?.text,
+              inputTokens: responseData.usage?.input_tokens,
+              outputTokens: responseData.usage?.output_tokens
+            };
+          } else {
+            const errorText = await response.text();
+            claudeApiStatus = "error";
+            claudeApiDetails = {
+              responseStatus: response.status,
+              error: errorText
+            };
           }
-        ];
+        } catch (error: any) {
+          claudeApiStatus = "exception";
+          claudeApiDetails = {
+            message: error.message,
+            name: error.name
+          };
+        }
+      } else {
+        claudeApiStatus = "missing_key";
       }
       
-      const mockJobId = 'fallback-' + Date.now();
-      
-      // Save job in store for later checks
-      jobStore.set(mockJobId, {
-        status: 'completed',
-        formData: formData,
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        data: mockData
+      // Diagnostic pentru JobStore
+      const jobStoreSize = jobStore.size;
+      const jobStoreKeys = Array.from(jobStore.keys());
+      const jobStoreDetails = jobStoreKeys.map(key => {
+        const job = jobStore.get(key);
+        return {
+          id: job?.id,
+          status: job?.status,
+          createdAt: job?.createdAt,
+          updatedAt: job?.updatedAt,
+          milestone: job?.milestone,
+          progressPercent: job?.progressPercent
+        };
       });
       
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          data: mockData,
-          jobId: mockJobId,
-          status: 'completed',
-          note: "Generated using backup system" 
-        }),
-        { 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
+      // Construim rezultatul diagnosticării
+      const diagnosisResult = {
+        timestamp: now,
+        environment: {
+          CLAUDE_API_KEY: apiKey ? "configured" : "missing",
+          CLAUDE_API_KEY_LENGTH: apiKey ? apiKey.length : 0,
+          CLAUDE_API_KEY_MASKED: apiKey ? apiKey.substring(0, 4) + '...' + apiKey.substring(apiKey.length - 4) : null
+        },
+        claudeApi: {
+          status: claudeApiStatus,
+          details: claudeApiDetails
+        },
+        jobStore: {
+          size: jobStoreSize,
+          keys: jobStoreKeys,
+          jobs: jobStoreDetails
+        },
+        runtime: {
+          denoVersion: Deno.version.deno,
+          v8Version: Deno.version.v8,
+          tsVersion: Deno.version.typescript
         }
-      );
-    } catch (fallbackError) {
-      console.error("Error in backup mechanism:", fallbackError);
+      };
+      
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Error generating the course: " + (error.message || "Unknown error") 
+        JSON.stringify(diagnosisResult),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error: any) {
+      console.error("generate-course - Error running full diagnosis:", error);
+      
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          timestamp: now,
+          message: `Error running diagnosis: ${error.message}`,
+          error: {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+          }
         }),
         { 
-          status: 500, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json' 
-          } 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
+  }
+  
+  // Endpoint public pentru informații de diagnosticare (acces public)
+  if (lastSegment === 'public-debug') {
+    console.log("generate-course - Handling public-debug endpoint");
+    
+    return new Response(
+      JSON.stringify({
+        timestamp: now,
+        environment: {
+          CLAUDE_API_KEY: apiKey ? "configured" : "missing"
+        },
+        jobStore: {
+          size: jobStore.size
+        },
+        runtime: {
+          denoVersion: Deno.version.deno
+        }
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  try {
+    // Pentru celelalte cereri, preluăm datele din body
+    const bodyText = await req.text();
+    let requestData;
+    
+    try {
+      requestData = JSON.parse(bodyText);
+    } catch (e) {
+      console.error("generate-course - Error parsing request body:", e);
+      console.log("generate-course - Raw request body:", bodyText);
+      
+      return new Response(
+        JSON.stringify({
+          error: "Invalid JSON in request body"
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+    
+    // Afișăm primele 200 caractere din body pentru diagnostic
+    console.log(`generate-course - Request body preview (first 200 chars): ${bodyText.substring(0, 200)}`);
+    
+    // Procesăm în funcție de acțiunea specificată
+    console.log(`Generate-course function received requestData: ${JSON.stringify(requestData)}`);
+    console.log(`generate-course - Parsed request data: ${JSON.stringify(requestData)}...`);
+    
+    if (requestData.action === 'start') {
+      console.log("Processing 'start' action");
+      const result = await startJob(requestData, jobStore, apiKey);
+      
+      const startTime = Date.now();
+      const responseData = JSON.stringify(result);
+      const processingTime = Date.now() - startTime;
+      
+      console.log(`generate-course - 'start' action processed in ${processingTime}ms with result:`, JSON.stringify(result));
+      
+      return new Response(
+        responseData,
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else if (requestData.action === 'status') {
+      console.log("Processing 'status' action");
+      const result = await checkStatus(requestData, jobStore);
+      
+      const startTime = Date.now();
+      const responseData = JSON.stringify(result);
+      const processingTime = Date.now() - startTime;
+      
+      console.log(`generate-course - 'status' action processed in ${processingTime}ms with status: ${result.status}`);
+      
+      return new Response(
+        responseData,
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      console.error(`generate-course - Unknown action: ${requestData.action}`);
+      return new Response(
+        JSON.stringify({
+          error: `Unknown action: ${requestData.action}`
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+  } catch (error: any) {
+    console.error("generate-course - Error processing request:", error);
+    
+    return new Response(
+      JSON.stringify({
+        error: `Error processing request: ${error.message}`,
+        details: {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        }
+      }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  } finally {
+    const processingTime = Date.now() - new Date(now).getTime();
+    console.log(`generate-course - Request processed in ${processingTime}ms with status 200`);
   }
 });
