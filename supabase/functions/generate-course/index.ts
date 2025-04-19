@@ -40,6 +40,7 @@ serve(async (req) => {
   const now = new Date().toISOString();
   console.log(`generate-course - Request received at ${now}: ${req.method} ${new URL(req.url).pathname}`);
   console.log("generate-course - Headers:", Array.from(req.headers.entries()));
+  console.log("generate-course - Origin:", req.headers.get("origin"));
   
   // Gestionare CORS preflight
   if (req.method === 'OPTIONS') {
@@ -52,8 +53,25 @@ serve(async (req) => {
   const lastSegment = pathSegments[pathSegments.length - 1];
   
   console.log("generate-course - Checking test endpoints:");
-  console.log(`  - isTestConnection: ${lastSegment === 'test-connection'}`);
-  console.log(`  - isTestClaude: ${lastSegment === 'test-claude'}`);
+  console.log(`  - Path segments: ${pathSegments.join(', ')}`);
+  console.log(`  - Last segment: ${lastSegment}`);
+  
+  // Debug endpoint pentru CORS
+  if (lastSegment === 'debug-cors') {
+    console.log("generate-course - Handling debug-cors endpoint");
+    const clientOrigin = req.headers.get("origin") || "No origin header";
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        message: "CORS debug endpoint",
+        timestamp: now,
+        requestHeaders: Object.fromEntries(req.headers.entries()),
+        corsHeadersUsed: corsHeaders,
+        clientOrigin: clientOrigin
+      }), 
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
   
   // Endpoint test pentru conexiune
   if (lastSegment === 'test-connection') {
