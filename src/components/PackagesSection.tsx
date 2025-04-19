@@ -234,7 +234,9 @@ const PackagesSection = () => {
   return (
     <section id="packages" className="py-16 bg-white dark:bg-gray-900">
       <div className="container mx-auto px-4">
-        <h2 className="text-3xl font-bold text-center mb-12">{language === 'ro' ? 'Alege pachetul potrivit pentru tine' : 'Choose the right package for you'}</h2>
+        <h2 className="text-3xl font-bold text-center mb-12">
+          {language === 'ro' ? 'Alege pachetul potrivit pentru tine' : 'Choose the right package for you'}
+        </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {currentPackages.map((pkg, index) => (
@@ -242,7 +244,7 @@ const PackagesSection = () => {
               key={index}
               className={`border rounded-lg overflow-hidden ${
                 pkg.highlight 
-                  ? 'border-automator-500 shadow-lg dark:border-automator-400' 
+                  ? 'border-automator-500 shadow-lg dark:border-automator-400 light:border-automator-100' 
                   : 'border-gray-200 dark:border-gray-700'
               }`}
             >
@@ -270,7 +272,7 @@ const PackagesSection = () => {
                   className={`w-full ${
                     pkg.highlight 
                       ? 'bg-automator-500 hover:bg-automator-600 text-white dark:bg-automator-600 light:bg-automator-100 light:text-automator-600 light:hover:bg-automator-200' 
-                      : ''
+                      : 'light:bg-gray-100 light:text-gray-800 light:hover:bg-gray-200'
                   }`}
                   variant={pkg.highlight ? 'default' : 'outline'}
                   onClick={() => handlePackageSelect(pkg.name)}

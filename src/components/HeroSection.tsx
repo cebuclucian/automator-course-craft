@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,7 +31,7 @@ const HeroSection = () => {
   return (
     <section className="relative py-20 bg-gradient-to-br from-automator-50 via-automator-100 to-blue-100 dark:from-automator-950 dark:via-automator-900 dark:to-blue-900">
       <div className="container mx-auto px-4 text-center">
-        <h1 className="text-4xl font-bold mb-6 my-[18px] md:text-7xl">
+        <h1 className="text-4xl font-bold mb-6 my-[18px] md:text-7xl leading-tight">
           {language === 'ro' 
             ? (
               <>
