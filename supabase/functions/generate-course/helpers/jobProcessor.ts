@@ -1,12 +1,15 @@
 
 import { jobStore } from "../index.ts";
 import { mockCourseData } from "./mockData.ts";
+import { buildPrompt } from "./promptBuilder.ts";
 
 const CLAUDE_API_KEY = Deno.env.get('CLAUDE_API_KEY');
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
 const JOB_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
 const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
+const SECTION_PATTERN = /\[ÎNCEPUT_SECȚIUNE: (.*?)\]([\s\S]*?)\[SFÂRȘIT_SECȚIUNE: \1\]/g;
+const CATEGORY_PATTERN = /\[ÎNCEPUT_CATEGORIE: (.*?)\]([\s\S]*?)\[SFÂRȘIT_CATEGORIE: \1\]/g;
 
 const cleanupJobs = () => {
   console.log("JobProcessor: Starting job cleanup");
@@ -37,6 +40,42 @@ const cleanup = setInterval(cleanupJobs, CLEANUP_INTERVAL);
 addEventListener('beforeunload', () => {
   clearInterval(cleanup);
 });
+
+// Funcție pentru extragerea secțiunilor și categoriilor din textul generat
+const extractSectionsAndCategories = (content: string) => {
+  const sections = [];
+  const categories = [];
+  let match;
+
+  // Extragem secțiunile principale
+  while ((match = SECTION_PATTERN.exec(content)) !== null) {
+    const sectionName = match[1].trim();
+    const sectionContent = match[2].trim();
+    
+    sections.push({
+      title: sectionName,
+      content: sectionContent,
+      type: sectionName.toLowerCase().replace(/\s+/g, '-')
+    });
+  }
+
+  // Resetăm indexul pentru a căuta din nou în text
+  CATEGORY_PATTERN.lastIndex = 0;
+  
+  // Extragem categoriile pentru "Contul meu"
+  while ((match = CATEGORY_PATTERN.exec(content)) !== null) {
+    const categoryName = match[1].trim();
+    const categoryContent = match[2].trim();
+    
+    categories.push({
+      title: categoryName,
+      content: categoryContent,
+      type: categoryName.toLowerCase().replace(/\s+/g, '-')
+    });
+  }
+
+  return { sections, categories };
+};
 
 export async function processJob(jobId: string, prompt: string, formData: any) {
   console.log(`JobProcessor: Starting processing job ${jobId} at ${new Date().toISOString()}`);
@@ -72,7 +111,10 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
     jobStore.set(jobId, {
       ...job,
       status: 'processing',
-      processingStartedAt: new Date().toISOString()
+      processingStartedAt: new Date().toISOString(),
+      sections: [], // Inițializăm array-ul pentru secțiuni
+      processedSections: 0,  // Inițializăm contor pentru secțiuni procesate
+      totalSections: 12  // Număr fix de secțiuni conform promptului
     });
 
     console.log(`JobProcessor: Calling Claude API for job ${jobId}`);
@@ -197,24 +239,105 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
       lastUpdated: new Date().toISOString()
     });
 
-    // Extract and process content
+    // Extract content
     const content = result.content[0].text;
     console.log(`JobProcessor: Content extracted for job ${jobId}, length: ${content?.length || 0}`);
     
-    const sections = parseContentToSections(content, formData);
-    console.log(`JobProcessor: ${sections.length} sections extracted for job ${jobId}`);
+    // Procesare asincronă secțiune cu secțiune
+    try {
+      // Extragem secțiunile și categoriile din conținut
+      const { sections, categories } = extractSectionsAndCategories(content);
+      console.log(`JobProcessor: Extracted ${sections.length} sections and ${categories.length} categories for job ${jobId}`);
+      
+      // Actualizăm numărul total de secțiuni găsite
+      if (sections.length > 0) {
+        jobStore.set(jobId, {
+          ...jobStore.get(jobId),
+          totalSections: sections.length
+        });
+      }
 
-    // Update job with success status
-    jobStore.set(jobId, {
-      ...job,
-      status: 'completed',
-      data: { sections },
-      completedAt: new Date().toISOString(),
-      milestone: 'completed',
-      lastUpdated: new Date().toISOString()
-    });
-
-    console.log(`JobProcessor: Job ${jobId} completed successfully at ${new Date().toISOString()}`);
+      // Procesare incrementală a secțiunilor (simulare)
+      let processedCount = 0;
+      const delay = 500; // Delay între actualizări pentru a simula procesarea incrementală
+      
+      // Folosim două arrays - unul pentru secțiuni deja procesate, altul pentru toate secțiunile
+      const processedSections = [];
+      const allSections = [];
+      
+      // Adăugăm categoriile la secțiuni
+      if (categories.length > 0) {
+        allSections.push({
+          title: "Categorii pentru Contul Meu",
+          type: "categories",
+          categories // Stocăm categoriile ca sub-obiecte
+        });
+      }
+      
+      // Procesăm fiecare secțiune și o adăugăm incremental
+      for (const section of sections) {
+        // Simulăm procesarea secțiunii
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        // Adăugăm secțiunea curentă la cele procesate
+        processedSections.push(section);
+        allSections.push(section);
+        processedCount++;
+        
+        // Actualizăm job-ul cu secțiunile procesate până acum
+        jobStore.set(jobId, {
+          ...jobStore.get(jobId),
+          sections: [...processedSections], // Copiem array-ul pentru a evita referințele
+          processedSections: processedCount,
+          lastUpdated: new Date().toISOString()
+        });
+        
+        console.log(`JobProcessor: Processed section ${processedCount}/${sections.length} for job ${jobId}: ${section.title}`);
+      }
+      
+      // După procesarea tuturor secțiunilor, finalizăm job-ul
+      jobStore.set(jobId, {
+        ...jobStore.get(jobId),
+        status: 'completed',
+        data: { sections: allSections }, // Pentru compatibilitate cu format vechi
+        sections: allSections, // Pentru noul format
+        completedAt: new Date().toISOString(),
+        milestone: 'completed',
+        processedSections: processedCount,
+        lastUpdated: new Date().toISOString()
+      });
+      
+      console.log(`JobProcessor: Job ${jobId} completed successfully with ${processedCount} sections at ${new Date().toISOString()}`);
+    } catch (processingError) {
+      console.error(`JobProcessor: Error processing content for job ${jobId}:`, processingError);
+      
+      // Încercăm să facem fallback la metoda originală de procesare
+      console.log(`JobProcessor: Attempting fallback processing for job ${jobId}`);
+      
+      // Creăm secțiuni simple bazate pe conținutul complet
+      const simpleSections = [
+        {
+          title: "Material de curs",
+          content: content,
+          type: "complete-course"
+        }
+      ];
+      
+      jobStore.set(jobId, {
+        ...jobStore.get(jobId),
+        status: 'completed',
+        data: { sections: simpleSections },
+        sections: simpleSections,
+        completedAt: new Date().toISOString(),
+        milestone: 'completed',
+        processedSections: 1,
+        totalSections: 1,
+        lastUpdated: new Date().toISOString(),
+        processingError: processingError.message || "Eroare la procesarea conținutului"
+      });
+      
+      console.log(`JobProcessor: Job ${jobId} completed with fallback processing at ${new Date().toISOString()}`);
+    }
   } catch (error) {
     console.error(`JobProcessor: Error processing job ${jobId}:`, error);
     
@@ -236,97 +359,5 @@ export async function processJob(jobId: string, prompt: string, formData: any) {
     }
     
     throw error;
-  }
-}
-
-function parseContentToSections(content: string, formData: any) {
-  console.log(`ParseContent: Starting to parse content, length: ${content.length}`);
-  
-  try {
-    // Verificare dacă conținutul include secțiuni JSON
-    if (content.includes('```json')) {
-      console.log(`ParseContent: Detected JSON format in response`);
-      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
-      
-      if (jsonMatch && jsonMatch[1]) {
-        try {
-          const jsonData = JSON.parse(jsonMatch[1]);
-          console.log(`ParseContent: JSON parsed successfully, sections: ${jsonData.sections?.length || 0}`);
-          
-          if (jsonData.sections && Array.isArray(jsonData.sections)) {
-            return jsonData.sections;
-          }
-        } catch (jsonError) {
-          console.error(`ParseContent: Error parsing JSON:`, jsonError);
-        }
-      }
-    }
-    
-    // Dacă nu găsim JSON sau interpretarea eșuează, încercăm extragerea secțiunilor manual
-    console.log(`ParseContent: Attempting to extract sections manually`);
-    
-    // Identificare secțiuni principale folosind delimitatori (ex., ## Plan de lecție, ## Slide-uri etc)
-    const lessonPlanMatch = content.match(/(?:##\s*Plan de lecție|##\s*Lesson Plan)([\s\S]*?)(?=##|$)/i);
-    const slidesMatch = content.match(/(?:##\s*Slide-uri|##\s*Prezentare|##\s*Slides)([\s\S]*?)(?=##|$)/i);
-    const notesMatch = content.match(/(?:##\s*Note pentru trainer|##\s*Trainer Notes)([\s\S]*?)(?=##|$)/i);
-    const exercisesMatch = content.match(/(?:##\s*Exerciții|##\s*Exercises)([\s\S]*?)(?=##|$)/i);
-    
-    const sections = [];
-    
-    if (lessonPlanMatch && lessonPlanMatch[1]) {
-      sections.push({
-        type: 'lesson-plan',
-        title: formData.language === 'română' ? 'Plan de lecție' : 'Lesson Plan',
-        content: `# ${formData.subject} - ${formData.language === 'română' ? 'Plan de lecție' : 'Lesson Plan'}\n\n${lessonPlanMatch[1].trim()}`
-      });
-    }
-    
-    if (slidesMatch && slidesMatch[1]) {
-      sections.push({
-        type: 'slides',
-        title: formData.language === 'română' ? 'Slide-uri prezentare' : 'Presentation Slides',
-        content: `# ${formData.subject} - ${formData.language === 'română' ? 'Slide-uri prezentare' : 'Presentation Slides'}\n\n${slidesMatch[1].trim()}`
-      });
-    }
-    
-    if (notesMatch && notesMatch[1]) {
-      sections.push({
-        type: 'trainer-notes',
-        title: formData.language === 'română' ? 'Note pentru trainer' : 'Trainer Notes',
-        content: `# ${formData.subject} - ${formData.language === 'română' ? 'Note pentru trainer' : 'Trainer Notes'}\n\n${notesMatch[1].trim()}`
-      });
-    }
-    
-    if (exercisesMatch && exercisesMatch[1]) {
-      sections.push({
-        type: 'exercises',
-        title: formData.language === 'română' ? 'Exerciții' : 'Exercises',
-        content: `# ${formData.subject} - ${formData.language === 'română' ? 'Exerciții' : 'Exercises'}\n\n${exercisesMatch[1].trim()}`
-      });
-    }
-    
-    console.log(`ParseContent: Manually extracted ${sections.length} sections`);
-    
-    // Dacă tot nu avem secțiuni, folosim întregul conținut ca plan de lecție
-    if (sections.length === 0) {
-      console.log(`ParseContent: No sections could be extracted, using entire content`);
-      sections.push({
-        type: 'lesson-plan',
-        title: formData.language === 'română' ? 'Plan de lecție' : 'Lesson Plan',
-        content: `# ${formData.subject} - ${formData.language === 'română' ? 'Material generat' : 'Generated Material'}\n\n${content.trim()}`
-      });
-    }
-    
-    return sections;
-    
-  } catch (error) {
-    console.error(`ParseContent: Error parsing content:`, error);
-    
-    // Returnăm cel puțin o secțiune pentru a evita erorile în interfața utilizator
-    return [{
-      type: 'lesson-plan',
-      title: formData.language === 'română' ? 'Plan de lecție' : 'Lesson Plan',
-      content: `# ${formData.subject}\n\n${formData.language === 'română' ? 'Nu s-a putut genera conținut structurat.' : 'Could not generate structured content.'}`
-    }];
   }
 }

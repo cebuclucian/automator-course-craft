@@ -54,7 +54,7 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
     const currentTime = Date.now();
     const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
     
-    // Estimare procentaj progres bazat pe milestone și timp scurs
+    // Estimare procentaj progres bazat pe milestone, secțiuni procesate și timp scurs
     let progressPercent = 10; // Default initial progress
     
     if (jobData.status === 'completed') {
@@ -62,13 +62,17 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
     } else if (jobData.status === 'error') {
       progressPercent = 100;
     } else if (jobData.status === 'processing') {
-      // Progres bazat pe milestone
+      // Progres bazat pe milestone și secțiuni procesate (dacă există)
       if (jobData.milestone === 'api_call_started') {
         progressPercent = 20;
       } else if (jobData.milestone === 'api_response_received') {
         progressPercent = 50;
       } else if (jobData.milestone === 'processing_content') {
         progressPercent = 75;
+      } else if (jobData.processedSections && jobData.totalSections) {
+        // Calculăm progresul bazat pe secțiunile procesate (45% la 95%)
+        const sectionProgress = jobData.processedSections / jobData.totalSections;
+        progressPercent = 45 + Math.floor(sectionProgress * 50);
       } else {
         // Estimare liniară bazată pe timp (până la 90% max pentru processing)
         progressPercent = Math.min(10 + Math.floor(elapsedSeconds / 5), 90);
@@ -85,9 +89,34 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
       elapsedSeconds
     };
     
+    // Adăugăm informații despre secțiunile procesate, dacă există
+    if (jobData.processedSections !== undefined && jobData.totalSections !== undefined) {
+      response.processedSections = jobData.processedSections;
+      response.totalSections = jobData.totalSections;
+    }
+    
     // Dacă job-ul este finalizat, includem și datele generate
     if (jobData.status === 'completed') {
       console.log(`CheckStatus - Job ${jobId} este finalizat, returnare date`);
+      
+      // Pentru versiunea incrementală, verificăm dacă avem date în formatul nou (cu secțiuni multiple)
+      if (jobData.processedSections && jobData.sections && Array.isArray(jobData.sections)) {
+        return new Response(
+          JSON.stringify({
+            ...response,
+            data: { sections: jobData.sections },
+            completedAt: jobData.completedAt
+          }),
+          {
+            headers: {
+              ...headers,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+      
+      // Fallback la formatul vechi
       return new Response(
         JSON.stringify({
           ...response,
@@ -120,6 +149,12 @@ export const handleCheckStatus = async (requestData: any, headers: Record<string
           }
         }
       );
+    }
+    
+    // Returnăm secțiunile procesate până acum pentru job-uri în procesare
+    if (jobData.sections && Array.isArray(jobData.sections) && jobData.sections.length > 0) {
+      console.log(`CheckStatus - Job ${jobId} în procesare, returnare secțiuni parțiale (${jobData.sections.length})`);
+      response.partialData = { sections: jobData.sections };
     }
     
     // Adăugăm milestone și ultimul update pentru job-uri în procesare

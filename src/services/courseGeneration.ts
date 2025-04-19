@@ -266,6 +266,13 @@ export const checkCourseGenerationStatus = async (jobId: string): Promise<any> =
         }
         
         console.log(`courseGeneration.ts - Status job ${jobId}:`, data);
+        
+        // Procesare secțiuni parțiale, dacă există
+        if (data.partialData && data.partialData.sections) {
+          console.log(`courseGeneration.ts - Job ${jobId} are secțiuni parțiale: ${data.partialData.sections.length}`);
+          data.partialSections = data.partialData.sections;
+        }
+        
         return data;
       } catch (requestError: any) {
         console.error(`courseGeneration.ts - Eroare request la verificare status (încercare ${attempt}):`, requestError);

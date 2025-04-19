@@ -134,7 +134,10 @@ Important: Formatează toate secțiunile cu markdown, folosind titluri, subtitlu
     jobStore.set(jobId, {
       status: 'processing',
       formData,
-      startedAt: new Date().toISOString()
+      startedAt: new Date().toISOString(),
+      sections: [], // Inițializăm un array gol pentru secțiuni
+      processedSections: 0, // Numărul de secțiuni procesate
+      totalSections: 0 // Va fi actualizat în timpul procesării
     });
     
     console.log(`StartJob - Job înregistrat în store cu statusul "processing"`);
